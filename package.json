@@ -1,6 +1,9 @@
 {
   "name": "@form0/cli",
   "version": "0.0.1-alpha.1",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
   "type": "module",
   "bin": {
     "form0": "./bin/form0.js"
