@@ -19,7 +19,8 @@ export async function initCommand(dir) {
           required: true,
           hidden: false,
           read_only: false,
-          pattern: '^[a-zA-Z]+$'
+          pattern: '^[a-zA-Z]+$',
+          pattern_description: 'One or more letters (uppercase or lowercase), with no spaces, numbers, or symbols'
         },
         {
           type: 'NumericField',
@@ -29,7 +30,8 @@ export async function initCommand(dir) {
           hidden: false,
           read_only: false,
           min: 16,
-          max: 100
+          max: 100,
+          format: 'integer', //NumericField can be 'integer' or 'float'
         }
       ]
     },
@@ -39,8 +41,11 @@ export async function initCommand(dir) {
       label: 'Eligible',
       required: false, //CalcualtedField is required = false by default
       hidden: false,
-      read_only: false, //CalcualtedField is read_only = false by default
-      calculate: 'IF($age >= 18, "yes", "no")'
+      read_only: true, //CalcualtedField is read_only = true by default
+      calculate: 'IF($age >= 18, "yes", "no")',
+      display: {
+          style: 'text' // or numeric, date, currency
+      }
     },
     {
         type: 'CalculatedField',
@@ -48,8 +53,11 @@ export async function initCommand(dir) {
         label: 'calc_test',
         required: false, //CalcualtedField is required = false by default
         hidden: false,
-        read_only: false, //CalcualtedField is read_only = false by default
-        calculate: 'SETRESULT($age + 10 >= 30 ? true : false)'
+        read_only: true, //CalcualtedField is read_only = true by default
+        calculate: 'SETRESULT($age + 10 >= 30 ? true : false)',
+        display: {
+            style: 'text' // or numeric, date, currency
+        }
     },
     {
         type: 'TextField',
