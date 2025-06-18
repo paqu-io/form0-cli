@@ -60,6 +60,18 @@ export async function initCommand(dir) {
         }
     },
     {
+        type: 'CalculatedField',
+        data_name: 'calc_test_new',
+        label: 'calc_test_new',
+        required: false, //CalcualtedField is required = false by default
+        hidden: false,
+        read_only: true, //CalcualtedField is read_only = true by default
+        calculate: '$age + 88',
+        display: {
+            style: 'text' // or numeric, date, currency
+        }
+    },
+    {
         type: 'TextField',
         data_name: 'who_voted',
         label: 'Who voted?',
