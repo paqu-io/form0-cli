@@ -1,4 +1,4 @@
-import { generateKey } from 'form0';
+import { generateKey } from 'form0-core';
 
 /**
  * Recursively ensures that every field (including sections) with a `data_name`

@@ -1,5 +1,5 @@
 import fs from 'fs-extra';
-import { validateSchema } from 'form0';
+import { validateSchema } from 'form0-core';
 
 export async function validateCommand(file) {
   try {

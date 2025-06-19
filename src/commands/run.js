@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { createFormEngine } from 'form0';
+import { createFormEngine } from 'form0-core';
 import yaml from 'yaml';
 
 export async function runCommand(schemaPath, options) {
