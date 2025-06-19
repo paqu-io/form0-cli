@@ -5,7 +5,7 @@ import { generateKey } from 'form0-core';
  * has a generated `key` if missing.
  */
 export function ensureKeysForSchema(elements) {
-  elements.forEach(field => {
+  elements.forEach((field) => {
     if (!field.key && field.data_name) {
       field.key = generateKey(field.data_name);
     }

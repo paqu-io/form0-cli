@@ -10,21 +10,21 @@ export async function runCommand(schemaPath, options) {
     let initialValues = {};
 
     if (valuesInput) {
-        const ext = path.extname(valuesInput).toLowerCase();
-        if (ext === '.yaml' || ext === '.yml') {
-          const yamlText = await fs.readFile(valuesInput, 'utf8');
-          initialValues = yaml.parse(yamlText);
-        } else if (ext === '.json') {
-          initialValues = await fs.readJson(valuesInput);
-        } else {
-          // Treat as inline JSON string
-          initialValues = JSON.parse(valuesInput);
-        }
-    }      
+      const ext = path.extname(valuesInput).toLowerCase();
+      if (ext === '.yaml' || ext === '.yml') {
+        const yamlText = await fs.readFile(valuesInput, 'utf8');
+        initialValues = yaml.parse(yamlText);
+      } else if (ext === '.json') {
+        initialValues = await fs.readJson(valuesInput);
+      } else {
+        // Treat as inline JSON string
+        initialValues = JSON.parse(valuesInput);
+      }
+    }
 
     const engine = createFormEngine({
       schema: data,
-      initialValues
+      initialValues,
     });
 
     engine.eval();

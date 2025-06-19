@@ -7,10 +7,7 @@ import { runCommand } from '../src/commands/run.js';
 
 const program = new Command();
 
-program
-  .name('form0')
-  .description('CLI tools for form0-powered forms')
-  .version('0.1.0');
+program.name('form0').description('CLI tools for form0-powered forms').version('0.1.0');
 
 program
   .command('init')
