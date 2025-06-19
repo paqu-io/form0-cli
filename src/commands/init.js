@@ -72,6 +72,24 @@ export async function initCommand(dir) {
         }
     },
     {
+        type: 'Section',
+        data_name: 'section_drill',
+        label: 'Drilldown section test',
+        display: 'drilldown', //Section can be 'inline' or 'drilldown'
+        elements: [
+          {
+            type: 'TextField',
+            data_name: 'comments',
+            label: 'Comments',
+            required: false,
+            hidden: false,
+            read_only: false,
+            pattern: null,
+            pattern_description: null
+          }
+        ]
+    },
+    {
         type: 'TextField',
         data_name: 'who_voted',
         label: 'Who voted?',
@@ -84,7 +102,7 @@ export async function initCommand(dir) {
               {
                 or: [
                   { field_key: 'age', operator: 'greater_than', value: 20 },
-                  { field_key: 'name', operator: 'equal_to', value: 'Bob' }
+                  { field_key: 'first_name', operator: 'equal_to', value: 'Bob' }
                 ]
               }
             ]
