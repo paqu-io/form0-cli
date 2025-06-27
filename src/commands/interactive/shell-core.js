@@ -4,6 +4,8 @@ import { BRAND_COLOR, READLINE_CONFIG } from '../../utils/constants.js';
 import { showWelcomeBanner, showHelp, showStatus } from '../../utils/display-utils.js';
 import { completer } from '../../utils/completion-utils.js';
 import { testCommand } from '../test.js';
+import { themeCommand } from '../theme.js';
+import { loadConfig } from '../../utils/config.js';
 
 /**
  * Manages the interactive shell core functionality
@@ -34,6 +36,9 @@ export class ShellCore {
    * Start the interactive shell
    */
   async start() {
+    // Load configuration first
+    await loadConfig();
+    
     this.initializeReadline();
     
     showWelcomeBanner();
@@ -152,6 +157,10 @@ export class ShellCore {
           } else {
             console.clear();
           }
+          break;
+          
+        case 'theme':
+          await themeCommand(args[0]);
           break;
           
         case 'exit':

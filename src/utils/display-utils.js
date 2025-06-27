@@ -44,6 +44,7 @@ export function showHelp() {
   console.log();
   console.log(chalk.cyan('  Session Management:'));
   console.log('    status, s            Show session status');
+  console.log('    theme [name]         View or change theme (dark, light)');
   console.log('    clear values         Clear stored values');
   console.log('    clear, cls           Clear screen');
   console.log('    help, h              Show this help');
