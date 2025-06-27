@@ -41,7 +41,7 @@ Create a new form0 project with sample schema:
 
 ```bash
 # In interactive mode
-"form0> init"
+'form0> init'
 
 # Or run directly
 form0 init my-form-project
