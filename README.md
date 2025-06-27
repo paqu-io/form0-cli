@@ -39,9 +39,8 @@ This will:
 
 Create a new form0 project with sample schema:
 
-```bash
+```console
 # In interactive mode
-$ form0
 form0> init
 
 # Or as standalone command
