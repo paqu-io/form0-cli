@@ -9,13 +9,13 @@ Interactive CLI tools for form0-powered forms. Build, validate, and test form sc
 
 Install form0-cli globally to use it from anywhere:
 
-```console
+```bash
 npm install -g form0-cli
 ```
 
 Or use it directly with npx:
 
-```console
+```bash
 npx form0-cli
 ```
 
@@ -25,7 +25,7 @@ npx form0-cli
 
 Simply run `form0` to enter the interactive environment:
 
-```console
+```bash
 form0
 ```
 
@@ -41,7 +41,7 @@ Create a new form0 project with sample schema:
 
 ```bash
 # In interactive mode
-'form0> init'
+form0> init
 
 # Or run directly
 form0 init my-form-project
@@ -54,7 +54,7 @@ This creates:
 
 ### Load and Preview Forms
 
-```console
+```bash
 # In interactive mode
 form0> load form.schema.json
 form0> preview
@@ -91,7 +91,7 @@ Once in interactive mode (`form0`), you can use these commands:
 
 You can also use form0-cli commands directly:
 
-```console
+```bash
 # Initialize project
 form0 init my-project
 
@@ -114,17 +114,17 @@ form0 watch form.schema.json --auto-run --auto-validate
 Form0-cli supports multiple ways to provide test values:
 
 ### JSON String
-```console
+```bash
 form0> run --values {"first_name": "Alice", "age": 25}
 ```
 
 ### JSON File
-```console
+```bash
 form0> run --values values.json
 ```
 
 ### YAML File
-```console
+```bash
 form0> run --values test-data.yaml
 ```
 
@@ -144,7 +144,7 @@ All values are automatically validated against your schema's field names. Invali
 ## Examples
 
 ### Basic Workflow
-```console
+```bash
 # Start interactive mode
 form0
 
@@ -163,7 +163,7 @@ form0> watch --auto-run --auto-validate
 ```
 
 ### Development Workflow
-```console
+```bash
 # Watch schema file and auto-run engine on changes
 form0 watch form.schema.json --auto-run --values test-data.json
 
