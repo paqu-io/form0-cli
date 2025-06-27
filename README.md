@@ -59,7 +59,7 @@ This creates:
 form0> load form.schema.json
 form0> preview
 
-# Or as standalone command
+# Or run directly
 form0 preview form.schema.json
 ```
 
@@ -101,11 +101,11 @@ form0 validate form.schema.json
 # Preview form structure
 form0 preview form.schema.json
 
-# Run engine with test values
+# Run engine with `test` values
 form0 run form.schema.json --values '{"name": "Alice", "age": 25}'
 form0 run form.schema.json --values test-values.json
 
-# Watch for changes
+# Watch `for` changes
 form0 watch form.schema.json --auto-run --auto-validate
 ```
 
