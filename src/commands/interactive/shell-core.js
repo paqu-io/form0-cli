@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { BRAND_COLOR, READLINE_CONFIG } from '../../utils/constants.js';
 import { showWelcomeBanner, showHelp, showStatus } from '../../utils/display-utils.js';
 import { completer } from '../../utils/completion-utils.js';
+import { testCommand } from '../test.js';
 
 /**
  * Manages the interactive shell core functionality
@@ -101,6 +102,16 @@ export class ShellCore {
         case 'validate':
         case 'v':
           this.schemaManager.validateCurrentSchema();
+          break;
+          
+        case 'test':
+        case 't':
+          try {
+            const dir = args[0] || '.';
+            await testCommand(dir);
+          } catch (err) {
+            console.log(chalk.red(`❌ Test failed: ${err.message}`));
+          }
           break;
           
         case 'status':

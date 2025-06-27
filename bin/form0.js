@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { initCommand } from '../src/commands/init.js';
+import { testCommand } from '../src/commands/test.js';
 import { validateCommand } from '../src/commands/validate.js';
 import { previewCommand } from '../src/commands/preview.js';
 import { runCommand } from '../src/commands/run.js';
@@ -21,6 +22,12 @@ if (process.argv.length === 2) {
     .argument('[dir]', 'Directory to create', 'my-form')
     .description('Initialize a new form0 schema project')
     .action(initCommand);
+
+  program
+    .command('test')
+    .argument('[dir]', 'Directory containing test.js file', '.')
+    .description('Run the test.js file in the specified directory')
+    .action(testCommand);
 
   program
     .command('validate')

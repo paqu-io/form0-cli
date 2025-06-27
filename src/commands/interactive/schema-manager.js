@@ -2,7 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import { validateSchema } from 'form0-core';
-import { initCommand } from '../init.js';
+import { initForInteractive } from '../init.js';
 import { COMMON_SCHEMA_PATHS } from '../../utils/constants.js';
 import { findExistingSchema } from '../../utils/schema-utils.js';
 import { showSchemaPreview } from '../../utils/display-utils.js';
@@ -139,7 +139,7 @@ export class SchemaManager {
     }
     
     try {
-      await initCommand(dir);
+      await initForInteractive(dir);
       
       // Auto-load the newly created schema if initialized in current directory
       if (dir === '.') {

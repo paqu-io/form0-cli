@@ -35,6 +35,7 @@ export function showHelp() {
   console.log(chalk.cyan('  Engine Operations:'));
   console.log('    run [options], r     Execute form engine with optional values');
   console.log(chalk.gray('      options: --values <input>'));
+  console.log('    test [dir], t        Run test.js file in directory (default: current)');
   console.log('    watch [options], w   Watch schema file for changes');
   console.log(chalk.gray('      options: --auto-run, --auto-validate, --values <input>'));
   console.log('    watch stop           Stop watching current schema');
