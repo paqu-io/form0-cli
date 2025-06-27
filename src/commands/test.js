@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
-import chalk from 'chalk';
 import { spawn } from 'child_process';
+import { colors } from '../utils/theme.js';
 
 // Helper function to check if npm is available
 async function isNpmAvailable() {
@@ -32,15 +32,15 @@ export async function testCommand(dir = '.') {
 
   // Check if test.js exists
   if (!(await fs.pathExists(testFilePath))) {
-    console.error(chalk.red('❌ No test.js file found in'), chalk.cyan(base));
-    console.log(chalk.yellow('💡 Run'), chalk.cyan('form0 init'), chalk.yellow('to create a test project first'));
+    console.error(colors.error('❌ No test.js file found in'), colors.value(base));
+    console.log(colors.warning('💡 Run'), colors.value('form0 init'), colors.warning('to create a test project first'));
     process.exit(1);
   }
 
   // Check if schema file exists
   if (!(await fs.pathExists(schemaFilePath))) {
-    console.error(chalk.red('❌ No form.schema.json file found in'), chalk.cyan(base));
-    console.log(chalk.yellow('💡 Make sure you have a valid form schema file'));
+    console.error(colors.error('❌ No form.schema.json file found in'), colors.value(base));
+    console.log(colors.warning('💡 Make sure you have a valid form schema file'));
     process.exit(1);
   }
 
@@ -49,13 +49,13 @@ export async function testCommand(dir = '.') {
     const npmAvailable = await isNpmAvailable();
     
     if (!npmAvailable) {
-      console.log(chalk.yellow('⚠️  npm is not available in your PATH.'));
-      console.log(chalk.yellow('💡 Please install Node.js/npm or run'), chalk.cyan('npm install'), chalk.yellow('manually in:'));
-      console.log(chalk.cyan('   ' + base));
+      console.log(colors.warning('⚠️  npm is not available in your PATH.'));
+      console.log(colors.warning('💡 Please install Node.js/npm or run'), colors.value('npm install'), colors.warning('manually in:'));
+      console.log(colors.value('   ' + base));
       console.log();
-      console.log(chalk.yellow('🔄 Attempting to run test anyway...'));
+      console.log(colors.warning('🔄 Attempting to run test anyway...'));
     } else {
-      console.log(chalk.yellow('📦 Installing dependencies...'));
+      console.log(colors.warning('📦 Installing dependencies...'));
       
       // Determine the correct npm command for the platform
       const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -80,19 +80,19 @@ export async function testCommand(dir = '.') {
         });
         console.log();
       } catch (error) {
-        console.log(chalk.yellow('⚠️  Failed to auto-install dependencies.'));
-        console.log(chalk.yellow('💡 Please run'), chalk.cyan('npm install'), chalk.yellow('manually before testing.'));
-        console.log(chalk.gray('Error:', error.message));
+        console.log(colors.warning('⚠️  Failed to auto-install dependencies.'));
+        console.log(colors.warning('💡 Please run'), colors.value('npm install'), colors.warning('manually before testing.'));
+        console.log(colors.textSecondary('Error:', error.message));
         console.log();
         
         // Continue with the test anyway, but warn the user
-        console.log(chalk.yellow('🔄 Attempting to run test anyway...'));
+        console.log(colors.warning('🔄 Attempting to run test anyway...'));
       }
     }
   }
 
-  console.log(chalk.blue('🧪 Running test file:'), chalk.cyan(testFilePath));
-  console.log(chalk.gray('─'.repeat(50)));
+  console.log(colors.info('🧪 Running test file:'), colors.value(testFilePath));
+  console.log(colors.textMuted('─'.repeat(50)));
 
   return new Promise((resolve, reject) => {
     const child = spawn('node', [testFilePath], {
@@ -101,18 +101,18 @@ export async function testCommand(dir = '.') {
     });
 
     child.on('close', (code) => {
-      console.log(chalk.gray('─'.repeat(50)));
+      console.log(colors.textMuted('─'.repeat(50)));
       if (code === 0) {
-        console.log(chalk.green('✅ Test completed successfully'));
+        console.log(colors.success('✅ Test completed successfully'));
         resolve();
       } else {
-        console.log(chalk.red(`❌ Test failed with exit code ${code}`));
+        console.log(colors.error(`❌ Test failed with exit code ${code}`));
         reject(new Error(`Test failed with exit code ${code}`));
       }
     });
 
     child.on('error', (err) => {
-      console.error(chalk.red('❌ Failed to run test:'), err.message);
+      console.error(colors.error('❌ Failed to run test:'), err.message);
       reject(err);
     });
   });

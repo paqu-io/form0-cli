@@ -20,7 +20,7 @@ export const COMMANDS = [
   'help', 'h', 'load', 'l', 'preview', 'p', 'run', 'r', 
   'validate', 'v', 'watch', 'w', 'status', 's', 'values',
   'reload', 'rld', 'clear', 'cls', 'exit', 'quit', 'q',
-  'init', 'fields', 'f'
+  'init', 'fields', 'f', 'theme'
 ];
 
 export const WATCH_OPTIONS = ['--auto-run', '--auto-validate', '--values', 'stop'];

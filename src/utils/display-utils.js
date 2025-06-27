@@ -1,12 +1,11 @@
-import chalk from 'chalk';
 import path from 'path';
-import { BRAND_COLOR } from './constants.js';
+import { colors } from './theme.js';
 
 /**
  * Display the welcome banner with ASCII art
  */
 export function showWelcomeBanner() {
-  console.log(chalk.hex(BRAND_COLOR).bold(`
+  console.log(colors.brandBold(`
   ███████╗ ██████╗ ██████╗ ███╗   ███╗ ██████╗ 
   ██╔════╝██╔═══██╗██╔══██╗████╗ ████║██╔═████╗
   █████╗  ██║   ██║██████╔╝██╔████╔██║██║██╔██║
@@ -14,47 +13,48 @@ export function showWelcomeBanner() {
   ██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║╚██████╔╝
   ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ 
     `));
-  console.log(chalk.hex(BRAND_COLOR)('                    Interactive CLI Environment'));
-  console.log(chalk.hex(BRAND_COLOR)('                    Made with 🦙 by paqu.io\n'));
+  console.log(colors.brand('                    Interactive CLI Environment'));
+  console.log(colors.brand('                    Made with 🦙 by paqu.io\n'));
 }
 
 /**
  * Display the help text with all available commands
  */
 export function showHelp() {
-  console.log(chalk.blue.bold('\n📚 Available Commands:\n'));
-  console.log(chalk.gray('  Notation: <required> [optional]'));
+  console.log(colors.header('\n📚 Available Commands:\n'));
+  console.log(colors.textSecondary('  Notation: <required> [optional]'));
   console.log();
-  console.log(chalk.cyan('  Schema Management:'));
-  console.log('    init [dir]           Initialize new form0 project (default: current dir)');
-  console.log('    load <file>, l       Load a form schema file');
-  console.log('    reload, rld          Reload current schema file');
-  console.log('    validate, v          Validate current schema');
-  console.log('    preview, p           Show form structure');
+  console.log(colors.accent1('  Schema Management:'));
+  console.log(colors.text('    init [dir]           Initialize new form0 project (default: current dir)'));
+  console.log(colors.text('    load <file>, l       Load a form schema file'));
+  console.log(colors.text('    reload, rld          Reload current schema file'));
+  console.log(colors.text('    validate, v          Validate current schema'));
+  console.log(colors.text('    preview, p           Show form structure'));
   console.log();
-  console.log(chalk.cyan('  Engine Operations:'));
-  console.log('    run [options], r     Execute form engine with optional values');
-  console.log(chalk.gray('      options: --values <input>'));
-  console.log('    test [dir], t        Run test.js file in directory (default: current)');
-  console.log('    watch [options], w   Watch schema file for changes');
-  console.log(chalk.gray('      options: --auto-run, --auto-validate, --values <input>'));
-  console.log('    watch stop           Stop watching current schema');
-  console.log('    values               Show stored test values');
-  console.log('    fields, f            Show valid field names from schema');
+  console.log(colors.accent1('  Engine Operations:'));
+  console.log(colors.text('    run [options], r     Execute form engine with optional values'));
+  console.log(colors.textSecondary('      options: --values <input>'));
+  console.log(colors.text('    test [dir], t        Run test.js file in directory (default: current)'));
+  console.log(colors.text('    watch [options], w   Watch schema file for changes'));
+  console.log(colors.textSecondary('      options: --auto-run, --auto-validate, --values <input>'));
+  console.log(colors.text('    watch stop           Stop watching current schema'));
+  console.log(colors.text('    values               Show stored test values'));
+  console.log(colors.text('    fields, f            Show valid field names from schema'));
   console.log();
-  console.log(chalk.cyan('  Session Management:'));
-  console.log('    status, s            Show session status');
-  console.log('    clear values         Clear stored values');
-  console.log('    clear, cls           Clear screen');
-  console.log('    help, h              Show this help');
-  console.log('    exit, quit, q        Exit interactive mode');
+  console.log(colors.accent1('  Session Management:'));
+  console.log(colors.text('    status, s            Show session status'));
+  console.log(colors.text('    theme [name]         View or change theme (dark, light)'));
+  console.log(colors.text('    clear values         Clear stored values'));
+  console.log(colors.text('    clear, cls           Clear screen'));
+  console.log(colors.text('    help, h              Show this help'));
+  console.log(colors.text('    exit, quit, q        Exit interactive mode'));
   console.log();
-  console.log(chalk.gray('  Navigation: Use ↑/↓ arrows for command history, Tab for completion'));
-  console.log(chalk.gray('  Examples:'));
-  console.log(chalk.gray('    run --values {"first_name": "Alice", "age": 25}'));
-  console.log(chalk.gray('    run --values values.json  (uses values from file)'));
-  console.log(chalk.gray('    watch --auto-run  (uses stored values)'));
-  console.log(chalk.gray('    watch --auto-run --values {"first_name": "Bob", "age": 30}'));
+  console.log(colors.textMuted('  Navigation: Use ↑/↓ arrows for command history, Tab for completion'));
+  console.log(colors.textMuted('  Examples:'));
+  console.log(colors.textMuted('    run --values {"first_name": "Alice", "age": 25}'));
+  console.log(colors.textMuted('    run --values values.json  (uses values from file)'));
+  console.log(colors.textMuted('    watch --auto-run  (uses stored values)'));
+  console.log(colors.textMuted('    watch --auto-run --values {"first_name": "Bob", "age": 30}'));
   console.log();
 }
 
@@ -71,24 +71,24 @@ export function showStatus(sessionInfo) {
     lastValues
   } = sessionInfo;
 
-  console.log(chalk.blue.bold('\n📊 Session Status:'));
-  console.log(chalk.gray('  Directory:'), chalk.cyan(path.basename(process.cwd())));
-  console.log(chalk.gray('  Schema:'), currentSchemaPath ? chalk.green(currentSchemaPath) : chalk.red('None loaded'));
-  console.log(chalk.gray('  Form:'), currentSchema?.form?.name ? chalk.green(currentSchema.form.name) : chalk.red('N/A'));
-  console.log(chalk.gray('  Engine:'), engine ? chalk.green('Ready') : chalk.yellow('Not initialized'));
-  console.log(chalk.gray('  Watching:'), isWatching ? chalk.green('Active') : chalk.red('Stopped'));
+  console.log(colors.header('\n📊 Session Status:'));
+  console.log(colors.textSecondary('  Directory:'), colors.value(path.basename(process.cwd())));
+  console.log(colors.textSecondary('  Schema:'), currentSchemaPath ? colors.success(currentSchemaPath) : colors.error('None loaded'));
+  console.log(colors.textSecondary('  Form:'), currentSchema?.form?.name ? colors.success(currentSchema.form.name) : colors.error('N/A'));
+  console.log(colors.textSecondary('  Engine:'), engine ? colors.success('Ready') : colors.warning('Not initialized'));
+  console.log(colors.textSecondary('  Watching:'), isWatching ? colors.success('Active') : colors.error('Stopped'));
   
   if (isWatching) {
     const options = [];
     if (watchOptions.autoRun) options.push('auto-run');
     if (watchOptions.autoValidate) options.push('auto-validate');
     if (options.length > 0) {
-      console.log(chalk.gray('  Options:'), chalk.yellow(options.join(', ')));
+      console.log(colors.textSecondary('  Options:'), colors.warning(options.join(', ')));
     }
   }
   
   const valuesCount = Object.keys(lastValues).length;
-  console.log(chalk.gray('  Test Values:'), valuesCount > 0 ? chalk.green(`${valuesCount} fields stored`) : chalk.red('None'));
+  console.log(colors.textSecondary('  Test Values:'), valuesCount > 0 ? colors.success(`${valuesCount} fields stored`) : colors.error('None'));
   
   console.log();
 }
@@ -97,11 +97,11 @@ export function showStatus(sessionInfo) {
  * Display stored test values
  */
 export function showValues(lastValues) {
-  console.log(chalk.blue.bold('\n💾 Stored Test Values:'));
+  console.log(colors.header('\n💾 Stored Test Values:'));
   
   if (Object.keys(lastValues).length === 0) {
-    console.log(chalk.gray('  No values currently stored'));
-    console.log(chalk.gray('  Use "run --values <values>" to store values\n'));
+    console.log(colors.textSecondary('  No values currently stored'));
+    console.log(colors.textMuted('  Use "run --values <values>" to store values\n'));
     return;
   }
 
@@ -113,18 +113,18 @@ export function showValues(lastValues) {
  * Display valid field names from schema
  */
 export function showValidFields(validFields, hasSchema) {
-  console.log(chalk.blue.bold('\n📋 Valid Field Names:'));
+  console.log(colors.header('\n📋 Valid Field Names:'));
   
   if (!hasSchema) {
-    console.log(chalk.red('  No schema loaded'));
-    console.log(chalk.gray('  Use "load <file>" to load a schema first\n'));
+    console.log(colors.error('  No schema loaded'));
+    console.log(colors.textMuted('  Use "load <file>" to load a schema first\n'));
     return;
   }
   
   if (validFields.length === 0) {
-    console.log(chalk.gray('  No fields found in schema'));
+    console.log(colors.textSecondary('  No fields found in schema'));
   } else {
-    console.log(chalk.gray(`  ${validFields.join(', ')}`));
+    console.log(colors.textSecondary(`  ${validFields.join(', ')}`));
   }
   
   console.log();
@@ -139,30 +139,30 @@ export function printFields(elements, indent = '') {
     const connector = isLast ? '└─' : '├─';
     const childIndent = indent + (isLast ? '  ' : '│ ');
     
-    let typeColor = chalk.white;
+    let typeColor = colors.fieldDefault;
     switch (element.type) {
       case 'Section':
-        typeColor = chalk.magenta;
+        typeColor = colors.fieldSection;
         break;
       case 'TextField':
-        typeColor = chalk.green;
+        typeColor = colors.fieldText;
         break;
       case 'NumericField':
-        typeColor = chalk.blue;
+        typeColor = colors.fieldNumeric;
         break;
       case 'CalculatedField':
-        typeColor = chalk.yellow;
+        typeColor = colors.fieldCalculated;
         break;
       default:
-        typeColor = chalk.cyan;
+        typeColor = colors.fieldDefault;
     }
     
     const label = element.label || element.data_name || 'Unlabeled';
-    const dataNameDisplay = element.data_name ? chalk.gray(` [${element.data_name}]`) : '';
-    const keyDisplay = element.key ? chalk.gray(` (key: ${element.key})`) : '';
+    const dataNameDisplay = element.data_name ? colors.textMuted(` [${element.data_name}]`) : '';
+    const keyDisplay = element.key ? colors.textMuted(` (key: ${element.key})`) : '';
     
     console.log(
-      `${indent}${connector} ${typeColor(element.type)} ${chalk.bold(label)}${dataNameDisplay}${keyDisplay}`
+      `${indent}${connector} ${typeColor(element.type)} ${colors.label(label)}${dataNameDisplay}${keyDisplay}`
     );
     
     if (element.type === 'Section' && element.elements) {
@@ -176,9 +176,9 @@ export function printFields(elements, indent = '') {
  */
 export function showSchemaPreview(schema) {
   const form = schema.form;
-  console.log(chalk.blue.bold(`\n📋 Form: ${form.name || 'Unnamed'}`));
+  console.log(colors.header(`\n📋 Form: ${form.name || 'Unnamed'}`));
   if (form.description) {
-    console.log(chalk.gray(`   ${form.description}`));
+    console.log(colors.textSecondary(`   ${form.description}`));
   }
   console.log();
   

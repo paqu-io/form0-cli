@@ -7,10 +7,15 @@ import { previewCommand } from '../src/commands/preview.js';
 import { runCommand } from '../src/commands/run.js';
 import { watchCommand } from '../src/commands/watch.js';
 import { interactiveCommand } from '../src/commands/interactive.js';
+import { themeCommand } from '../src/commands/theme.js';
+import { loadConfig } from '../src/utils/config.js';
 
 const program = new Command();
 
 program.name('form0').description('CLI tools for form0-powered forms').version('0.1.0');
+
+// Load configuration (theme settings, etc.)
+await loadConfig();
 
 // Check if no arguments provided - enter interactive mode
 if (process.argv.length === 2) {
@@ -63,6 +68,13 @@ if (process.argv.length === 2) {
     .alias('shell')
     .description('Enter interactive form0 environment')
     .action(interactiveCommand);
+
+  // Theme command
+  program
+    .command('theme')
+    .argument('[name]', 'Theme name (dark, light)')
+    .description('View or change the current theme')
+    .action(themeCommand);
 
   program.parse();
 }

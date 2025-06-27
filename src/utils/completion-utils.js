@@ -1,4 +1,5 @@
 import { COMMANDS, WATCH_OPTIONS, CLEAR_OPTIONS, RUN_OPTIONS } from './constants.js';
+import { getAvailableThemes } from './theme.js';
 
 /**
  * Handle tab completion for interactive commands
@@ -33,6 +34,13 @@ export function completer(line) {
     const lastArg = args[args.length - 1];
     const hits = RUN_OPTIONS.filter(opt => opt.startsWith(lastArg));
     return [hits, lastArg];
+  }
+  
+  if (command === 'theme' && args.length === 2) {
+    // Complete theme names
+    const availableThemes = getAvailableThemes();
+    const hits = availableThemes.filter(theme => theme.startsWith(args[1]));
+    return [hits, args[1]];
   }
   
   return [[], line];
