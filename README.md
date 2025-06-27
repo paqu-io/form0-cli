@@ -39,9 +39,9 @@ This will:
 
 Create a new form0 project with sample schema:
 
-```console
+```bash
 # In interactive mode
-form0> init
+form0\> init
 
 # Or run directly
 form0 init my-form-project
@@ -101,11 +101,11 @@ form0 validate form.schema.json
 # Preview form structure
 form0 preview form.schema.json
 
-# Run engine with `test` values
+# Run engine with test values
 form0 run form.schema.json --values '{"name": "Alice", "age": 25}'
 form0 run form.schema.json --values test-values.json
 
-# Watch `for` changes
+# Watch for changes
 form0 watch form.schema.json --auto-run --auto-validate
 ```
 
