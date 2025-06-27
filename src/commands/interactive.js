@@ -7,7 +7,28 @@ import { validateSchema } from 'form0-core';
 import { getValidDataNames, validateValues, filterValidValues } from '../utils/value-validation.js';
 import { initCommand } from './init.js';
 import chokidar from 'chokidar';
-import yaml from 'yaml';
+import { 
+  BRAND_COLOR, 
+  COMMON_SCHEMA_PATHS, 
+  WATCHER_CONFIG, 
+  READLINE_CONFIG 
+} from '../utils/constants.js';
+import {
+  showWelcomeBanner,
+  showHelp,
+  showStatus,
+  showValues,
+  showValidFields,
+  showSchemaPreview,
+  formatTimestamp
+} from '../utils/display-utils.js';
+import {
+  findExistingSchema,
+  parseValuesInput,
+  findTestValueFile,
+  countElements
+} from '../utils/schema-utils.js';
+import { completer } from '../utils/completion-utils.js';
 
 class Form0Interactive {
   constructor() {
@@ -21,62 +42,18 @@ class Form0Interactive {
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
-      prompt: chalk.hex('#DB3700')('form0> '),
-      completer: this.completer.bind(this), // Enable tab completion
+      prompt: chalk.hex(BRAND_COLOR)('form0> '),
+      completer: completer, // Enable tab completion
       history: [], // Enable command history (↑/↓ arrows)
-      historySize: 100 // Remember last 100 commands
+      historySize: READLINE_CONFIG.historySize
     });
   }
 
-  // Tab completion function
-  completer(line) {
-    const commands = [
-      'help', 'h', 'load', 'l', 'preview', 'p', 'run', 'r', 
-      'validate', 'v', 'watch', 'w', 'status', 's', 'values',
-      'reload', 'rld', 'clear', 'cls', 'exit', 'quit', 'q',
-      'init', 'fields', 'f'
-    ];
-    
-    const watchOptions = ['--auto-run', '--auto-validate', '--values', 'stop'];
-    const clearOptions = ['values'];
-    //const singleCommands = ['clear-values'];
-    const runOptions = ['--values'];
-    
-    const args = line.split(' ');
-    const command = args[0];
-    
-    if (args.length === 1) {
-      // Complete main commands
-      const hits = commands.filter(cmd => cmd.startsWith(line));
-      return [hits.length ? hits : [], line];
-    }
-    
-    if (command === 'watch' && args.length >= 2) {
-      // Complete watch options
-      const lastArg = args[args.length - 1];
-      const hits = watchOptions.filter(opt => opt.startsWith(lastArg));
-      return [hits, lastArg];
-    }
-    
-    if (command === 'clear' && args.length === 2) {
-      // Complete clear options
-      const hits = clearOptions.filter(opt => opt.startsWith(args[1]));
-      return [hits, args[1]];
-    }
-    
-    if (command === 'run' && args.length >= 2) {
-      // Complete run options
-      const lastArg = args[args.length - 1];
-      const hits = runOptions.filter(opt => opt.startsWith(lastArg));
-      return [hits, lastArg];
-    }
-    
-    return [[], line];
-  }
+
 
   async start() {
-    this.showWelcomeBanner();
-    console.log(chalk.hex('#DB3700').bold('🚀 Welcome to form0 interactive environment'));
+    showWelcomeBanner();
+    console.log(chalk.hex(BRAND_COLOR).bold('🚀 Welcome to form0 interactive environment'));
     console.log(chalk.gray('Type "help" for available commands or "exit" to quit\n'));
     
     // Smart initialization: Auto-load schema or offer to initialize
@@ -101,38 +78,24 @@ class Form0Interactive {
     });
   }
 
-  showWelcomeBanner() {
-    console.log(chalk.hex('#DB3700').bold(`
-  ███████╗ ██████╗ ██████╗ ███╗   ███╗ ██████╗ 
-  ██╔════╝██╔═══██╗██╔══██╗████╗ ████║██╔═████╗
-  █████╗  ██║   ██║██████╔╝██╔████╔██║██║██╔██║
-  ██╔══╝  ██║   ██║██╔══██╗██║╚██╔╝██║████╔╝██║
-  ██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║╚██████╔╝
-  ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ 
-    `));
-    console.log(chalk.hex('#DB3700')('                    Interactive CLI Environment'));
-    console.log(chalk.hex('#DB3700')('                    Made with 🦙 by paqu.io\n'));
-  }
+
 
   async smartInit() {
-    const commonPaths = ['form.schema.json', 'schema.json', 'form.json'];
-    
     // Try to auto-load existing schema
-    for (const schemaPath of commonPaths) {
-      if (await fs.pathExists(schemaPath)) {
-        try {
-          await this.loadSchema(schemaPath);
-          console.log(chalk.green(`✅ Auto-loaded schema: ${schemaPath}\n`));
-          return;
-        } catch (err) {
-          console.log(chalk.yellow(`⚠️  Found ${schemaPath} but failed to load: ${err.message}\n`));
-        }
+    const existingSchema = await findExistingSchema();
+    if (existingSchema) {
+      try {
+        await this.loadSchema(existingSchema);
+        console.log(chalk.green(`✅ Auto-loaded schema: ${existingSchema}\n`));
+        return;
+      } catch (err) {
+        console.log(chalk.yellow(`⚠️  Found ${existingSchema} but failed to load: ${err.message}\n`));
       }
     }
     
     // No valid schema found, offer to initialize
     console.log(chalk.yellow(`🔍 No form schema found in current directory (${path.basename(process.cwd())}).`));
-    console.log(chalk.gray('   Looking for: form.schema.json, schema.json, or form.json\n'));
+    console.log(chalk.gray(`   Looking for: ${COMMON_SCHEMA_PATHS.join(', ')}\n`));
     
     console.log(chalk.cyan('💡 Would you like to initialize a new form0 project?'));
     console.log(chalk.gray('   • Type "init" to create a sample schema'));
@@ -173,7 +136,7 @@ class Form0Interactive {
       switch (command.toLowerCase()) {
         case 'help':
         case 'h':
-          this.showHelp();
+          showHelp();
           break;
         
         case 'init':
@@ -263,8 +226,7 @@ class Form0Interactive {
     
     if (dir === '.') {
       // Check if current directory already has a schema
-      const commonPaths = ['form.schema.json', 'schema.json', 'form.json'];
-      const existingSchema = commonPaths.find(p => fs.pathExistsSync(p));
+      const existingSchema = COMMON_SCHEMA_PATHS.find(p => fs.pathExistsSync(p));
       
       if (existingSchema) {
         console.log(chalk.yellow(`⚠️  Found existing schema: ${existingSchema}`));
@@ -290,41 +252,7 @@ class Form0Interactive {
     }
   }
 
-  showHelp() {
-    console.log(chalk.blue.bold('\n📚 Available Commands:\n'));
-    console.log(chalk.gray('  Notation: <required> [optional]'));
-    console.log();
-    console.log(chalk.cyan('  Schema Management:'));
-    console.log('    init [dir]           Initialize new form0 project (default: current dir)');
-    console.log('    load <file>, l       Load a form schema file');
-    console.log('    reload, rld          Reload current schema file');
-    console.log('    validate, v          Validate current schema');
-    console.log('    preview, p           Show form structure');
-    console.log();
-    console.log(chalk.cyan('  Engine Operations:'));
-    console.log('    run [options], r     Execute form engine with optional values');
-    console.log(chalk.gray('      options: --values <input>'));
-    console.log('    watch [options], w   Watch schema file for changes');
-    console.log(chalk.gray('      options: --auto-run, --auto-validate, --values <input>'));
-    console.log('    watch stop           Stop watching current schema');
-    console.log('    values               Show stored test values');
-    console.log('    fields, f            Show valid field names from schema');
-    console.log();
-    console.log(chalk.cyan('  Session Management:'));
-    console.log('    status, s            Show session status');
-    console.log('    clear values         Clear stored values');
-    console.log('    clear, cls           Clear screen');
-    console.log('    help, h              Show this help');
-    console.log('    exit, quit, q        Exit interactive mode');
-    console.log();
-    console.log(chalk.gray('  Navigation: Use ↑/↓ arrows for command history, Tab for completion'));
-    console.log(chalk.gray('  Examples:'));
-    console.log(chalk.gray('    run --values {"first_name": "Alice", "age": 25}'));
-    console.log(chalk.gray('    run --values values.json  (uses values from file)'));
-    console.log(chalk.gray('    watch --auto-run  (uses stored values)'));
-    console.log(chalk.gray('    watch --auto-run --values {"first_name": "Bob", "age": 30}'));
-    console.log();
-  }
+
 
   previewSchema() {
     if (!this.currentSchema) {
@@ -332,54 +260,10 @@ class Form0Interactive {
       return;
     }
 
-    const form = this.currentSchema.form;
-    console.log(chalk.blue.bold(`\n📋 Form: ${form.name || 'Unnamed'}`));
-    if (form.description) {
-      console.log(chalk.gray(`   ${form.description}`));
-    }
-    console.log();
-    
-    this.printFields(form.elements || []);
-    console.log();
+    showSchemaPreview(this.currentSchema);
   }
 
-  printFields(elements, indent = '') {
-    elements.forEach((element, index) => {
-      const isLast = index === elements.length - 1;
-      const connector = isLast ? '└─' : '├─';
-      const childIndent = indent + (isLast ? '  ' : '│ ');
-      
-      let typeColor = chalk.white;
-      switch (element.type) {
-        case 'Section':
-          typeColor = chalk.magenta;
-          break;
-        case 'TextField':
-          typeColor = chalk.green;
-          break;
-        case 'NumericField':
-          typeColor = chalk.blue;
-          break;
-        case 'CalculatedField':
-          typeColor = chalk.yellow;
-          break;
-        default:
-          typeColor = chalk.cyan;
-      }
-      
-          const label = element.label || element.data_name || 'Unlabeled';
-    const dataNameDisplay = element.data_name ? chalk.gray(` [${element.data_name}]`) : '';
-    const keyDisplay = element.key ? chalk.gray(` (key: ${element.key})`) : '';
-    
-    console.log(
-      `${indent}${connector} ${typeColor(element.type)} ${chalk.bold(label)}${dataNameDisplay}${keyDisplay}`
-    );
-      
-      if (element.type === 'Section' && element.elements) {
-        this.printFields(element.elements, childIndent);
-      }
-    });
-  }
+
 
   // Use shared validation utilities
   getValidDataNames() {
@@ -411,17 +295,7 @@ class Form0Interactive {
         valuesInput = args.join(' ');
       }
       
-      const ext = path.extname(valuesInput).toLowerCase();
-      
-      if (ext === '.yaml' || ext === '.yml') {
-        const yamlText = await fs.readFile(valuesInput, 'utf8');
-        initialValues = yaml.parse(yamlText);
-      } else if (ext === '.json') {
-        initialValues = await fs.readJson(valuesInput);
-      } else {
-        // Treat as inline JSON string
-        initialValues = JSON.parse(valuesInput);
-      }
+      initialValues = await parseValuesInput(valuesInput);
       
       // Validate and filter values against schema
       const filteredValues = this.filterValidValues(initialValues);
@@ -458,26 +332,15 @@ class Form0Interactive {
   }
 
   showStatus() {
-    console.log(chalk.blue.bold('\n📊 Session Status:'));
-    console.log(chalk.gray('  Directory:'), chalk.cyan(path.basename(process.cwd())));
-    console.log(chalk.gray('  Schema:'), this.currentSchemaPath ? chalk.green(this.currentSchemaPath) : chalk.red('None loaded'));
-    console.log(chalk.gray('  Form:'), this.currentSchema?.form?.name ? chalk.green(this.currentSchema.form.name) : chalk.red('N/A'));
-    console.log(chalk.gray('  Engine:'), this.engine ? chalk.green('Ready') : chalk.yellow('Not initialized'));
-    console.log(chalk.gray('  Watching:'), this.isWatching ? chalk.green('Active') : chalk.red('Stopped'));
-    
-    if (this.isWatching) {
-      const options = [];
-      if (this.watchOptions.autoRun) options.push('auto-run');
-      if (this.watchOptions.autoValidate) options.push('auto-validate');
-      if (options.length > 0) {
-        console.log(chalk.gray('  Options:'), chalk.yellow(options.join(', ')));
-      }
-    }
-    
-    const valuesCount = Object.keys(this.lastValues).length;
-    console.log(chalk.gray('  Test Values:'), valuesCount > 0 ? chalk.green(`${valuesCount} fields stored`) : chalk.red('None'));
-    
-    console.log();
+    const sessionInfo = {
+      currentSchemaPath: this.currentSchemaPath,
+      currentSchema: this.currentSchema,
+      engine: this.engine,
+      isWatching: this.isWatching,
+      watchOptions: this.watchOptions,
+      lastValues: this.lastValues
+    };
+    showStatus(sessionInfo);
   }
 
   async handleWatchCommand(args) {
@@ -534,18 +397,7 @@ class Form0Interactive {
   }
 
   async parseAndStoreValues(valuesInput) {
-    let initialValues = {};
-    const ext = path.extname(valuesInput).toLowerCase();
-    
-    if (ext === '.yaml' || ext === '.yml') {
-      const yamlText = await fs.readFile(valuesInput, 'utf8');
-      initialValues = yaml.parse(yamlText);
-    } else if (ext === '.json') {
-      initialValues = await fs.readJson(valuesInput);
-    } else {
-      // Treat as inline JSON string
-      initialValues = JSON.parse(valuesInput);
-    }
+    const initialValues = await parseValuesInput(valuesInput);
     
     // Validate and filter values against schema
     const filteredValues = this.filterValidValues(initialValues);
@@ -553,23 +405,13 @@ class Form0Interactive {
   }
 
   async tryAutoLoadTestValues() {
-    const commonTestFiles = [
-      'test-values.json',
-      'test.values.json', 
-      'values.json',
-      'sample-data.json',
-      'test-data.json'
-    ];
-
-    for (const testFile of commonTestFiles) {
-      if (await fs.pathExists(testFile)) {
-        try {
-          await this.parseAndStoreValues(testFile);
-          console.log(chalk.green(`✅ Auto-loaded test values from: ${testFile}`));
-          return;
-        } catch (err) {
-          console.log(chalk.yellow(`⚠️  Found ${testFile} but failed to load: ${err.message}`));
-        }
+    const testFile = await findTestValueFile();
+    if (testFile) {
+      try {
+        await this.parseAndStoreValues(testFile);
+        console.log(chalk.green(`✅ Auto-loaded test values from: ${testFile}`));
+      } catch (err) {
+        console.log(chalk.yellow(`⚠️  Found ${testFile} but failed to load: ${err.message}`));
       }
     }
   }
@@ -578,14 +420,7 @@ class Form0Interactive {
 
     this.watchOptions = options;
     
-    this.watcher = chokidar.watch(this.currentSchemaPath, {
-      persistent: true,
-      ignoreInitial: true,
-      awaitWriteFinish: {
-        stabilityThreshold: 500, // Wait 500ms after last change
-        pollInterval: 100
-      }
-    });
+    this.watcher = chokidar.watch(this.currentSchemaPath, WATCHER_CONFIG);
 
     this.watcher.on('change', async (filePath) => {
       await this.handleFileChange(filePath);
@@ -628,7 +463,7 @@ class Form0Interactive {
   }
 
   async handleFileChange(filePath) {
-    const timestamp = new Date().toLocaleTimeString();
+    const timestamp = formatTimestamp();
     console.log(chalk.blue.bold(`\n🔄 [${timestamp}] File changed: ${path.basename(filePath)}`));
     
     try {
@@ -639,7 +474,7 @@ class Form0Interactive {
       
       // Show basic info about the schema
       const formName = this.currentSchema.form?.name || 'Unnamed Form';
-      const elementCount = this.countElements(this.currentSchema.form?.elements || []);
+      const elementCount = countElements(this.currentSchema.form?.elements || []);
       console.log(chalk.cyan(`📋 Form: "${formName}" (${elementCount} elements)`));
       
       // Auto-validate if enabled
@@ -665,28 +500,10 @@ class Form0Interactive {
     this.rl.prompt();
   }
 
-  countElements(elements) {
-    let count = 0;
-    for (const element of elements) {
-      count++;
-      if (element.type === 'Section' && element.elements) {
-        count += this.countElements(element.elements);
-      }
-    }
-    return count;
-  }
+
 
   showValues() {
-    console.log(chalk.blue.bold('\n💾 Stored Test Values:'));
-    
-    if (Object.keys(this.lastValues).length === 0) {
-      console.log(chalk.gray('  No values currently stored'));
-      console.log(chalk.gray('  Use "run --values <values>" to store values\n'));
-      return;
-    }
-
-    console.log(JSON.stringify(this.lastValues, null, 2));
-    console.log();
+    showValues(this.lastValues);
   }
 
   clearValues() {
@@ -701,22 +518,8 @@ class Form0Interactive {
   }
 
   showValidFields() {
-    console.log(chalk.blue.bold('\n📋 Valid Field Names:'));
-    
-    if (!this.currentSchema) {
-      console.log(chalk.red('  No schema loaded'));
-      console.log(chalk.gray('  Use "load <file>" to load a schema first\n'));
-      return;
-    }
-    
-    const validFields = this.getValidDataNames();
-    if (validFields.length === 0) {
-      console.log(chalk.gray('  No fields found in schema'));
-    } else {
-      console.log(chalk.gray(`  ${validFields.join(', ')}`));
-    }
-    
-    console.log();
+    const validFields = this.currentSchema ? this.getValidDataNames() : [];
+    showValidFields(validFields, !!this.currentSchema);
   }
 }
 

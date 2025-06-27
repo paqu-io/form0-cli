@@ -182,10 +182,6 @@ form0 watch form.schema.json --auto-run --values test-data.json
 - [form0-react](https://www.npmjs.com/package/form0-react) - React components
 - [form0-react-native](https://www.npmjs.com/package/form0-react-native) - React Native components
 
-## License
-
-MIT
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues and pull requests.
