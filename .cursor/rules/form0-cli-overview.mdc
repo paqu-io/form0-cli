@@ -3,7 +3,7 @@ description: form0-cli package overview and key concepts
 globs: 
 alwaysApply: false
 ---
-# form0 CLI - Pacakage Overview
+# form0 CLI - Package Overview
 
 form0 CLI is a command-line interface for working with form0-powered forms. It provides tools for initializing, validating, previewing, and running form schemas.
 

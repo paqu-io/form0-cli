@@ -1,6 +1,8 @@
 import fs from 'fs-extra';
 import path from 'path';
+import chalk from 'chalk';
 import { createFormEngine } from 'form0-core';
+import { filterValidValues } from '../utils/value-validation.js';
 import yaml from 'yaml';
 
 export async function runCommand(schemaPath, options) {
@@ -20,6 +22,9 @@ export async function runCommand(schemaPath, options) {
         // Treat as inline JSON string
         initialValues = JSON.parse(valuesInput);
       }
+      
+      // Validate and filter values against schema
+      initialValues = filterValidValues(initialValues, data);
     }
 
     const engine = createFormEngine({
@@ -28,10 +33,10 @@ export async function runCommand(schemaPath, options) {
     });
 
     engine.eval();
-    console.log('🧠 Engine State:\n');
+    console.log(chalk.blue.bold('🧠 Engine State:\n'));
     console.log(JSON.stringify(engine.getState(), null, 2));
   } catch (err) {
-    console.error('❌ Failed to run engine:', err.message);
+    console.error(chalk.red('❌ Failed to run engine:'), err.message);
     process.exit(1);
   }
 }
