@@ -1,11 +1,11 @@
 import readline from 'readline';
-import chalk from 'chalk';
-import { BRAND_COLOR, READLINE_CONFIG } from '../../utils/constants.js';
+import { READLINE_CONFIG } from '../../utils/constants.js';
 import { showWelcomeBanner, showHelp, showStatus } from '../../utils/display-utils.js';
 import { completer } from '../../utils/completion-utils.js';
 import { testCommand } from '../test.js';
 import { themeCommand } from '../theme.js';
 import { loadConfig } from '../../utils/config.js';
+import { colors } from '../../utils/theme.js';
 
 /**
  * Manages the interactive shell core functionality
@@ -25,7 +25,7 @@ export class ShellCore {
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
-      prompt: chalk.hex(BRAND_COLOR)('form0> '),
+      prompt: colors.brand('form0> '),
       completer: completer, // Enable tab completion
       history: [], // Enable command history (↑/↓ arrows)
       historySize: READLINE_CONFIG.historySize
@@ -42,8 +42,8 @@ export class ShellCore {
     this.initializeReadline();
     
     showWelcomeBanner();
-    console.log(chalk.hex(BRAND_COLOR).bold('🚀 Welcome to form0 interactive environment'));
-    console.log(chalk.gray('Type "help" for available commands or "exit" to quit\n'));
+    console.log(colors.brandBold('🚀 Welcome to form0 interactive environment'));
+    console.log(colors.textSecondary('Type "help" for available commands or "exit" to quit\n'));
     
     // Smart initialization: Auto-load schema or offer to initialize
     await this.schemaManager.smartInit();
@@ -60,7 +60,7 @@ export class ShellCore {
 
     this.rl.on('close', () => {
       this.cleanup();
-      console.log(chalk.hex(BRAND_COLOR).bold('\n🦙 Hasta pronto! 🦙'));
+      console.log(colors.brandBold('\n🦙 Hasta pronto! 🦙'));
       process.exit(0);
     });
   }
@@ -85,13 +85,13 @@ export class ShellCore {
         case 'load':
         case 'l':
           if (!args[0]) {
-            console.log(chalk.red('❌ Usage: load <schema-file>'));
+            console.log(colors.error('❌ Usage: load <schema-file>'));
             return;
           }
           await this.schemaManager.loadSchema(args[0]);
           // Reset engine when schema changes
           this.engineRunner.resetEngine();
-          console.log(chalk.green(`✅ Loaded schema: ${args[0]}`));
+          console.log(colors.success(`✅ Loaded schema: ${args[0]}`));
           break;
           
         case 'preview':
@@ -115,7 +115,7 @@ export class ShellCore {
             const dir = args[0] || '.';
             await testCommand(dir);
           } catch (err) {
-            console.log(chalk.red(`❌ Test failed: ${err.message}`));
+            console.log(colors.error(`❌ Test failed: ${err.message}`));
           }
           break;
           
@@ -139,9 +139,9 @@ export class ShellCore {
             await this.schemaManager.reloadSchema();
             // Reset engine when schema changes
             this.engineRunner.resetEngine();
-            console.log(chalk.green(`✅ Reloaded schema: ${this.schemaManager.getCurrentSchemaPath()}`));
+            console.log(colors.success(`✅ Reloaded schema: ${this.schemaManager.getCurrentSchemaPath()}`));
           } catch (err) {
-            console.log(chalk.red(`❌ ${err.message}`));
+            console.log(colors.error(`❌ ${err.message}`));
           }
           break;
           
@@ -170,11 +170,11 @@ export class ShellCore {
           break;
           
         default:
-          console.log(chalk.red(`❌ Unknown command: ${command}`));
-          console.log(chalk.gray('Type "help" for available commands'));
+          console.log(colors.error(`❌ Unknown command: ${command}`));
+          console.log(colors.textSecondary('Type "help" for available commands'));
       }
     } catch (err) {
-      console.log(chalk.red(`❌ Error: ${err.message}`));
+      console.log(colors.error(`❌ Error: ${err.message}`));
     }
   }
 

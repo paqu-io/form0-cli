@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import { colors } from './theme.js';
 
 /**
  * Extract all valid data_name fields from a schema
@@ -58,9 +58,9 @@ export function filterValidValues(values, schema, showWarnings = true) {
   const { valid, invalid, validDataNames } = validateValues(values, schema);
   
   if (invalid.length > 0 && showWarnings) {
-    console.log(chalk.yellow(`⚠️  Ignoring invalid field names: ${invalid.join(', ')}`));
+    console.log(colors.warning(`⚠️  Ignoring invalid field names: ${invalid.join(', ')}`));
     if (validDataNames.length > 0) {
-      console.log(chalk.gray(`   Valid field names: ${validDataNames.join(', ')}`));
+      console.log(colors.textSecondary(`   Valid field names: ${validDataNames.join(', ')}`));
     }
   }
   

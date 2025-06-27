@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import chalk from 'chalk';
+import { colors } from '../utils/theme.js';
 import { createFormEngine } from 'form0-core';
 import { filterValidValues } from '../utils/value-validation.js';
 import yaml from 'yaml';
@@ -33,10 +33,10 @@ export async function runCommand(schemaPath, options) {
     });
 
     engine.eval();
-    console.log(chalk.blue.bold('🧠 Engine State:\n'));
+    console.log(colors.header('🧠 Engine State:\n'));
     console.log(JSON.stringify(engine.getState(), null, 2));
   } catch (err) {
-    console.error(chalk.red('❌ Failed to run engine:'), err.message);
+    console.error(colors.error('❌ Failed to run engine:'), err.message);
     process.exit(1);
   }
 }
