@@ -114,7 +114,7 @@ form0 watch form.schema.json --auto-run --auto-validate
 Form0-cli supports multiple ways to provide test values:
 
 ### JSON String
-```bash
+```console
 form0> run --values {"first_name": "Alice", "age": 25}
 ```
 
