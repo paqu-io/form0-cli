@@ -18,6 +18,9 @@ build/
 .env*
 *.tsbuildinfo
 
+# Generated config files
+localazy.json
+
 # Caches
 .npm/
 .eslintcache

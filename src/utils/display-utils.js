@@ -34,7 +34,7 @@ export function showHelp() {
   console.log(colors.accent1('  Engine Operations:'));
   console.log(colors.text('    run [options], r     Execute form engine with optional values'));
   console.log(colors.textSecondary('      options: --values <input>'));
-  console.log(colors.text('    test [dir], t        Run test.js file in directory (default: current)'));
+  console.log(colors.text('    test [dir], t        Run test.js file in directory (default: current dir)'));
   console.log(colors.text('    watch [options], w   Watch schema file for changes'));
   console.log(colors.textSecondary('      options: --auto-run, --auto-validate, --values <input>'));
   console.log(colors.text('    watch stop           Stop watching current schema'));
@@ -44,6 +44,7 @@ export function showHelp() {
   console.log(colors.accent1('  Session Management:'));
   console.log(colors.text('    status, s            Show session status'));
   console.log(colors.text('    theme [name]         View or change theme (dark, light)'));
+  console.log(colors.text('    locale [name]        View or change locale (auto, en, es, fr, it)'));
   console.log(colors.text('    clear values         Clear stored values'));
   console.log(colors.text('    clear, cls           Clear screen'));
   console.log(colors.text('    help, h              Show this help'));

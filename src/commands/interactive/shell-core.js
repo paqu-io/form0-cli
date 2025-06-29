@@ -4,6 +4,7 @@ import { showWelcomeBanner, showHelp, showStatus } from '../../utils/display-uti
 import { completer } from '../../utils/completion-utils.js';
 import { testCommand } from '../test.js';
 import { themeCommand } from '../theme.js';
+import { localeCommand } from '../locale.js';
 import { loadConfig } from '../../utils/config.js';
 import { colors } from '../../utils/theme.js';
 
@@ -161,6 +162,10 @@ export class ShellCore {
           
         case 'theme':
           await themeCommand(args[0]);
+          break;
+          
+        case 'locale':
+          await localeCommand(args[0]);
           break;
           
         case 'exit':

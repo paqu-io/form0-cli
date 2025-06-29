@@ -1,5 +1,6 @@
 import { COMMANDS, WATCH_OPTIONS, CLEAR_OPTIONS, RUN_OPTIONS } from './constants.js';
 import { getAvailableThemes } from './theme.js';
+import { getAvailableLocales } from './config.js';
 
 /**
  * Handle tab completion for interactive commands
@@ -40,6 +41,13 @@ export function completer(line) {
     // Complete theme names
     const availableThemes = getAvailableThemes();
     const hits = availableThemes.filter(theme => theme.startsWith(args[1]));
+    return [hits, args[1]];
+  }
+  
+  if (command === 'locale' && args.length === 2) {
+    // Complete locale options
+    const availableLocales = getAvailableLocales();
+    const hits = availableLocales.filter(locale => locale.startsWith(args[1]));
     return [hits, args[1]];
   }
   
