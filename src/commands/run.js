@@ -4,6 +4,7 @@ import { colors } from '../utils/theme.js';
 import { createFormEngine } from 'form0-core';
 import { filterValidValues } from '../utils/value-validation.js';
 import yaml from 'yaml';
+import { t } from '../utils/i18n.js';
 
 export async function runCommand(schemaPath, options) {
   try {
@@ -33,10 +34,10 @@ export async function runCommand(schemaPath, options) {
     });
 
     engine.eval();
-    console.log(colors.header('🧠 Engine State:\n'));
+    console.log(colors.header(t('common.engineState') + '\n'));
     console.log(JSON.stringify(engine.getState(), null, 2));
   } catch (err) {
-    console.error(colors.error('❌ Failed to run engine:'), err.message);
+    console.error(colors.error(t('common.failedToRunEngine', { message: err.message })));
     process.exit(1);
   }
 }

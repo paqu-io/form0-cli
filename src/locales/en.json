@@ -27,11 +27,13 @@
       "failedToRunTest": "❌ Failed to run test: {message}"
     },
     "validate": {
-      "schemaValid": "✅ Schema is valid.",
       "validationFailed": "❌ Schema validation failed: {message}"
     },
     "preview": {
-      "failedToPreview": "❌ Failed to preview schema: {message}"
+      "failedToPreview": "❌ Failed to preview schema: {message}",
+      "formTitle": "📋 Form: {name}",
+      "unnamed": "Unnamed",
+      "unlabeled": "Unlabeled"
     },
     "watch": {
       "initialSchemaLoaded": "✅ Initial schema loaded: {path}",
@@ -50,8 +52,6 @@
         "singular": "📋 Form: \"{name}\" ({count} element)",
         "plural": "📋 Form: \"{name}\" ({count} elements)"
       },
-      "failedToReload": "❌ Failed to reload schema: {message}",
-      "keepingPrevious": "⚠️  Keeping previous schema loaded",
       "validationPassed": "✅ Schema validation passed",
       "validationFailed": "❌ Schema validation failed: {message}",
       "engineExecuted": "🧠 Engine executed:",
@@ -69,7 +69,7 @@
   "interactive": {
     "welcome": "🚀 Welcome to form0 interactive environment",
     "typeHelp": "Type \"help\" for available commands or \"exit\" to quit",
-    "goodbye": "🦙 Hasta pronto! 🦙",
+    "goodbye": "🦙 ¡Hasta pronto! 🦙",
     "usageLoad": "❌ Usage: load <schema-file>",
     "loadedSchema": "✅ Loaded schema: {filename}",
     "testFailed": "❌ Test failed: {message}",
@@ -85,14 +85,21 @@
     "typeInit": "   • Type \"init\" to create a sample schema",
     "typeLoad": "   • Type \"load <path>\" to load an existing schema",
     "continueWithOther": "   • Continue with other commands",
-    "noSchemaLoaded": "❌ No schema loaded",
-    "schemaIsValid": "✅ Schema is valid",
+    "noSchemaLoaded": "❌ No schema loaded. Use \"load <path>\" to load a schema first.",
     "foundExistingSchema": "⚠️  Found existing schema: {path}",
     "useLoadOrSpecify": "   Use \"load\" to load it or specify a different directory for init",
     "initializingInCurrent": "🚀 Initializing form0 project in current directory ({dir})...",
     "initializingIn": "🚀 Initializing form0 project in: {dir}",
     "autoLoadedNewSchema": "✅ Auto-loaded the newly created schema",
-    "failedToInitialize": "❌ Failed to initialize: {message}"
+    "failedToInitialize": "❌ Failed to initialize: {message}",
+    "usingPreviousValues": "Using previous values for engine execution",
+    "autoLoadedValues": "✅ Auto-loaded test values from: {filename}",
+    "autoLoadFailed": "⚠️  Found {filename} but failed to load: {message}",
+    "clearedValues": {
+      "singular": "✅ Cleared {count} stored value",
+      "plural": "✅ Cleared {count} stored values"
+    },
+    "noValuesStored": "⚠️  No values were stored"
   },
   "help": {
     "title": "Interactive CLI Environment",
@@ -152,16 +159,14 @@
   },
   "theme": {
     "invalidTheme": "❌ Invalid theme: {name}",
-    "availableThemes": "Available themes: {themes}",
+    "availableThemes": "  Available themes: {themes}",
     "themeSwitched": "✅ Theme switched to: {name}",
     "preferencesSaved": "Theme preference saved to your configuration.",
     "failedToSave": "❌ Failed to save theme preference",
     "themeSettings": "🎨 Theme Settings:",
     "currentTheme": "  Current theme:",
-    "usage": "  Usage:",
     "showCurrent": "    theme              Show current theme",
     "switchTheme": "    theme <name>       Switch to theme",
-    "examples": "  Examples:",
     "switchToDark": "    theme dark         Switch to dark theme",
     "switchToLight": "    theme light        Switch to light theme",
     "currentPreview": "🌈 Current Theme Preview:",
@@ -176,12 +181,75 @@
     "numeric": "    Numeric:",
     "calculated": "    Calculated:"
   },
+  "locale": {
+    "invalidLocale": "❌ Invalid locale: {name}",
+    "availableLocales": "  Available locales: {locales}",
+    "localeSet": "✅ Locale set to: {name}",
+    "preferenceSaved": "Locale preference saved to your configuration.",
+    "currentlyDetected": "Currently detected: {locale}",
+    "failedToSave": "❌ Failed to save locale preference",
+    "autoDetect": "auto-detect",
+    "localeSettings": "🌍 Locale Settings:",
+    "configuration": "  Configuration:",
+    "currentLocale": "  Current locale:",
+    "detection": "  Detection:",
+    "autoDetectedFromSystem": "Auto-detected from system",
+    "availableOptions": "  Available options:",
+    "supportedLanguages": "  Supported languages:",
+    "showCurrent": "    locale              Show current locale",
+    "setLocale": "    locale <option>     Set locale preference",
+    "exampleAuto": "    locale auto         Auto-detect from system (default)",
+    "exampleEn": "    locale en           Force English",
+    "exampleEs": "    locale es           Force Spanish",
+    "exampleFr": "    locale fr           Force French",
+    "exampleIt": "    locale it           Force Italian",
+    "languageExamples": "🗣️  Language Examples:",
+    "sampleMessage": "  Sample message in different languages:",
+    "currentIndicator": " ← current"
+  },
+  "fileWatcher": {
+    "valuesLoaded": "✅ Values loaded for auto-run",
+    "watchingChanges": "👀 Watching {path} for changes...",
+    "autoRunEnabled": "🔄 Auto-run enabled - engine will execute on changes",
+    "autoValidateEnabled": "✅ Auto-validate enabled - schema will be validated on changes",
+    "pressCtrlC": "Press Ctrl+C to stop watching",
+    "notWatching": "⚠️  Not currently watching any files.",
+    "stoppedWatching": "✅ Stopped watching files",
+    "watcherError": "❌ Watcher error: {message}",
+    "fileChanged": "🔄 [{timestamp}] File changed: {filename}",
+    "schemaReloaded": "✅ Schema reloaded successfully",
+    "formInfo": {
+      "singular": "📋 Form: \"{name}\" ({count} element)",
+      "plural": "📋 Form: \"{name}\" ({count} elements)"
+    },
+    "runningWithStoredValues": "Running engine with stored values...",
+    "engineExecutionFailed": "❌ Engine execution failed: {message}",
+    "stoppingWatcher": "👋 Stopping watcher...",
+    "noSchemaFileFound": "❌ No schema file found. Please specify a path or ensure form.schema.json exists.",
+    "schemaFileNotFound": "❌ Schema file not found: {path}"
+  },
+  "values": {
+    "storedTestValues": "💾 Stored Test Values:",
+    "noValuesStored": "  No values currently stored",
+    "useRunToStore": "  Use \"run --values <values>\" to store values"
+  },
+  "fields": {
+    "validFieldNames": "📋 Valid Field Names:",
+    "noSchemaLoaded": "  No schema loaded",
+    "useLoadFirst": "  Use \"load <file>\" to load a schema first",
+    "noFieldsFound": "  No fields found in schema"
+  },
   "common": {
     "failedToLoadValues": "❌ Failed to load initial values: {message}",
     "attemptedToParse": "   Attempted to parse: \"{input}\"",
     "ignoringInvalidFields": "⚠️  Ignoring invalid field names: {fields}",
     "validFieldNames": "   Valid field names: {fields}",
     "engineState": "🧠 Engine State:",
-    "failedToRunEngine": "❌ Failed to run engine: {message}"
+    "failedToRunEngine": "❌ Failed to run engine: {message}",
+    "examples": "  Examples:",
+    "usage": "  Usage:",
+    "schemaIsValid": "✅ Schema is valid.",
+    "failedToReload": "❌ Failed to reload schema: {message}",
+    "keepingPrevious": "⚠️  Keeping previous schema loaded"
   }
 }

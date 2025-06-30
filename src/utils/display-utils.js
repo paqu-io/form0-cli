@@ -1,5 +1,6 @@
 import path from 'path';
 import { colors } from './theme.js';
+import { t, tn } from './i18n.js';
 
 /**
  * Display the welcome banner with ASCII art
@@ -13,49 +14,49 @@ export function showWelcomeBanner() {
   ██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║╚██████╔╝
   ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ 
     `));
-  console.log(colors.brand('                    Interactive CLI Environment'));
-  console.log(colors.brand('                    Made with 🦙 by paqu.io\n'));
+  console.log(colors.brand('                    ' + t('help.title')));
+  console.log(colors.brand('                    ' + t('help.subtitle') + '\n'));
 }
 
 /**
  * Display the help text with all available commands
  */
 export function showHelp() {
-  console.log(colors.header('\n📚 Available Commands:\n'));
-  console.log(colors.textSecondary('  Notation: <required> [optional]'));
+  console.log(colors.header('\n' + t('help.availableCommands') + '\n'));
+  console.log(colors.textSecondary(t('help.notation')));
   console.log();
-  console.log(colors.accent1('  Schema Management:'));
-  console.log(colors.text('    init [dir]           Initialize new form0 project (default: current dir)'));
-  console.log(colors.text('    load <file>, l       Load a form schema file'));
-  console.log(colors.text('    reload, rld          Reload current schema file'));
-  console.log(colors.text('    validate, v          Validate current schema'));
-  console.log(colors.text('    preview, p           Show form structure'));
+  console.log(colors.accent1(t('help.schemaManagement')));
+  console.log(colors.text(t('help.initCommand')));
+  console.log(colors.text(t('help.loadCommand')));
+  console.log(colors.text(t('help.reloadCommand')));
+  console.log(colors.text(t('help.validateCommand')));
+  console.log(colors.text(t('help.previewCommand')));
   console.log();
-  console.log(colors.accent1('  Engine Operations:'));
-  console.log(colors.text('    run [options], r     Execute form engine with optional values'));
-  console.log(colors.textSecondary('      options: --values <input>'));
-  console.log(colors.text('    test [dir], t        Run test.js file in directory (default: current dir)'));
-  console.log(colors.text('    watch [options], w   Watch schema file for changes'));
-  console.log(colors.textSecondary('      options: --auto-run, --auto-validate, --values <input>'));
-  console.log(colors.text('    watch stop           Stop watching current schema'));
-  console.log(colors.text('    values               Show stored test values'));
-  console.log(colors.text('    fields, f            Show valid field names from schema'));
+  console.log(colors.accent1(t('help.engineOperations')));
+  console.log(colors.text(t('help.runCommand')));
+  console.log(colors.textSecondary(t('help.runOptions')));
+  console.log(colors.text(t('help.testCommand')));
+  console.log(colors.text(t('help.watchCommand')));
+  console.log(colors.textSecondary(t('help.watchOptions')));
+  console.log(colors.text(t('help.watchStopCommand')));
+  console.log(colors.text(t('help.valuesCommand')));
+  console.log(colors.text(t('help.fieldsCommand')));
   console.log();
-  console.log(colors.accent1('  Session Management:'));
-  console.log(colors.text('    status, s            Show session status'));
-  console.log(colors.text('    theme [name]         View or change theme (dark, light)'));
-  console.log(colors.text('    locale [name]        View or change locale (auto, en, es, fr, it)'));
-  console.log(colors.text('    clear values         Clear stored values'));
-  console.log(colors.text('    clear, cls           Clear screen'));
-  console.log(colors.text('    help, h              Show this help'));
-  console.log(colors.text('    exit, quit, q        Exit interactive mode'));
+  console.log(colors.accent1(t('help.sessionManagement')));
+  console.log(colors.text(t('help.statusCommand')));
+  console.log(colors.text(t('help.themeCommand')));
+  console.log(colors.text(t('help.localeCommand')));
+  console.log(colors.text(t('help.clearValuesCommand')));
+  console.log(colors.text(t('help.clearCommand')));
+  console.log(colors.text(t('help.helpCommand')));
+  console.log(colors.text(t('help.exitCommand')));
   console.log();
-  console.log(colors.textMuted('  Navigation: Use ↑/↓ arrows for command history, Tab for completion'));
-  console.log(colors.textMuted('  Examples:'));
-  console.log(colors.textMuted('    run --values {"first_name": "Alice", "age": 25}'));
-  console.log(colors.textMuted('    run --values values.json  (uses values from file)'));
-  console.log(colors.textMuted('    watch --auto-run  (uses stored values)'));
-  console.log(colors.textMuted('    watch --auto-run --values {"first_name": "Bob", "age": 30}'));
+  console.log(colors.textMuted(t('help.navigation')));
+  console.log(colors.textMuted(t('help.examples')));
+  console.log(colors.textMuted(t('help.exampleRun1')));
+  console.log(colors.textMuted(t('help.exampleRun2')));
+  console.log(colors.textMuted(t('help.exampleWatch1')));
+  console.log(colors.textMuted(t('help.exampleWatch2')));
   console.log();
 }
 
@@ -72,24 +73,24 @@ export function showStatus(sessionInfo) {
     lastValues
   } = sessionInfo;
 
-  console.log(colors.header('\n📊 Session Status:'));
-  console.log(colors.textSecondary('  Directory:'), colors.value(path.basename(process.cwd())));
-  console.log(colors.textSecondary('  Schema:'), currentSchemaPath ? colors.success(currentSchemaPath) : colors.error('None loaded'));
-  console.log(colors.textSecondary('  Form:'), currentSchema?.form?.name ? colors.success(currentSchema.form.name) : colors.error('N/A'));
-  console.log(colors.textSecondary('  Engine:'), engine ? colors.success('Ready') : colors.warning('Not initialized'));
-  console.log(colors.textSecondary('  Watching:'), isWatching ? colors.success('Active') : colors.error('Stopped'));
+  console.log(colors.header('\n' + t('status.sessionStatus')));
+  console.log(colors.textSecondary(t('status.directory')), colors.value(path.basename(process.cwd())));
+  console.log(colors.textSecondary(t('status.schema')), currentSchemaPath ? colors.success(currentSchemaPath) : colors.error(t('status.noneLoaded')));
+  console.log(colors.textSecondary(t('status.form')), currentSchema?.form?.name ? colors.success(currentSchema.form.name) : colors.error(t('status.notApplicable')));
+  console.log(colors.textSecondary(t('status.engine')), engine ? colors.success(t('status.ready')) : colors.warning(t('status.notInitialized')));
+  console.log(colors.textSecondary(t('status.watching')), isWatching ? colors.success(t('status.active')) : colors.error(t('status.stopped')));
   
   if (isWatching) {
     const options = [];
     if (watchOptions.autoRun) options.push('auto-run');
     if (watchOptions.autoValidate) options.push('auto-validate');
     if (options.length > 0) {
-      console.log(colors.textSecondary('  Options:'), colors.warning(options.join(', ')));
+      console.log(colors.textSecondary(t('status.options')), colors.warning(options.join(', ')));
     }
   }
   
   const valuesCount = Object.keys(lastValues).length;
-  console.log(colors.textSecondary('  Test Values:'), valuesCount > 0 ? colors.success(`${valuesCount} fields stored`) : colors.error('None'));
+  console.log(colors.textSecondary(t('status.testValues')), valuesCount > 0 ? colors.success(tn('status.fieldsStored', valuesCount, { count: valuesCount })) : colors.error(t('status.none')));
   
   console.log();
 }
@@ -98,11 +99,11 @@ export function showStatus(sessionInfo) {
  * Display stored test values
  */
 export function showValues(lastValues) {
-  console.log(colors.header('\n💾 Stored Test Values:'));
+  console.log(colors.header('\n' + t('values.storedTestValues')));
   
   if (Object.keys(lastValues).length === 0) {
-    console.log(colors.textSecondary('  No values currently stored'));
-    console.log(colors.textMuted('  Use "run --values <values>" to store values\n'));
+    console.log(colors.textSecondary(t('values.noValuesStored')));
+    console.log(colors.textMuted(t('values.useRunToStore') + '\n'));
     return;
   }
 
@@ -114,16 +115,16 @@ export function showValues(lastValues) {
  * Display valid field names from schema
  */
 export function showValidFields(validFields, hasSchema) {
-  console.log(colors.header('\n📋 Valid Field Names:'));
+  console.log(colors.header('\n' + t('fields.validFieldNames')));
   
   if (!hasSchema) {
-    console.log(colors.error('  No schema loaded'));
-    console.log(colors.textMuted('  Use "load <file>" to load a schema first\n'));
+    console.log(colors.error(t('fields.noSchemaLoaded')));
+    console.log(colors.textMuted(t('fields.useLoadFirst') + '\n'));
     return;
   }
   
   if (validFields.length === 0) {
-    console.log(colors.textSecondary('  No fields found in schema'));
+    console.log(colors.textSecondary(t('fields.noFieldsFound')));
   } else {
     console.log(colors.textSecondary(`  ${validFields.join(', ')}`));
   }
@@ -158,7 +159,7 @@ export function printFields(elements, indent = '') {
         typeColor = colors.fieldDefault;
     }
     
-    const label = element.label || element.data_name || 'Unlabeled';
+    const label = element.label || element.data_name || t('commands.preview.unlabeled');
     const dataNameDisplay = element.data_name ? colors.textMuted(` [${element.data_name}]`) : '';
     const keyDisplay = element.key ? colors.textMuted(` (key: ${element.key})`) : '';
     
@@ -177,7 +178,7 @@ export function printFields(elements, indent = '') {
  */
 export function showSchemaPreview(schema) {
   const form = schema.form;
-  console.log(colors.header(`\n📋 Form: ${form.name || 'Unnamed'}`));
+  console.log(colors.header('\n' + t('commands.preview.formTitle', { name: form.name || t('commands.preview.unnamed') })));
   if (form.description) {
     console.log(colors.textSecondary(`   ${form.description}`));
   }

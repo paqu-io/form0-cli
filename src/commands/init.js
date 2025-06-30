@@ -4,6 +4,7 @@ import { ensureKeysForSchema } from '../utils/ensure-keys.js';
 import { defaultFormTemplate } from '../form0-forms/form-schema-template.js';
 import { testScriptTemplate } from '../utils/test-template.js';
 import { createReadmeTemplate } from '../utils/test-readme.js';
+import { t } from '../utils/i18n.js';
 
 async function createFormProject(dir, showInstructions = true) {
   const base = path.resolve(process.cwd(), dir);
@@ -26,7 +27,7 @@ async function createFormProject(dir, showInstructions = true) {
       test: 'node test.js'
     },
     dependencies: {
-      'form0-core': 'file:../form0-core'
+      'form0-core': 'file:../form0-core' // TODO: change to form0-core when published
     }
   };
 
@@ -38,22 +39,22 @@ async function createFormProject(dir, showInstructions = true) {
 
   // Show completion message
   const displayDir = dir === '.' ? path.basename(process.cwd()) : dir;
-  console.log(`✅ Initialized form0 project in ${displayDir}`);
+  console.log(t('commands.init.success', { dir: displayDir }));
   
   if (showInstructions) {
     console.log();
-    console.log('Next steps:');
+    console.log(t('commands.init.nextSteps'));
     if (dir !== '.') {
       console.log(`  cd ${dir}`);
     }
-    console.log('  npm install    # Install dependencies');
-    console.log('  form0 test     # Run the test (will auto-install if needed)');
+    console.log(`  ${t('commands.init.installDeps')}`);
+    console.log(`  ${t('commands.init.runTest')}`);
     console.log();
-    console.log('💡 The project uses a local file reference to form0-core.');
-    console.log('   Make sure form0-core is available in the parent directory.');
+    console.log(t('commands.init.localFileNote'));
+    console.log(t('commands.init.makeAvailable'));
     console.log();
-    console.log('🔧 If npm is not in your PATH, you can also run:');
-    console.log('   node test.js   # After manually installing dependencies');
+    console.log(t('commands.init.npmNotInPath'));
+    console.log(`  ${t('commands.init.manualRun')}`);
   }
 }
 

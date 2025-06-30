@@ -1,5 +1,6 @@
 import fs from 'fs-extra';
 import chalk from 'chalk';
+import { t } from '../utils/i18n.js';
 
 function printFields(elements, indent = '') {
   elements.forEach((element, index) => {
@@ -25,7 +26,7 @@ function printFields(elements, indent = '') {
         typeColor = chalk.cyan;
     }
     
-    const label = element.label || element.data_name || 'Unlabeled';
+    const label = element.label || element.data_name || t('commands.preview.unlabeled');
     const dataNameDisplay = element.data_name ? chalk.gray(` [${element.data_name}]`) : '';
     const keyDisplay = element.key ? chalk.gray(` (key: ${element.key})`) : '';
     
@@ -44,7 +45,7 @@ export async function previewCommand(file) {
     const data = await fs.readJson(file);
     const form = data.form;
     
-    console.log(chalk.blue.bold(`📋 Form: ${form?.name || 'Unnamed'}`));
+    console.log(chalk.blue.bold(t('commands.preview.formTitle', { name: form?.name || t('preview.unnamed') })));
     if (form?.description) {
       console.log(chalk.gray(`   ${form.description}`));
     }
@@ -53,7 +54,7 @@ export async function previewCommand(file) {
     printFields(form?.elements || []);
     console.log();
   } catch (err) {
-    console.error(chalk.red('❌ Failed to preview schema:'), err.message);
+    console.error(chalk.red(t('commands.preview.failedToPreview', { message: err.message })));
     process.exit(1);
   }
 }

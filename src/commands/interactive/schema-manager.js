@@ -6,6 +6,7 @@ import { initForInteractive } from '../init.js';
 import { COMMON_SCHEMA_PATHS } from '../../utils/constants.js';
 import { findExistingSchema } from '../../utils/schema-utils.js';
 import { showSchemaPreview } from '../../utils/display-utils.js';
+import { t } from '../../utils/i18n.js';
 
 /**
  * Manages schema loading, validation, and initialization
@@ -46,21 +47,21 @@ export class SchemaManager {
     if (existingSchema) {
       try {
         await this.loadSchema(existingSchema);
-        console.log(chalk.green(`✅ Auto-loaded schema: ${existingSchema}\n`));
+        console.log(chalk.green(t('interactive.autoLoadedSchema', { path: existingSchema }) + '\n'));
         return true;
       } catch (err) {
-        console.log(chalk.yellow(`⚠️  Found ${existingSchema} but failed to load: ${err.message}\n`));
+        console.log(chalk.yellow(t('interactive.foundButFailedToLoad', { path: existingSchema, message: err.message }) + '\n'));
       }
     }
     
     // No valid schema found, offer to initialize
-    console.log(chalk.yellow(`🔍 No form schema found in current directory (${path.basename(process.cwd())}).`));
-    console.log(chalk.gray(`   Looking for: ${COMMON_SCHEMA_PATHS.join(', ')}\n`));
+    console.log(chalk.yellow(t('interactive.noSchemaFound', { dir: path.basename(process.cwd()) })));
+    console.log(chalk.gray(t('interactive.lookingFor', { files: COMMON_SCHEMA_PATHS.join(', ') }) + '\n'));
     
-    console.log(chalk.cyan('💡 Would you like to initialize a new form0 project?'));
-    console.log(chalk.gray('   • Type "init" to create a sample schema'));
-    console.log(chalk.gray('   • Type "load <path>" to load an existing schema'));
-    console.log(chalk.gray('   • Continue with other commands\n'));
+    console.log(chalk.cyan(t('interactive.wouldYouLikeToInit')));
+    console.log(chalk.gray(t('interactive.typeInit')));
+    console.log(chalk.gray(t('interactive.typeLoad')));
+    console.log(chalk.gray(t('interactive.continueWithOther') + '\n'));
     
     return false;
   }
@@ -91,16 +92,16 @@ export class SchemaManager {
    */
   validateCurrentSchema() {
     if (!this.currentSchema) {
-      console.log(chalk.red('❌ No schema loaded'));
+      console.log(chalk.red(t('interactive.noSchemaLoaded')));
       return false;
     }
 
     try {
       validateSchema(this.currentSchema.form);
-      console.log(chalk.green('✅ Schema is valid'));
+      console.log(chalk.green(t('common.schemaIsValid')));
       return true;
     } catch (err) {
-      console.log(chalk.red(`❌ Schema validation failed: ${err.message}`));
+      console.log(chalk.red(t('commands.validate.validationFailed', { message: err.message })));
       return false;
     }
   }
@@ -110,7 +111,7 @@ export class SchemaManager {
    */
   previewSchema() {
     if (!this.currentSchema) {
-      console.log(chalk.red('❌ No schema loaded'));
+      console.log(chalk.red(t('interactive.noSchemaLoaded')));
       return;
     }
 
@@ -128,14 +129,14 @@ export class SchemaManager {
       const existingSchema = COMMON_SCHEMA_PATHS.find(p => fs.pathExistsSync(p));
       
       if (existingSchema) {
-        console.log(chalk.yellow(`⚠️  Found existing schema: ${existingSchema}`));
-        console.log(chalk.gray('   Use "load" to load it or specify a different directory for init'));
+        console.log(chalk.yellow(t('interactive.foundExistingSchema', { path: existingSchema })));
+        console.log(chalk.gray(t('interactive.useLoadOrSpecify')));
         return;
       }
       
-      console.log(chalk.cyan(`🚀 Initializing form0 project in current directory (${path.basename(process.cwd())})...`));
+      console.log(chalk.cyan(t('interactive.initializingInCurrent', { dir: path.basename(process.cwd()) })));
     } else {
-      console.log(chalk.cyan(`🚀 Initializing form0 project in: ${dir}`));
+      console.log(chalk.cyan(t('interactive.initializingIn', { dir })));
     }
     
     try {
@@ -144,10 +145,10 @@ export class SchemaManager {
       // Auto-load the newly created schema if initialized in current directory
       if (dir === '.') {
         await this.loadSchema('form.schema.json');
-        console.log(chalk.green('✅ Auto-loaded the newly created schema'));
+        console.log(chalk.green(t('interactive.autoLoadedNewSchema')));
       }
     } catch (err) {
-      console.log(chalk.red(`❌ Failed to initialize: ${err.message}`));
+      console.log(chalk.red(t('interactive.failedToInitialize', { message: err.message })));
     }
   }
 

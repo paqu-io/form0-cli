@@ -15,7 +15,8 @@ dist/
 build/
 
 # Environment files
-.env*
+.env
+.env.local
 *.tsbuildinfo
 
 # Generated config files

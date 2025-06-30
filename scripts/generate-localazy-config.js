@@ -11,7 +11,8 @@ const localazyConfig = {
   
   upload: {
     type: "json",
-    files: "src/locales/en.json"
+    files: "src/locales/en.json",
+    deprecate: "file"
   },
   
   download: {

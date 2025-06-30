@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { spawn } from 'child_process';
 import { colors } from '../utils/theme.js';
+import { t } from '../utils/i18n.js';
 
 // Helper function to check if npm is available
 async function isNpmAvailable() {
@@ -32,15 +33,15 @@ export async function testCommand(dir = '.') {
 
   // Check if test.js exists
   if (!(await fs.pathExists(testFilePath))) {
-    console.error(colors.error('❌ No test.js file found in'), colors.value(base));
-    console.log(colors.warning('💡 Run'), colors.value('form0 init'), colors.warning('to create a test project first'));
+    console.error(colors.error(t('commands.test.noTestFile', { base })));
+    console.log(colors.warning(t('commands.test.createProjectFirst', { command: colors.value('form0 init') })));
     process.exit(1);
   }
 
   // Check if schema file exists
   if (!(await fs.pathExists(schemaFilePath))) {
-    console.error(colors.error('❌ No form.schema.json file found in'), colors.value(base));
-    console.log(colors.warning('💡 Make sure you have a valid form schema file'));
+    console.error(colors.error(t('commands.test.noSchemaFile', { base })));
+    console.log(colors.warning(t('commands.test.ensureValidSchema')));
     process.exit(1);
   }
 
@@ -49,13 +50,13 @@ export async function testCommand(dir = '.') {
     const npmAvailable = await isNpmAvailable();
     
     if (!npmAvailable) {
-      console.log(colors.warning('⚠️  npm is not available in your PATH.'));
-      console.log(colors.warning('💡 Please install Node.js/npm or run'), colors.value('npm install'), colors.warning('manually in:'));
+      console.log(colors.warning(t('commands.test.npmNotAvailable')));
+      console.log(colors.warning(t('commands.test.installManually', { command: colors.value('npm install') })));
       console.log(colors.value('   ' + base));
       console.log();
-      console.log(colors.warning('🔄 Attempting to run test anyway...'));
+      console.log(colors.warning(t('commands.test.attemptingRun')));
     } else {
-      console.log(colors.warning('📦 Installing dependencies...'));
+      console.log(colors.warning(t('commands.test.installingDeps')));
       
       // Determine the correct npm command for the platform
       const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -80,18 +81,18 @@ export async function testCommand(dir = '.') {
         });
         console.log();
       } catch (error) {
-        console.log(colors.warning('⚠️  Failed to auto-install dependencies.'));
-        console.log(colors.warning('💡 Please run'), colors.value('npm install'), colors.warning('manually before testing.'));
+        console.log(colors.warning(t('commands.test.failedAutoInstall')));
+        console.log(colors.warning(t('commands.test.runManually', { command: colors.value('npm install') })));
         console.log(colors.textSecondary('Error:', error.message));
         console.log();
         
         // Continue with the test anyway, but warn the user
-        console.log(colors.warning('🔄 Attempting to run test anyway...'));
+        console.log(colors.warning(t('commands.test.attemptingRun')));
       }
     }
   }
 
-  console.log(colors.info('🧪 Running test file:'), colors.value(testFilePath));
+  console.log(colors.info(t('commands.test.runningTest', { path: colors.value(testFilePath) })));
   console.log(colors.textMuted('─'.repeat(50)));
 
   return new Promise((resolve, reject) => {
@@ -103,16 +104,16 @@ export async function testCommand(dir = '.') {
     child.on('close', (code) => {
       console.log(colors.textMuted('─'.repeat(50)));
       if (code === 0) {
-        console.log(colors.success('✅ Test completed successfully'));
+        console.log(colors.success(t('commands.test.testCompleted')));
         resolve();
       } else {
-        console.log(colors.error(`❌ Test failed with exit code ${code}`));
+        console.log(colors.error(t('commands.test.testFailed', { code })));
         reject(new Error(`Test failed with exit code ${code}`));
       }
     });
 
     child.on('error', (err) => {
-      console.error(colors.error('❌ Failed to run test:'), err.message);
+      console.error(colors.error(t('commands.test.failedToRunTest', { message: err.message })));
       reject(err);
     });
   });

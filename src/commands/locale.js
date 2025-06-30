@@ -1,5 +1,5 @@
 import { updateConfig, getConfig, getAvailableLocales } from '../utils/config.js';
-import { getLocale, getSupportedLocales } from '../utils/i18n.js';
+import { getLocale, getSupportedLocales, t } from '../utils/i18n.js';
 import { colors } from '../utils/theme.js';
 
 /**
@@ -15,8 +15,8 @@ export async function localeCommand(localeName) {
   const availableLocales = getAvailableLocales();
   
   if (!availableLocales.includes(localeName)) {
-    console.log(colors.error(`❌ Invalid locale: ${localeName}`));
-    console.log(colors.textSecondary(`Available locales: ${availableLocales.join(', ')}`));
+    console.log(colors.error(t('locale.invalidLocale', { name: localeName })));
+    console.log(colors.textSecondary(t('locale.availableLocales', { locales: availableLocales.join(', ') })));
     return;
   }
 
@@ -24,16 +24,16 @@ export async function localeCommand(localeName) {
   const success = await updateConfig({ locale: localeName });
   
   if (success) {
-    const displayName = localeName === 'auto' ? 'auto-detect' : localeName;
-    console.log(colors.success(`✅ Locale set to: ${displayName}`));
-    console.log(colors.textSecondary('Locale preference saved to your configuration.'));
+    const displayName = localeName === 'auto' ? t('locale.autoDetect') : localeName;
+    console.log(colors.success(t('locale.localeSet', { name: displayName })));
+    console.log(colors.textSecondary(t('locale.preferenceSaved')));
     
     if (localeName === 'auto') {
       const detectedLocale = getLocale();
-      console.log(colors.textSecondary(`Currently detected: ${detectedLocale}`));
+      console.log(colors.textSecondary(t('locale.currentlyDetected', { locale: detectedLocale })));
     }
   } else {
-    console.log(colors.error('❌ Failed to save locale preference'));
+    console.log(colors.error(t('locale.failedToSave')));
   }
 }
 
@@ -47,27 +47,27 @@ function showLocaleStatus() {
   const availableLocales = getAvailableLocales();
   const supportedLocales = getSupportedLocales();
 
-  console.log(colors.header('\n🌍 Locale Settings:\n'));
-  console.log(colors.textSecondary('  Configuration:'), colors.value(configLocale));
-  console.log(colors.textSecondary('  Current locale:'), colors.value(currentLocale));
+  console.log(colors.header('\n' + t('locale.localeSettings') + '\n'));
+  console.log(colors.textSecondary(t('locale.configuration')), colors.value(configLocale));
+  console.log(colors.textSecondary(t('locale.currentLocale')), colors.value(currentLocale));
   
   if (configLocale === 'auto') {
-    console.log(colors.textSecondary('  Detection:'), colors.textMuted('Auto-detected from system'));
+    console.log(colors.textSecondary(t('locale.detection')), colors.textMuted(t('locale.autoDetectedFromSystem')));
   }
   
-  console.log(colors.textSecondary('  Available options:'), colors.textMuted(availableLocales.join(', ')));
-  console.log(colors.textSecondary('  Supported languages:'), colors.textMuted(supportedLocales.filter(l => l !== 'auto').join(', ')));
+  console.log(colors.textSecondary(t('locale.availableOptions')), colors.textMuted(availableLocales.join(', ')));
+  console.log(colors.textSecondary(t('locale.supportedLanguages')), colors.textMuted(supportedLocales.filter(l => l !== 'auto').join(', ')));
   console.log();
-  console.log(colors.textSecondary('  Usage:'));
-  console.log(colors.textMuted('    locale              Show current locale'));
-  console.log(colors.textMuted('    locale <option>     Set locale preference'));
+  console.log(colors.textSecondary(t('common.usage')));
+  console.log(colors.textMuted(t('locale.showCurrent')));
+  console.log(colors.textMuted(t('locale.setLocale')));
   console.log();
-  console.log(colors.textSecondary('  Examples:'));
-  console.log(colors.textMuted('    locale auto         Auto-detect from system (default)'));
-  console.log(colors.textMuted('    locale en           Force English'));
-  console.log(colors.textMuted('    locale es           Force Spanish'));
-  console.log(colors.textMuted('    locale fr           Force French'));
-  console.log(colors.textMuted('    locale it           Force Italian'));
+  console.log(colors.textSecondary(t('common.examples')));
+  console.log(colors.textMuted(t('locale.exampleAuto')));
+  console.log(colors.textMuted(t('locale.exampleEn')));
+  console.log(colors.textMuted(t('locale.exampleEs')));
+  console.log(colors.textMuted(t('locale.exampleFr')));
+  console.log(colors.textMuted(t('locale.exampleIt')));
   console.log();
   
   // Show language examples
@@ -78,7 +78,7 @@ function showLocaleStatus() {
  * Show examples of messages in different languages
  */
 function showLanguageExamples() {
-  console.log(colors.header('🗣️  Language Examples:\n'));
+  console.log(colors.header(t('locale.languageExamples') + '\n'));
   
   const examples = {
     en: '✅ Schema is valid.',
@@ -87,10 +87,10 @@ function showLanguageExamples() {
     it: '✅ Lo schema è valido.'
   };
   
-  console.log(colors.textSecondary('  Sample message in different languages:'));
+  console.log(colors.textSecondary(t('locale.sampleMessage')));
   Object.entries(examples).forEach(([lang, message]) => {
     const isCurrentLang = lang === getLocale();
-    const indicator = isCurrentLang ? colors.success(' ← current') : '';
+    const indicator = isCurrentLang ? colors.success(t('locale.currentIndicator')) : '';
     console.log(colors.textSecondary(`    ${lang}:`), colors.text(message) + indicator);
   });
   console.log();

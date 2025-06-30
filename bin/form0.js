@@ -13,7 +13,7 @@ import { loadConfig } from '../src/utils/config.js';
 
 const program = new Command();
 
-program.name('form0').description('CLI tools for form0-powered forms').version('0.1.0');
+program.name('form0').description('CLI tools for form0-powered forms').version('0.0.1-alpha.1');
 
 // Load configuration (theme settings, etc.)
 await loadConfig();

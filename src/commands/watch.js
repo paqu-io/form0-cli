@@ -6,6 +6,7 @@ import { createFormEngine } from 'form0-core';
 import { validateSchema } from 'form0-core';
 import { filterValidValues } from '../utils/value-validation.js';
 import yaml from 'yaml';
+import { t, tn } from '../utils/i18n.js';
 
 class Form0Watcher {
   constructor(schemaPath, options = {}) {
@@ -40,8 +41,8 @@ class Form0Watcher {
       // Note: We'll validate these values against the schema after it's loaded
       this.lastValues = initialValues;
     } catch (err) {
-      console.log(chalk.red(`❌ Failed to load initial values: ${err.message}`));
-      console.log(chalk.gray(`   Attempted to parse: "${valuesInput}"`));
+      console.log(chalk.red(t('common.failedToLoadValues', { message: err.message })));
+      console.log(chalk.gray(t('common.attemptedToParse', { input: valuesInput })));
     }
   }
 
@@ -49,13 +50,14 @@ class Form0Watcher {
     try {
       // Initial load
       await this.loadSchema();
-      console.log(chalk.green(`✅ Initial schema loaded: ${this.schemaPath}`));
+      console.log(chalk.green(t('commands.watch.initialSchemaLoaded', { path: this.schemaPath })));
       
       // Validate and filter initial values against loaded schema
       if (Object.keys(this.lastValues).length > 0) {
         this.lastValues = filterValidValues(this.lastValues, this.currentSchema);
         if (Object.keys(this.lastValues).length > 0) {
-          console.log(chalk.green(`✅ Loaded ${Object.keys(this.lastValues).length} valid test values`));
+          const count = Object.keys(this.lastValues).length;
+          console.log(chalk.green(tn('commands.watch.loadedValidValues', count, { count })));
         }
       }
       
@@ -70,22 +72,22 @@ class Form0Watcher {
       // Start watching
       this.startWatching();
       
-      console.log(chalk.cyan(`👀 Watching ${this.schemaPath} for changes...`));
-      console.log(chalk.gray('Press Ctrl+C to stop watching'));
+      console.log(chalk.cyan(t('commands.watch.watchingChanges', { path: this.schemaPath })));
+      console.log(chalk.gray(t('commands.watch.pressCtrlC')));
       
       if (this.options.autoRun) {
-        console.log(chalk.yellow('🔄 Auto-run enabled - engine will execute on changes'));
+        console.log(chalk.yellow(t('commands.watch.autoRunEnabled')));
       }
       
       if (this.options.autoValidate) {
-        console.log(chalk.yellow('✅ Auto-validate enabled - schema will be validated on changes'));
+        console.log(chalk.yellow(t('commands.watch.autoValidateEnabled')));
       }
 
       // Keep process alive
       this.setupExitHandlers();
       
     } catch (err) {
-      console.error(chalk.red(`❌ Failed to start watching: ${err.message}`));
+      console.error(chalk.red(t('common.failedToStartWatching', { message: err.message })));
       process.exit(1);
     }
   }
@@ -111,7 +113,7 @@ class Form0Watcher {
     });
 
     this.watcher.on('error', (error) => {
-      console.error(chalk.red(`❌ Watcher error: ${error.message}`));
+      console.error(chalk.red(t('commands.watch.watcherError', { message: error.message })));
     });
 
     this.isWatching = true;
@@ -119,19 +121,19 @@ class Form0Watcher {
 
   async handleFileChange(filePath) {
     const timestamp = new Date().toLocaleTimeString();
-    console.log(chalk.blue(`\n🔄 [${timestamp}] File changed: ${path.basename(filePath)}`));
+    console.log(chalk.blue('\n' + t('commands.watch.fileChanged', { timestamp, filename: path.basename(filePath) })));
     
     try {
       // Try to reload schema
       const oldSchema = this.currentSchema;
       await this.loadSchema();
       
-      console.log(chalk.green('✅ Schema reloaded successfully'));
+      console.log(chalk.green(t('commands.watch.schemaReloaded')));
       
       // Show basic info about the schema
-      const formName = this.currentSchema.form?.name || 'Unnamed Form';
+      const formName = this.currentSchema.form?.name || t('commands.preview.unnamed');
       const elementCount = this.countElements(this.currentSchema.form?.elements || []);
-      console.log(chalk.cyan(`📋 Form: "${formName}" (${elementCount} elements)`));
+      console.log(chalk.cyan(tn('commands.watch.formInfo', elementCount, { name: formName, count: elementCount })));
       
       // Auto-validate if enabled
       if (this.options.autoValidate) {
@@ -144,8 +146,8 @@ class Form0Watcher {
       }
       
     } catch (err) {
-      console.error(chalk.red(`❌ Failed to reload schema: ${err.message}`));
-      console.log(chalk.yellow('⚠️  Keeping previous schema loaded'));
+      console.error(chalk.red(t('common.failedToReload', { message: err.message })));
+      console.log(chalk.yellow(t('common.keepingPrevious')));
     }
   }
 
@@ -163,9 +165,9 @@ class Form0Watcher {
   validateCurrentSchema() {
     try {
       validateSchema(this.currentSchema.form);
-      console.log(chalk.green('✅ Schema validation passed'));
+      console.log(chalk.green(t('commands.watch.validationPassed')));
     } catch (err) {
-      console.log(chalk.red(`❌ Schema validation failed: ${err.message}`));
+      console.log(chalk.red(t('commands.watch.validationFailed', { message: err.message })));
     }
   }
 
@@ -179,11 +181,11 @@ class Form0Watcher {
       engine.eval();
       const state = engine.getState();
       
-      console.log(chalk.blue('🧠 Engine executed:'));
+      console.log(chalk.blue(t('commands.watch.engineExecuted')));
       
       // Show a compact view of the state
       const fields = Object.keys(state).length;
-      console.log(chalk.gray(`   ${fields} fields processed`));
+      console.log(chalk.gray(tn('commands.watch.fieldsProcessed', fields, { count: fields })));
       
       // Show any calculated fields
       const calculatedFields = Object.entries(state)
@@ -191,18 +193,19 @@ class Form0Watcher {
         .slice(0, 3); // Show first 3 calculated fields
       
       if (calculatedFields.length > 0) {
-        console.log(chalk.gray('   Calculated fields:'));
+        console.log(chalk.gray(t('commands.watch.calculatedFields')));
         calculatedFields.forEach(([key, value]) => {
           console.log(chalk.gray(`     ${key}: ${JSON.stringify(value)}`));
         });
         
         if (Object.keys(state).length > calculatedFields.length + 3) {
-          console.log(chalk.gray(`     ... and ${Object.keys(state).length - calculatedFields.length} more`));
+          const moreCount = Object.keys(state).length - calculatedFields.length;
+          console.log(chalk.gray(tn('commands.watch.andMore', moreCount, { count: moreCount })));
         }
       }
       
     } catch (err) {
-      console.log(chalk.red(`❌ Engine execution failed: ${err.message}`));
+      console.log(chalk.red(t('commands.watch.engineExecutionFailed', { message: err.message })));
     }
   }
 
@@ -228,7 +231,7 @@ class Form0Watcher {
   setupExitHandlers() {
     const cleanup = () => {
       if (this.watcher) {
-        console.log(chalk.yellow('\n👋 Stopping watcher...'));
+        console.log(chalk.yellow('\n' + t('commands.watch.stoppingWatcher')));
         this.watcher.close();
       }
       process.exit(0);
@@ -259,14 +262,14 @@ export async function watchCommand(schemaPath, options) {
     }
     
     if (!schemaPath) {
-      console.error(chalk.red('❌ No schema file found. Please specify a path or ensure form.schema.json exists.'));
+      console.error(chalk.red(t('commands.watch.noSchemaFileFound')));
       process.exit(1);
     }
   }
 
   // Check if file exists
   if (!await fs.pathExists(schemaPath)) {
-    console.error(chalk.red(`❌ Schema file not found: ${schemaPath}`));
+    console.error(chalk.red(t('commands.watch.schemaFileNotFound', { path: schemaPath })));
     process.exit(1);
   }
 
