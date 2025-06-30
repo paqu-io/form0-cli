@@ -6,6 +6,7 @@ import { validateCommand } from '../src/commands/validate.js';
 import { previewCommand } from '../src/commands/preview.js';
 import { runCommand } from '../src/commands/run.js';
 import { watchCommand } from '../src/commands/watch.js';
+import { serveCommand } from '../src/commands/serve.js';
 import { interactiveCommand } from '../src/commands/interactive.js';
 import { themeCommand } from '../src/commands/theme.js';
 import { localeCommand } from '../src/commands/locale.js';
@@ -62,6 +63,14 @@ if (process.argv.length === 2) {
     .option('--values <input>', 'Initial values for auto-run (JSON string or path to .json/.yaml/.yml file)')
     .description('Watch schema file for changes and reload automatically')
     .action(watchCommand);
+
+  program
+    .command('serve')
+    .argument('[schema]', 'Path to schema JSON file (defaults to form.schema.json)')
+    .option('-p, --port <port>', 'Port to run server on', '3030')
+    .option('--host <host>', 'Host to bind server to', 'localhost')
+    .description('Start development server with live form preview')
+    .action(serveCommand);
 
   // Add explicit interactive command for those who want to use it
   program

@@ -64,6 +64,23 @@
         "singular": "     ... and {count} more",
         "plural": "     ... and {count} more"
       }
+    },
+    "serve": {
+      "schemaLoaded": "✅ Schema loaded: {path}",
+      "serverStarted": "form0 Development Server Started",
+      "schemaFile": "Schema: {path}",
+      "localUrl": "Local: {url}",
+      "networkUrl": "Network: {url}",
+      "serverRunning": "Server running - press Ctrl+C to stop",
+      "pressCtrlC": "Press Ctrl+C to stop server",
+      "clientConnected": "🔗 Client connected",
+      "clientDisconnected": "🔌 Client disconnected",
+      "schemaChanged": "[{timestamp}] Schema file changed",
+      "schemaReloaded": "✅ Schema reloaded successfully",
+      "failedToStart": "❌ Failed to start server: {message}",
+      "failedToReload": "❌ Failed to reload schema: {message}",
+      "watcherError": "❌ File watcher error: {message}",
+      "shuttingDown": "🛑 Shutting down server..."
     }
   },
   "interactive": {

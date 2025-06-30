@@ -65,7 +65,7 @@ export const defaultFormTemplate = {
         read_only: true, //CalcualtedField is read_only = true by default
         calculate: '$age + 88',
         display: {
-          style: 'text', // or numeric, date, currency
+          style: 'numeric', // or numeric, date, currency
         },
       },
       {
