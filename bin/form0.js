@@ -8,11 +8,12 @@ import { runCommand } from '../src/commands/run.js';
 import { watchCommand } from '../src/commands/watch.js';
 import { interactiveCommand } from '../src/commands/interactive.js';
 import { themeCommand } from '../src/commands/theme.js';
+import { localeCommand } from '../src/commands/locale.js';
 import { loadConfig } from '../src/utils/config.js';
 
 const program = new Command();
 
-program.name('form0').description('CLI tools for form0-powered forms').version('0.1.0');
+program.name('form0').description('CLI tools for form0-powered forms').version('0.0.1-alpha.1');
 
 // Load configuration (theme settings, etc.)
 await loadConfig();
@@ -75,6 +76,13 @@ if (process.argv.length === 2) {
     .argument('[name]', 'Theme name (dark, light)')
     .description('View or change the current theme')
     .action(themeCommand);
+
+  // Locale command
+  program
+    .command('locale')
+    .argument('[name]', 'Locale option (auto, en, es, fr, it)')
+    .description('View or change the current locale/language')
+    .action(localeCommand);
 
   program.parse();
 }

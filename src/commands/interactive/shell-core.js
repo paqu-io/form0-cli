@@ -4,8 +4,10 @@ import { showWelcomeBanner, showHelp, showStatus } from '../../utils/display-uti
 import { completer } from '../../utils/completion-utils.js';
 import { testCommand } from '../test.js';
 import { themeCommand } from '../theme.js';
+import { localeCommand } from '../locale.js';
 import { loadConfig } from '../../utils/config.js';
 import { colors } from '../../utils/theme.js';
+import { t } from '../../utils/i18n.js';
 
 /**
  * Manages the interactive shell core functionality
@@ -42,8 +44,8 @@ export class ShellCore {
     this.initializeReadline();
     
     showWelcomeBanner();
-    console.log(colors.brandBold('🚀 Welcome to form0 interactive environment'));
-    console.log(colors.textSecondary('Type "help" for available commands or "exit" to quit\n'));
+    console.log(colors.brandBold(t('interactive.welcome')));
+    console.log(colors.textSecondary(t('interactive.typeHelp') + '\n'));
     
     // Smart initialization: Auto-load schema or offer to initialize
     await this.schemaManager.smartInit();
@@ -60,7 +62,7 @@ export class ShellCore {
 
     this.rl.on('close', () => {
       this.cleanup();
-      console.log(colors.brandBold('\n🦙 Hasta pronto! 🦙'));
+      console.log(colors.brandBold('\n' + t('interactive.goodbye')));
       process.exit(0);
     });
   }
@@ -85,13 +87,13 @@ export class ShellCore {
         case 'load':
         case 'l':
           if (!args[0]) {
-            console.log(colors.error('❌ Usage: load <schema-file>'));
+            console.log(colors.error(t('interactive.usageLoad')));
             return;
           }
           await this.schemaManager.loadSchema(args[0]);
           // Reset engine when schema changes
           this.engineRunner.resetEngine();
-          console.log(colors.success(`✅ Loaded schema: ${args[0]}`));
+          console.log(colors.success(t('interactive.loadedSchema', { filename: args[0] })));
           break;
           
         case 'preview':
@@ -115,7 +117,7 @@ export class ShellCore {
             const dir = args[0] || '.';
             await testCommand(dir);
           } catch (err) {
-            console.log(colors.error(`❌ Test failed: ${err.message}`));
+            console.log(colors.error(t('interactive.testFailed', { message: err.message })));
           }
           break;
           
@@ -139,7 +141,7 @@ export class ShellCore {
             await this.schemaManager.reloadSchema();
             // Reset engine when schema changes
             this.engineRunner.resetEngine();
-            console.log(colors.success(`✅ Reloaded schema: ${this.schemaManager.getCurrentSchemaPath()}`));
+            console.log(colors.success(t('interactive.reloadedSchema', { filename: this.schemaManager.getCurrentSchemaPath() })));
           } catch (err) {
             console.log(colors.error(`❌ ${err.message}`));
           }
@@ -163,6 +165,10 @@ export class ShellCore {
           await themeCommand(args[0]);
           break;
           
+        case 'locale':
+          await localeCommand(args[0]);
+          break;
+          
         case 'exit':
         case 'quit':
         case 'q':
@@ -170,11 +176,11 @@ export class ShellCore {
           break;
           
         default:
-          console.log(colors.error(`❌ Unknown command: ${command}`));
-          console.log(colors.textSecondary('Type "help" for available commands'));
+          console.log(colors.error(t('interactive.unknownCommand', { command })));
+          console.log(colors.textSecondary(t('interactive.typeHelp')));
       }
     } catch (err) {
-      console.log(colors.error(`❌ Error: ${err.message}`));
+      console.log(colors.error(t('interactive.error', { message: err.message })));
     }
   }
 

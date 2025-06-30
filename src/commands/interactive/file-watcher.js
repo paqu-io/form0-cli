@@ -4,6 +4,8 @@ import chokidar from 'chokidar';
 import { WATCHER_CONFIG } from '../../utils/constants.js';
 import { formatTimestamp } from '../../utils/display-utils.js';
 import { countElements } from '../../utils/schema-utils.js';
+import { t, tn } from '../../utils/i18n.js';
+import { colors } from '../../utils/theme.js';
 
 /**
  * Manages file watching functionality for schema changes
@@ -44,7 +46,7 @@ export class FileWatcher {
 
     const currentSchemaPath = this.schemaManager.getCurrentSchemaPath();
     if (!currentSchemaPath) {
-      console.log(chalk.red('❌ No schema loaded. Use "load <path>" to load a schema first.'));
+      console.log(colors.error(t('interactive.noSchemaLoaded')));
       return;
     }
 
@@ -67,10 +69,10 @@ export class FileWatcher {
       
       try {
         await this.engineRunner.parseAndStoreValues(valuesInput);
-        console.log(chalk.green('✅ Values loaded for auto-run'));
+        console.log(colors.success(t('fileWatcher.valuesLoaded')));
       } catch (err) {
-        console.log(chalk.red(`❌ Failed to load values: ${err.message}`));
-        console.log(chalk.gray(`   Attempted to parse: "${valuesInput}"`));
+        console.log(colors.error(t('common.failedToLoadValues', { message: err.message })));
+        console.log(colors.textSecondary(t('common.attemptedToParse', { input: valuesInput })));
         return;
       }
     }
@@ -107,22 +109,22 @@ export class FileWatcher {
     });
 
     this.watcher.on('error', (error) => {
-      console.error(chalk.red(`❌ Watcher error: ${error.message}`));
+      console.error(colors.error(t('fileWatcher.watcherError', { message: error.message })));
     });
 
     this.isWatching = true;
     
-    console.log(chalk.cyan(`👀 Watching ${path.basename(currentSchemaPath)} for changes...`));
+    console.log(colors.info(t('fileWatcher.watchingChanges', { path: path.basename(currentSchemaPath) })));
     
     if (options.autoRun) {
-      console.log(chalk.yellow('🔄 Auto-run enabled - engine will execute on changes'));
+      console.log(colors.warning(t('fileWatcher.autoRunEnabled')));
     }
     
     if (options.autoValidate) {
-      console.log(chalk.yellow('✅ Auto-validate enabled - schema will be validated on changes'));
+      console.log(colors.warning(t('fileWatcher.autoValidateEnabled')));
     }
     
-    console.log(chalk.gray('Type "watch stop" to stop watching\n'));
+    console.log(colors.textSecondary(t('fileWatcher.pressCtrlC') + '\n'));
   }
 
   /**
@@ -130,7 +132,7 @@ export class FileWatcher {
    */
   stopWatching() {
     if (!this.isWatching) {
-      console.log(chalk.yellow('⚠️  Not currently watching any files.'));
+      console.log(colors.warning(t('fileWatcher.notWatching')));
       return;
     }
 
@@ -142,7 +144,7 @@ export class FileWatcher {
     this.isWatching = false;
     this.watchOptions = {};
     
-    console.log(chalk.green('✅ Stopped watching files'));
+    console.log(colors.success(t('fileWatcher.stoppedWatching')));
   }
 
   /**
@@ -150,7 +152,7 @@ export class FileWatcher {
    */
   async handleFileChange(filePath) {
     const timestamp = formatTimestamp();
-    console.log(chalk.blue.bold(`\n🔄 [${timestamp}] File changed: ${path.basename(filePath)}`));
+    console.log(colors.header(`\n${t('fileWatcher.fileChanged', { timestamp, filename: path.basename(filePath) })}`));
     
     try {
       // Try to reload schema
@@ -159,13 +161,13 @@ export class FileWatcher {
       // Reset engine since schema changed
       this.engineRunner.resetEngine();
       
-      console.log(chalk.green('✅ Schema reloaded successfully'));
+      console.log(colors.success(t('fileWatcher.schemaReloaded')));
       
       // Show basic info about the schema
       const currentSchema = this.schemaManager.getCurrentSchema();
-      const formName = currentSchema.form?.name || 'Unnamed Form';
+      const formName = currentSchema.form?.name || t('commands.preview.unnamed');
       const elementCount = countElements(currentSchema.form?.elements || []);
-      console.log(chalk.cyan(`📋 Form: "${formName}" (${elementCount} elements)`));
+      console.log(colors.info(tn('fileWatcher.formInfo', elementCount, { name: formName, count: elementCount })));
       
       // Auto-validate if enabled
       if (this.watchOptions.autoValidate) {
@@ -176,14 +178,14 @@ export class FileWatcher {
       if (this.watchOptions.autoRun) {
         const lastValues = this.engineRunner.getLastValues();
         if (Object.keys(lastValues).length > 0) {
-          console.log(chalk.gray('Running engine with stored values...'));
+          console.log(colors.textSecondary(t('fileWatcher.runningWithStoredValues')));
         }
         await this.engineRunner.runEngine([]);
       }
       
     } catch (err) {
-      console.error(chalk.red(`❌ Failed to reload schema: ${err.message}`));
-      console.log(chalk.yellow('⚠️  Keeping previous schema loaded'));
+      console.error(colors.error(t('common.failedToReload', { message: err.message })));
+      console.log(colors.warning(t('common.keepingPrevious')));
     }
     
     // Show prompt again

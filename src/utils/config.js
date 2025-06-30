@@ -3,6 +3,9 @@ import path from 'path';
 import os from 'os';
 import { setTheme, getAvailableThemes } from './theme.js';
 
+// Available locales
+const AVAILABLE_LOCALES = ['auto', 'en', 'es', 'fr', 'it'];
+
 // Configuration file path
 const CONFIG_DIR = path.join(os.homedir(), '.form0-cli');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -10,6 +13,7 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 // Default configuration
 const DEFAULT_CONFIG = {
   theme: 'dark',
+  locale: 'auto', // 'auto' means detect from system, or specific locale like 'en', 'es', etc.
   version: '1.0.0'
 };
 
@@ -50,19 +54,39 @@ export async function loadConfig() {
         currentConfig.theme = 'dark';
       }
       
+      // Validate locale
+      if (!AVAILABLE_LOCALES.includes(currentConfig.locale)) {
+        console.warn(`Invalid locale '${currentConfig.locale}' in config, using default 'auto'`);
+        currentConfig.locale = 'auto';
+      }
+      
       // Apply theme
       setTheme(currentConfig.theme);
+      
+      // Initialize i18n after config is loaded
+      const { reinitializeLocale } = await import('./i18n.js');
+      reinitializeLocale();
       
       return currentConfig;
     } else {
       // Create default config file
       await saveConfig();
+      
+      // Initialize i18n with default config
+      const { reinitializeLocale } = await import('./i18n.js');
+      reinitializeLocale();
+      
       return currentConfig;
     }
   } catch (error) {
     console.error('Failed to load config:', error.message);
     // Use defaults if loading fails
     setTheme(currentConfig.theme);
+    
+    // Initialize i18n with defaults
+    const { reinitializeLocale } = await import('./i18n.js');
+    reinitializeLocale();
+    
     return currentConfig;
   }
 }
@@ -98,12 +122,23 @@ export async function updateConfig(updates) {
       throw new Error(`Invalid theme: ${updates.theme}`);
     }
     
+    if (updates.locale && !AVAILABLE_LOCALES.includes(updates.locale)) {
+      throw new Error(`Invalid locale: ${updates.locale}`);
+    }
+    
     // Update config
     currentConfig = { ...currentConfig, ...updates };
     
     // Apply theme if changed
     if (updates.theme) {
       setTheme(updates.theme);
+    }
+    
+    // Apply locale if changed
+    if (updates.locale) {
+      // Import here to avoid circular dependency
+      const { reinitializeLocale } = await import('./i18n.js');
+      reinitializeLocale();
     }
     
     // Save to file
@@ -123,6 +158,13 @@ export async function resetConfig() {
   currentConfig = { ...DEFAULT_CONFIG };
   setTheme(currentConfig.theme);
   return await saveConfig();
+}
+
+/**
+ * Get available locales
+ */
+export function getAvailableLocales() {
+  return [...AVAILABLE_LOCALES];
 }
 
 /**

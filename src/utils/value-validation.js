@@ -1,4 +1,5 @@
 import { colors } from './theme.js';
+import { t } from './i18n.js';
 
 /**
  * Extract all valid data_name fields from a schema
@@ -58,9 +59,9 @@ export function filterValidValues(values, schema, showWarnings = true) {
   const { valid, invalid, validDataNames } = validateValues(values, schema);
   
   if (invalid.length > 0 && showWarnings) {
-    console.log(colors.warning(`⚠️  Ignoring invalid field names: ${invalid.join(', ')}`));
+    console.log(colors.warning(t('common.ignoringInvalidFields', { fields: invalid.join(', ') })));
     if (validDataNames.length > 0) {
-      console.log(colors.textSecondary(`   Valid field names: ${validDataNames.join(', ')}`));
+      console.log(colors.textSecondary(t('common.validFieldNames', { fields: validDataNames.join(', ') })));
     }
   }
   

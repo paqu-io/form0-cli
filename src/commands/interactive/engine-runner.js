@@ -3,6 +3,8 @@ import { createFormEngine } from 'form0-core';
 import { getValidDataNames, validateValues, filterValidValues } from '../../utils/value-validation.js';
 import { parseValuesInput, findTestValueFile } from '../../utils/schema-utils.js';
 import { showValues, showValidFields } from '../../utils/display-utils.js';
+import { t, tn } from '../../utils/i18n.js';
+import { colors } from '../../utils/theme.js';
 
 /**
  * Manages form engine operations and value handling
@@ -41,7 +43,7 @@ export class EngineRunner {
   createEngine(initialValues = {}) {
     const currentSchema = this.schemaManager.getCurrentSchema();
     if (!currentSchema) {
-      throw new Error('No schema loaded. Use "load <path>" to load a schema first.');
+      throw new Error(t('interactive.noSchemaLoaded'));
     }
     
     this.engine = createFormEngine({
@@ -89,13 +91,13 @@ export class EngineRunner {
     } else if (Object.keys(this.lastValues).length > 0) {
       // Use last values if no new values provided
       initialValues = { ...this.lastValues };
-      console.log(chalk.gray('Using previous values for engine execution'));
+      console.log(colors.textSecondary(t('interactive.usingPreviousValues')));
     }
 
     const engine = this.createEngine(initialValues);
     engine.eval();
     
-    console.log(chalk.blue.bold('\n🧠 Engine State:'));
+    console.log(colors.header('\n' + t('common.engineState')));
     console.log(JSON.stringify(engine.getState(), null, 2));
     console.log();
   }
@@ -119,9 +121,9 @@ export class EngineRunner {
     if (testFile) {
       try {
         await this.parseAndStoreValues(testFile);
-        console.log(chalk.green(`✅ Auto-loaded test values from: ${testFile}`));
+        console.log(colors.success(t('interactive.autoLoadedValues', { filename: testFile })));
       } catch (err) {
-        console.log(chalk.yellow(`⚠️  Found ${testFile} but failed to load: ${err.message}`));
+        console.log(colors.warning(t('interactive.autoLoadFailed', { filename: testFile, message: err.message })));
       }
     }
   }
@@ -141,9 +143,9 @@ export class EngineRunner {
     this.lastValues = {};
     
     if (count > 0) {
-      console.log(chalk.green(`✅ Cleared ${count} stored values`));
+      console.log(colors.success(tn('interactive.clearedValues', count, { count })));
     } else {
-      console.log(chalk.yellow('⚠️  No values were stored'));
+      console.log(colors.warning(t('interactive.noValuesStored')));
     }
   }
 
