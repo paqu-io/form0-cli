@@ -71,7 +71,7 @@
       "schemaFile": "Schema: {path}",
       "localUrl": "Local: {url}",
       "networkUrl": "Network: {url}",
-      "serverRunning": "Server running - press Ctrl+C to stop",
+      "serverRunning": "Server running...",
       "pressCtrlC": "Press Ctrl+C to stop server",
       "clientConnected": "🔗 Client connected",
       "clientDisconnected": "🔌 Client disconnected",
@@ -138,6 +138,11 @@
     "watchStopCommand": "    watch stop           Stop watching current schema",
     "valuesCommand": "    values               Show stored test values",
     "fieldsCommand": "    fields, f            Show valid field names from schema",
+    "development": "  Development Server:",
+    "serveCommand": "    serve                Start development server",
+    "serveOptions": "      options: --port <port>, --host <host>",
+    "serveStopCommand": "    serve stop           Stop development server",
+    "serveStatusCommand": "    serve status         Show server status",
     "sessionManagement": "  Session Management:",
     "statusCommand": "    status, s            Show session status",
     "themeCommand": "    theme [name]         View or change theme (dark, light)",
@@ -172,7 +177,9 @@
     "fieldsStored": {
       "singular": "{count} field stored",
       "plural": "{count} fields stored"
-    }
+    },
+    "devServer": "  Dev Server:",
+    "notStarted": "Not started"
   },
   "theme": {
     "invalidTheme": "❌ Invalid theme: {name}",

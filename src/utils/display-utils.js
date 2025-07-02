@@ -7,12 +7,12 @@ import { t, tn } from './i18n.js';
  */
 export function showWelcomeBanner() {
   console.log(colors.brandBold(`
-  ███████╗ ██████╗ ██████╗ ███╗   ███╗ ██████╗ 
-  ██╔════╝██╔═══██╗██╔══██╗████╗ ████║██╔═████╗
-  █████╗  ██║   ██║██████╔╝██╔████╔██║██║██╔██║
-  ██╔══╝  ██║   ██║██╔══██╗██║╚██╔╝██║████╔╝██║
-  ██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║╚██████╔╝
-  ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ 
+  ░·· ··░   ███████╗ ██████╗ ██████╗ ███╗   ███╗ ██████╗   ░·· ··░
+  ░·· ··░   ██╔════╝██╔═══██╗██╔══██╗████╗ ████║██╔═████╗  ░·· ··░
+  ░·· ··░   █████╗  ██║   ██║██████╔╝██╔████╔██║██║██╔██║  ░·· ··░
+  ░·· ··░   ██╔══╝  ██║   ██║██╔══██╗██║╚██╔╝██║████╔╝██║  ░·· ··░
+  ░·· ··░   ██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║╚██████╔╝  ░·· ··░
+  ░·· ··░   ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝   ░·· ··░
     `));
   console.log(colors.brand('                    ' + t('help.title')));
   console.log(colors.brand('                    ' + t('help.subtitle') + '\n'));
@@ -42,6 +42,12 @@ export function showHelp() {
   console.log(colors.text(t('help.valuesCommand')));
   console.log(colors.text(t('help.fieldsCommand')));
   console.log();
+  console.log(colors.accent1(t('help.development')));
+  console.log(colors.text(t('help.serveCommand')));
+  console.log(colors.textSecondary(t('help.serveOptions')));
+  console.log(colors.text(t('help.serveStopCommand')));
+  console.log(colors.text(t('help.serveStatusCommand')));
+  console.log();
   console.log(colors.accent1(t('help.sessionManagement')));
   console.log(colors.text(t('help.statusCommand')));
   console.log(colors.text(t('help.themeCommand')));
@@ -70,7 +76,8 @@ export function showStatus(sessionInfo) {
     engine,
     isWatching,
     watchOptions,
-    lastValues
+    lastValues,
+    devServer
   } = sessionInfo;
 
   console.log(colors.header('\n' + t('status.sessionStatus')));
@@ -91,6 +98,13 @@ export function showStatus(sessionInfo) {
   
   const valuesCount = Object.keys(lastValues).length;
   console.log(colors.textSecondary(t('status.testValues')), valuesCount > 0 ? colors.success(tn('status.fieldsStored', valuesCount, { count: valuesCount })) : colors.error(t('status.none')));
+  
+  // Show development server status
+  if (devServer) {
+    console.log(colors.textSecondary(t('status.devServer')), devServer.running ? colors.success(`http://${devServer.host}:${devServer.port}`) : colors.error(t('status.stopped')));
+  } else {
+    console.log(colors.textSecondary(t('status.devServer')), colors.error(t('status.notStarted')));
+  }
   
   console.log();
 }

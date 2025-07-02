@@ -124,7 +124,27 @@ export class FileWatcher {
       console.log(colors.warning(t('fileWatcher.autoValidateEnabled')));
     }
     
-    console.log(colors.textSecondary(t('fileWatcher.pressCtrlC') + '\n'));
+    console.log(colors.textSecondary('Use "watch stop" to stop watching\n'));
+  }
+
+  /**
+   * Start watching in server mode (silently, without Ctrl+C messages)
+   */
+  startWatchingInServerMode(schemaPath) {
+    this.watchOptions = { autoValidate: false, autoRun: false };
+    
+    this.watcher = chokidar.watch(schemaPath, WATCHER_CONFIG);
+
+    this.watcher.on('change', async (filePath) => {
+      await this.handleFileChange(filePath);
+    });
+
+    this.watcher.on('error', (error) => {
+      console.error(colors.error(t('fileWatcher.watcherError', { message: error.message })));
+    });
+
+    this.isWatching = true;
+    // No console.log messages for silent server mode watching
   }
 
   /**
@@ -163,6 +183,11 @@ export class FileWatcher {
       
       console.log(colors.success(t('fileWatcher.schemaReloaded')));
       
+      // Update development server if running
+      if (this.shellCore) {
+        this.shellCore.updateDevServerSchema();
+      }
+      
       // Show basic info about the schema
       const currentSchema = this.schemaManager.getCurrentSchema();
       const formName = currentSchema.form?.name || t('commands.preview.unnamed');
@@ -188,9 +213,9 @@ export class FileWatcher {
       console.log(colors.warning(t('common.keepingPrevious')));
     }
     
-    // Show prompt again
+    // Show prompt again (server mode handles its own prompting)
     console.log(); // Add spacing
-    if (this.shellCore) {
+    if (this.shellCore && !this.shellCore.isServerRunning()) {
       this.shellCore.prompt();
     }
   }

@@ -1,0 +1,101 @@
+body { 
+    font-family: system-ui, sans-serif; 
+    margin: 0; 
+    padding: 20px; 
+    background: #f5f5f5; 
+}
+
+.container { 
+    max-width: 800px; 
+    margin: 0 auto; 
+    background: white; 
+    padding: 20px; 
+    border-radius: 8px; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+}
+
+.header { 
+    border-bottom: 1px solid #eee; 
+    padding-bottom: 15px; 
+    margin-bottom: 20px; 
+}
+
+.form-container { 
+    margin-bottom: 20px; 
+}
+
+.field { 
+    margin-bottom: 15px; 
+}
+
+.field label { 
+    display: block; 
+    margin-bottom: 5px; 
+    font-weight: 500; 
+}
+
+.field input, .field select, .field textarea { 
+    width: 100%; 
+    padding: 8px; 
+    border: 1px solid #ddd; 
+    border-radius: 4px; 
+    box-sizing: border-box; 
+}
+
+.field.error input { 
+    border-color: #e74c3c; 
+}
+
+.error-message { 
+    color: #e74c3c; 
+    font-size: 14px; 
+    margin-top: 5px; 
+}
+
+.section { 
+    border: 1px solid #eee; 
+    padding: 15px; 
+    margin: 10px 0; 
+    border-radius: 4px; 
+}
+
+.section-title { 
+    font-weight: bold; 
+    margin-bottom: 10px; 
+}
+
+.calculated { 
+    background: #cce7ff; 
+    border: 1px solid #66b3ff; 
+}
+
+.calculated input { 
+    background: #cce7ff; 
+    color: #0056b3; 
+    font-weight: 500; 
+    cursor: not-allowed; 
+    box-sizing: border-box; 
+}
+
+.readonly { 
+    background: #f8f9fa; 
+}
+
+.readonly input { 
+    background: #f8f9fa; 
+    color: #6c757d; 
+    cursor: not-allowed; 
+    box-sizing: border-box; 
+}
+
+.hidden { 
+    display: none; 
+}
+
+.status { 
+    padding: 10px; 
+    margin: 10px 0; 
+    border-radius: 4px; 
+    background: #d4edda; 
+    border: 1px solid #c3e6cb; 
+} 

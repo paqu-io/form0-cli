@@ -1,0 +1,13 @@
+{
+  "form": {
+    "name": "Live Update Test v1",
+    "elements": [
+      {
+        "type": "TextField",
+        "data_name": "name",
+        "key": "name",
+        "label": "Name"
+      }
+    ]
+  }
+} 

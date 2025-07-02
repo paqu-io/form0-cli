@@ -51,5 +51,13 @@ export function completer(line) {
     return [hits, args[1]];
   }
   
+  if (command === 'serve' && args.length >= 2) {
+    // Complete serve subcommands and options
+    const serveOptions = ['start', 'stop', 'status', 'update', '--port', '--host'];
+    const lastArg = args[args.length - 1];
+    const hits = serveOptions.filter(opt => opt.startsWith(lastArg));
+    return [hits, lastArg];
+  }
+  
   return [[], line];
 } 
