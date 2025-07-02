@@ -15,9 +15,17 @@ export class FileWatcher {
     this.schemaManager = schemaManager;
     this.engineRunner = engineRunner;
     this.shellCore = shellCore;
+    this.serverManager = null; // Will be set by ShellCore after initialization
     this.watcher = null;
     this.isWatching = false;
     this.watchOptions = {};
+  }
+
+  /**
+   * Set the server manager reference (called by ShellCore after initialization)
+   */
+  setServerManager(serverManager) {
+    this.serverManager = serverManager;
   }
 
   /**
@@ -184,8 +192,8 @@ export class FileWatcher {
       console.log(colors.success(t('fileWatcher.schemaReloaded')));
       
       // Update development server if running
-      if (this.shellCore) {
-        this.shellCore.updateDevServerSchema();
+      if (this.serverManager) {
+        this.serverManager.updateDevServerSchema();
       }
       
       // Show basic info about the schema
@@ -213,9 +221,9 @@ export class FileWatcher {
       console.log(colors.warning(t('common.keepingPrevious')));
     }
     
-    // Show prompt again (server mode handles its own prompting)
+    // Show prompt again
     console.log(); // Add spacing
-    if (this.shellCore && !this.shellCore.isServerRunning()) {
+    if (this.shellCore) {
       this.shellCore.prompt();
     }
   }

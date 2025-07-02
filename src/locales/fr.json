@@ -150,6 +150,7 @@
     "noneLoaded": "Aucun chargé",
     "notApplicable": "N/A",
     "notInitialized": "Non initialisé",
+    "handledByServer": "Géré par le serveur de développement",
     "options": "  Options :",
     "ready": "Prêt",
     "schema": "  Schéma :",

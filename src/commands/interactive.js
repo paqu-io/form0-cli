@@ -1,5 +1,5 @@
-import { SchemaManager } from './interactive/schema-manager.js';
-import { EngineRunner } from './interactive/engine-runner.js';
+import { SchemaManager } from './interactive/managers/schema-manager.js';
+import { EngineRunner } from './interactive/runners/engine-runner.js';
 import { FileWatcher } from './interactive/file-watcher.js';
 import { ShellCore } from './interactive/shell-core.js';
 

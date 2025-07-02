@@ -1,7 +1,6 @@
 import { WebSocketServer } from 'ws';
 import { colors } from '../utils/theme.js';
 import { t } from '../utils/i18n.js';
-import path from 'path';
 
 export function createWebSocketServer(server, getCurrentSchema, getSchemaSource) {
   const wss = new WebSocketServer({ server });

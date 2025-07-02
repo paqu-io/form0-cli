@@ -2,11 +2,11 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import { validateSchema } from 'form0-core';
-import { initForInteractive } from '../init.js';
-import { COMMON_SCHEMA_PATHS } from '../../utils/constants.js';
-import { findExistingSchema } from '../../utils/schema-utils.js';
-import { showSchemaPreview } from '../../utils/display-utils.js';
-import { t } from '../../utils/i18n.js';
+import { initForInteractive } from '../../init.js';
+import { COMMON_SCHEMA_PATHS } from '../../../utils/constants.js';
+import { findExistingSchema } from '../../../utils/schema-utils.js';
+import { showSchemaPreview } from '../../../utils/display-utils.js';
+import { t } from '../../../utils/i18n.js';
 
 /**
  * Manages schema loading, validation, and initialization

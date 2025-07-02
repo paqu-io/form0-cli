@@ -84,7 +84,14 @@ export function showStatus(sessionInfo) {
   console.log(colors.textSecondary(t('status.directory')), colors.value(path.basename(process.cwd())));
   console.log(colors.textSecondary(t('status.schema')), currentSchemaPath ? colors.success(currentSchemaPath) : colors.error(t('status.noneLoaded')));
   console.log(colors.textSecondary(t('status.form')), currentSchema?.form?.name ? colors.success(currentSchema.form.name) : colors.error(t('status.notApplicable')));
-  console.log(colors.textSecondary(t('status.engine')), engine ? colors.success(t('status.ready')) : colors.warning(t('status.notInitialized')));
+  
+  // Show engine status differently based on dev server context
+  if (devServer && devServer.running) {
+    console.log(colors.textSecondary(t('status.engine')), colors.textMuted(t('status.handledByServer')));
+  } else {
+    console.log(colors.textSecondary(t('status.engine')), engine ? colors.success(t('status.ready')) : colors.warning(t('status.notInitialized')));
+  }
+  
   console.log(colors.textSecondary(t('status.watching')), isWatching ? colors.success(t('status.active')) : colors.error(t('status.stopped')));
   
   if (isWatching) {

@@ -5,7 +5,7 @@ import path from 'path';
 import { colors } from '../utils/theme.js';
 import { validateSchema } from 'form0-core';
 import { t } from '../utils/i18n.js';
-import { createApp } from '../server/app.js';
+import { createApp } from '../server/express-server.js';
 import { createWebSocketServer } from '../server/websocket.js';
 
 class Form0Server {

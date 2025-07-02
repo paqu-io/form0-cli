@@ -171,6 +171,7 @@
     "notApplicable": "N/A",
     "ready": "Ready",
     "notInitialized": "Not initialized",
+    "handledByServer": "Handled by dev server",
     "active": "Active",
     "stopped": "Stopped",
     "none": "None",
