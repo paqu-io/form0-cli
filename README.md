@@ -30,6 +30,7 @@ form0
 ```
 
 This will:
+
 - Auto-detect existing form schemas in your directory
 - Offer to initialize a new project if no schema is found
 - Provide tab completion and command history
@@ -48,6 +49,7 @@ form0 init my-form-project
 ```
 
 This creates:
+
 - `form.schema.json` - Sample form schema
 - `test.js` - Basic test script
 - `README.md` - Project documentation
@@ -68,6 +70,7 @@ form0 preview form.schema.json
 Once in interactive mode (`form0`), you can use these commands:
 
 ### Schema Management
+
 - `init [dir]` - Initialize new form0 project
 - `load <file>` - Load a form schema file
 - `preview` - Show form structure with field details
@@ -75,12 +78,14 @@ Once in interactive mode (`form0`), you can use these commands:
 - `reload` - Reload current schema file
 
 ### Engine Operations
+
 - `run [--values <input>]` - Execute form engine with optional test values
 - `watch [--auto-run] [--auto-validate]` - Watch schema for changes
 - `values` - Show stored test values
 - `fields` - Show valid field names from schema
 
 ### Session Management
+
 - `status` - Show current session status
 - `clear` - Clear screen
 - `clear values` - Clear stored test values
@@ -114,27 +119,31 @@ form0 watch form.schema.json --auto-run --auto-validate
 Form0-cli supports multiple ways to provide test values:
 
 ### JSON String
+
 ```bash
 form0> run --values {"first_name": "Alice", "age": 25}
 ```
 
 ### JSON File
+
 ```bash
 form0> run --values values.json
 ```
 
 ### YAML File
+
 ```bash
 form0> run --values test-data.yaml
 ```
 
 ### Value Validation
+
 All values are automatically validated against your schema's field names. Invalid fields are filtered out with helpful warnings.
 
 ## Features
 
 - **🚀 Interactive Environment** - Tab completion, command history, smart initialization
-- **📋 Schema Validation** - Real-time validation with detailed error messages  
+- **📋 Schema Validation** - Real-time validation with detailed error messages
 - **👀 File Watching** - Auto-reload schemas and re-run engines on changes
 - **🔧 Value Management** - Store and reuse test values across sessions
 - **🎯 Smart Filtering** - Automatic validation of field names against schema
@@ -144,6 +153,7 @@ All values are automatically validated against your schema's field names. Invali
 ## Examples
 
 ### Basic Workflow
+
 ```bash
 # Start interactive mode
 form0
@@ -163,6 +173,7 @@ form0> watch --auto-run --auto-validate
 ```
 
 ### Development Workflow
+
 ```bash
 # Watch schema file and auto-run engine on changes
 form0 watch form.schema.json --auto-run --values test-data.json
@@ -173,7 +184,7 @@ form0 watch form.schema.json --auto-run --values test-data.json
 
 ## Requirements
 
-- Node.js 16+ 
+- Node.js 16+
 - npm or yarn
 
 ## Related Packages

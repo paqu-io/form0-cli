@@ -1,6 +1,10 @@
 import chalk from 'chalk';
 import { createFormEngine } from 'form0-core';
-import { getValidDataNames, validateValues, filterValidValues } from '../../../utils/value-validation.js';
+import {
+  getValidDataNames,
+  validateValues,
+  filterValidValues,
+} from '../../../utils/value-validation.js';
 import { parseValuesInput, findTestValueFile } from '../../../utils/schema-utils.js';
 import { showValues, showValidFields } from '../../../utils/display-utils.js';
 import { t, tn } from '../../../utils/i18n.js';
@@ -45,10 +49,10 @@ export class EngineRunner {
     if (!currentSchema) {
       throw new Error(t('common.noSchemaLoaded'));
     }
-    
+
     this.engine = createFormEngine({
       schema: currentSchema,
-      initialValues
+      initialValues,
     });
     return this.engine;
   }
@@ -65,12 +69,12 @@ export class EngineRunner {
    */
   async runEngine(args) {
     let initialValues = {};
-    
+
     if (args.length > 0) {
       let valuesInput = '';
-      
+
       // Check if using --values flag (new consistent syntax)
-      const valuesIndex = args.findIndex(arg => arg === '--values');
+      const valuesIndex = args.findIndex((arg) => arg === '--values');
       if (valuesIndex !== -1 && valuesIndex + 1 < args.length) {
         // Get all arguments after --values (to handle JSON objects with spaces)
         const valuesArgs = args.slice(valuesIndex + 1);
@@ -79,12 +83,12 @@ export class EngineRunner {
         // Backward compatibility: treat all args as values
         valuesInput = args.join(' ');
       }
-      
+
       initialValues = await parseValuesInput(valuesInput);
-      
+
       // Validate and filter values against schema
       const filteredValues = this.filterValidValues(initialValues);
-      
+
       // Store filtered values for future auto-run use
       this.lastValues = { ...filteredValues };
       initialValues = filteredValues;
@@ -96,7 +100,7 @@ export class EngineRunner {
 
     const engine = this.createEngine(initialValues);
     engine.eval();
-    
+
     console.log(colors.header('\n' + t('common.engineState')));
     console.log(JSON.stringify(engine.getState(), null, 2));
     console.log();
@@ -107,7 +111,7 @@ export class EngineRunner {
    */
   async parseAndStoreValues(valuesInput) {
     const initialValues = await parseValuesInput(valuesInput);
-    
+
     // Validate and filter values against schema
     const filteredValues = this.filterValidValues(initialValues);
     this.lastValues = { ...filteredValues };
@@ -123,7 +127,11 @@ export class EngineRunner {
         await this.parseAndStoreValues(testFile);
         console.log(colors.success(t('interactive.autoLoadedValues', { filename: testFile })));
       } catch (err) {
-        console.log(colors.warning(t('interactive.foundButFailedToLoad', { path: testFile, message: err.message })));
+        console.log(
+          colors.warning(
+            t('interactive.foundButFailedToLoad', { path: testFile, message: err.message })
+          )
+        );
       }
     }
   }
@@ -141,7 +149,7 @@ export class EngineRunner {
   clearValues() {
     const count = Object.keys(this.lastValues).length;
     this.lastValues = {};
-    
+
     if (count > 0) {
       console.log(colors.success(tn('interactive.clearedValues', count, { count })));
     } else {
@@ -170,4 +178,4 @@ export class EngineRunner {
   filterValidValues(values) {
     return filterValidValues(values, this.schemaManager.getCurrentSchema());
   }
-} 
+}

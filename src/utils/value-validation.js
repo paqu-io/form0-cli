@@ -10,9 +10,9 @@ export function getValidDataNames(schema) {
   if (!schema?.form?.elements) {
     return [];
   }
-  
+
   const dataNames = [];
-  
+
   const extractDataNames = (elements) => {
     for (const element of elements) {
       if (element.data_name) {
@@ -23,7 +23,7 @@ export function getValidDataNames(schema) {
       }
     }
   };
-  
+
   extractDataNames(schema.form.elements);
   return dataNames;
 }
@@ -38,13 +38,13 @@ export function validateValues(values, schema) {
   if (!schema) {
     return { valid: [], invalid: Object.keys(values), validDataNames: [] };
   }
-  
+
   const validDataNames = getValidDataNames(schema);
   const providedKeys = Object.keys(values);
-  
-  const valid = providedKeys.filter(key => validDataNames.includes(key));
-  const invalid = providedKeys.filter(key => !validDataNames.includes(key));
-  
+
+  const valid = providedKeys.filter((key) => validDataNames.includes(key));
+  const invalid = providedKeys.filter((key) => !validDataNames.includes(key));
+
   return { valid, invalid, validDataNames };
 }
 
@@ -57,18 +57,20 @@ export function validateValues(values, schema) {
  */
 export function filterValidValues(values, schema, showWarnings = true) {
   const { valid, invalid, validDataNames } = validateValues(values, schema);
-  
+
   if (invalid.length > 0 && showWarnings) {
     console.log(colors.warning(t('common.ignoringInvalidFields', { fields: invalid.join(', ') })));
     if (validDataNames.length > 0) {
-      console.log(colors.textSecondary(t('common.validFieldNames', { fields: validDataNames.join(', ') })));
+      console.log(
+        colors.textSecondary(t('common.validFieldNames', { fields: validDataNames.join(', ') }))
+      );
     }
   }
-  
+
   const filteredValues = {};
   for (const key of valid) {
     filteredValues[key] = values[key];
   }
-  
+
   return filteredValues;
-} 
+}

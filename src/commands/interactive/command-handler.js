@@ -21,11 +21,11 @@ export class CommandHandler {
    */
   isCommandAllowedInServerMode(command, args) {
     const allowedCommands = ['serve', 'status', 's', 'preview', 'p', 'validate', 'v', 'help', 'h'];
-    
+
     if (!allowedCommands.includes(command.toLowerCase())) {
       return { allowed: false, reason: 'command_blocked' };
     }
-    
+
     // For serve command, only allow stop and status
     if (command.toLowerCase() === 'serve') {
       const [action] = args;
@@ -33,7 +33,7 @@ export class CommandHandler {
         return { allowed: false, reason: 'serve_action_blocked', action };
       }
     }
-    
+
     return { allowed: true };
   }
 
@@ -61,7 +61,7 @@ export class CommandHandler {
    */
   async handleCommand(input) {
     const [command, ...args] = input.split(' ');
-    
+
     try {
       // Check server mode restrictions
       if (this.serverManager.isServerRunning()) {
@@ -71,90 +71,90 @@ export class CommandHandler {
           return;
         }
       }
-      
+
       switch (command.toLowerCase()) {
         case 'help':
         case 'h':
           const { showHelp } = await import('../../utils/display-utils.js');
           showHelp();
           break;
-        
+
         case 'init':
           await this.schemaManager.handleInitCommand(args);
           break;
-          
+
         case 'load':
         case 'l':
           await this.handleLoadCommand(args);
           break;
-          
+
         case 'preview':
         case 'p':
           this.schemaManager.previewSchema();
           break;
-          
+
         case 'run':
         case 'r':
           await this.engineRunner.runEngine(args);
           break;
-          
+
         case 'validate':
         case 'v':
           this.schemaManager.validateCurrentSchema();
           break;
-          
+
         case 'test':
         case 't':
           await this.handleTestCommand(args);
           break;
-          
+
         case 'status':
         case 's':
           await this.handleStatusCommand();
           break;
-          
+
         case 'values':
           this.engineRunner.showValues();
           break;
-          
+
         case 'fields':
         case 'f':
           this.engineRunner.showValidFields();
           break;
-          
+
         case 'reload':
         case 'rld':
           await this.handleReloadCommand();
           break;
-          
+
         case 'watch':
         case 'w':
           await this.fileWatcher.handleWatchCommand(args);
           break;
-          
+
         case 'serve':
           await this.serverManager.handleServeCommand(args);
           break;
-          
+
         case 'clear':
         case 'cls':
           this.handleClearCommand(args);
           break;
-          
+
         case 'theme':
           await themeCommand(args[0]);
           break;
-          
+
         case 'locale':
           await localeCommand(args[0]);
           break;
-          
+
         case 'exit':
         case 'quit':
         case 'q':
           this.readline.close();
           break;
-          
+
         default:
           console.log(colors.error(t('interactive.unknownCommand', { command })));
           console.log(colors.textSecondary(t('interactive.typeHelp')));
@@ -172,7 +172,7 @@ export class CommandHandler {
       console.log(colors.error(t('interactive.usageLoad')));
       return;
     }
-    
+
     await this.schemaManager.loadSchema(args[0]);
     // Reset engine when schema changes
     this.engineRunner.resetEngine();
@@ -204,9 +204,9 @@ export class CommandHandler {
       isWatching: this.fileWatcher.isCurrentlyWatching(),
       watchOptions: this.fileWatcher.getWatchOptions(),
       lastValues: this.engineRunner.getLastValues(),
-      devServer: this.serverManager.getServerStatus()
+      devServer: this.serverManager.getServerStatus(),
     };
-    
+
     const { showStatus } = await import('../../utils/display-utils.js');
     showStatus(sessionInfo);
   }
@@ -221,9 +221,13 @@ export class CommandHandler {
       this.engineRunner.resetEngine();
       // Update development server if running
       this.serverManager.updateDevServerSchema();
-      console.log(colors.success(t('interactive.reloadedSchema', { 
-        path: this.schemaManager.getCurrentSchemaPath() 
-      })));
+      console.log(
+        colors.success(
+          t('interactive.reloadedSchema', {
+            path: this.schemaManager.getCurrentSchemaPath(),
+          })
+        )
+      );
     } catch (err) {
       console.log(colors.error(`❌ ${err.message}`));
     }
@@ -239,4 +243,4 @@ export class CommandHandler {
       console.clear();
     }
   }
-} 
+}

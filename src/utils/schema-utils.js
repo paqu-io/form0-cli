@@ -23,7 +23,7 @@ export async function findExistingSchema() {
  */
 export async function parseValuesInput(valuesInput) {
   const ext = path.extname(valuesInput).toLowerCase();
-  
+
   if (ext === '.yaml' || ext === '.yml') {
     const yamlText = await fs.readFile(valuesInput, 'utf8');
     return yaml.parse(yamlText);
@@ -62,4 +62,4 @@ export function countElements(elements) {
     }
   }
   return count;
-} 
+}

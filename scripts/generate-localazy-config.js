@@ -6,18 +6,18 @@ config({ path: '.env.local' });
 config({ path: '.env' });
 
 const localazyConfig = {
-  writeKey: process.env.LOCALAZY_WRITE_KEY || "",
-  readKey: process.env.LOCALAZY_READ_KEY || "",
-  
+  writeKey: process.env.LOCALAZY_WRITE_KEY || '',
+  readKey: process.env.LOCALAZY_READ_KEY || '',
+
   upload: {
-    type: "json",
-    files: "src/locales/en.json",
-    deprecate: "file"
+    type: 'json',
+    files: 'src/locales/en.json',
+    deprecate: 'file',
   },
-  
+
   download: {
-    files: "src/locales/${lang}.json"
-  }
+    files: 'src/locales/${lang}.json',
+  },
 };
 
 fs.writeFileSync('localazy.json', JSON.stringify(localazyConfig, null, 2));
@@ -34,4 +34,4 @@ if (localazyConfig.readKey) {
   console.log('✅ Read key loaded');
 } else {
   console.log('⚠️  Read key not found - set LOCALAZY_READ_KEY in .env or .env.local');
-} 
+}

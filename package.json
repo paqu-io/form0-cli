@@ -16,6 +16,7 @@
     "form0": "./bin/form0.js"
   },
   "dependencies": {
+    "form0-core": "file:../form0-core",
     "chalk": "^5.4.1",
     "chokidar": "^3.6.0",
     "commander": "^11.0.0",

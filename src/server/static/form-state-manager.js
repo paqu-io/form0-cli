@@ -13,16 +13,16 @@ export class FormStateManager {
   preserveCurrentValues() {
     const form = document.getElementById('main-form');
     if (!form) return;
-    
+
     const formData = new FormData(form);
     this.preservedValues = {};
-    
+
     for (const [key, value] of formData.entries()) {
       if (value !== '') {
         this.preservedValues[key] = value;
       }
     }
-    
+
     if (Object.keys(this.preservedValues).length > 0) {
       console.log('💾 Preserved values:', this.preservedValues);
     }
@@ -33,10 +33,12 @@ export class FormStateManager {
    */
   restorePreservedValues() {
     if (Object.keys(this.preservedValues).length === 0) return;
-    
+
     let restoredCount = 0;
     Object.entries(this.preservedValues).forEach(([fieldName, value]) => {
-      const input = document.querySelector(`input[name="${fieldName}"], select[name="${fieldName}"]`);
+      const input = document.querySelector(
+        `input[name="${fieldName}"], select[name="${fieldName}"]`
+      );
       if (input && !input.readOnly) {
         // Check if field type is compatible
         const field = this.formRenderer.findFieldByDataName(fieldName);
@@ -46,7 +48,7 @@ export class FormStateManager {
         }
       }
     });
-    
+
     if (restoredCount > 0) {
       console.log(`🔄 Restored ${restoredCount} field values`);
       // Clear preserved values after successful restoration
@@ -62,7 +64,7 @@ export class FormStateManager {
       case 'NumericField':
         return !isNaN(Number(value));
       case 'ChoiceField':
-        return field.choices && field.choices.some(choice => choice.value === value);
+        return field.choices && field.choices.some((choice) => choice.value === value);
       case 'TextField':
       default:
         return true;
@@ -75,7 +77,7 @@ export class FormStateManager {
   getCurrentFormValues() {
     const formData = new FormData(document.getElementById('main-form'));
     const values = {};
-    
+
     // Convert form values to appropriate types based on field definitions
     for (const [key, value] of formData.entries()) {
       const field = this.formRenderer.findFieldByDataName(key);
@@ -90,7 +92,7 @@ export class FormStateManager {
         values[key] = value === '' ? null : value;
       }
     }
-    
+
     return values;
   }
 
@@ -99,17 +101,16 @@ export class FormStateManager {
    */
   async updateFormState() {
     const values = this.getCurrentFormValues();
-    
+
     try {
       const response = await fetch('/api/engine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values })
+        body: JSON.stringify({ values }),
       });
-      
+
       const state = await response.json();
       this.applyFormState(state);
-      
     } catch (err) {
       console.error('Failed to update form state:', err);
     }
@@ -126,30 +127,32 @@ export class FormStateManager {
         element.classList.toggle('hidden', !isVisible);
       }
     });
-    
+
     // Apply readonly
     Object.entries(state.read_only || {}).forEach(([fieldName, isReadOnly]) => {
-      const input = document.querySelector(`input[name="${fieldName}"], select[name="${fieldName}"]`);
+      const input = document.querySelector(
+        `input[name="${fieldName}"], select[name="${fieldName}"]`
+      );
       if (input) {
         input.readOnly = isReadOnly;
-        
+
         // Only add readonly class if it's not already a calculated field
         if (!input.parentElement.classList.contains('calculated')) {
           input.parentElement.classList.toggle('readonly', isReadOnly);
         }
       }
     });
-    
+
     // Apply calculated values and other computed values
     Object.entries(state.values || {}).forEach(([fieldName, value]) => {
       const input = document.querySelector(`input[name="${fieldName}"]`);
       if (input) {
         // Convert boolean values to string for display
         const displayValue = value === null || value === undefined ? '' : String(value);
-        
+
         // Get field definition to check if it's calculated
         const field = this.formRenderer.findFieldByDataName(fieldName);
-        
+
         // Always update calculated fields and readonly fields
         if (input.readOnly || (field && field.type === 'CalculatedField')) {
           input.value = displayValue;
@@ -160,13 +163,13 @@ export class FormStateManager {
         }
       }
     });
-    
+
     // Apply errors
     this.clearErrors();
     Object.entries(state.errors || {}).forEach(([fieldName, errorMessage]) => {
       this.showFieldError(fieldName, errorMessage);
     });
-    
+
     // Handle required field validation
     Object.entries(state.required || {}).forEach(([fieldName, isRequired]) => {
       this.handleRequiredFieldValidation(fieldName, isRequired);
@@ -177,8 +180,8 @@ export class FormStateManager {
    * Clear all error messages
    */
   clearErrors() {
-    document.querySelectorAll('.error-message').forEach(el => el.remove());
-    document.querySelectorAll('.field.error').forEach(el => el.classList.remove('error'));
+    document.querySelectorAll('.error-message').forEach((el) => el.remove());
+    document.querySelectorAll('.field.error').forEach((el) => el.classList.remove('error'));
   }
 
   /**
@@ -211,4 +214,4 @@ export class FormStateManager {
       }
     }
   }
-} 
+}

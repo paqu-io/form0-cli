@@ -23,7 +23,7 @@ export async function runCommand(schemaPath, options) {
         // Treat as inline JSON string
         initialValues = JSON.parse(valuesInput);
       }
-      
+
       // Validate and filter values against schema
       initialValues = filterValidValues(initialValues, data);
     }

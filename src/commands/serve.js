@@ -29,16 +29,23 @@ class Form0Server {
       console.log(colors.success('\n' + t('common.schemaLoaded', { path: this.schemaPath })));
 
       // Setup Express app with schema provider and schema source
-      this.app = createApp(() => this.currentSchema, () => this.getSchemaSource());
+      this.app = createApp(
+        () => this.currentSchema,
+        () => this.getSchemaSource()
+      );
 
       // Find available port
       this.port = await this.findAvailablePort(this.port);
 
       // Start HTTP server
       this.server = createServer(this.app);
-      
+
       // Setup WebSocket server with schema source
-      this.wsServer = createWebSocketServer(this.server, () => this.currentSchema, () => this.getSchemaSource());
+      this.wsServer = createWebSocketServer(
+        this.server,
+        () => this.currentSchema,
+        () => this.getSchemaSource()
+      );
 
       // Start server
       await new Promise((resolve, reject) => {
@@ -56,7 +63,6 @@ class Form0Server {
 
       // Setup exit handlers
       this.setupExitHandlers();
-
     } catch (err) {
       console.error(colors.error(t('common.failedToStart', { message: err.message })));
       process.exit(1);
@@ -90,14 +96,14 @@ class Form0Server {
 
   startWatching() {
     console.log(colors.accent1(t('common.watchingChanges', { path: this.schemaPath })));
-    
+
     this.watcher = chokidar.watch(this.schemaPath, {
       persistent: true,
       ignoreInitial: true,
       awaitWriteFinish: {
         stabilityThreshold: 500,
-        pollInterval: 100
-      }
+        pollInterval: 100,
+      },
     });
 
     this.watcher.on('change', async (filePath) => {
@@ -108,7 +114,7 @@ class Form0Server {
     this.watcher.on('error', (error) => {
       console.error(colors.error(t('commands.serve.watcherError', { message: error.message })));
     });
-    
+
     // this.watcher.on('ready', () => {
     //   console.log(colors.textSecondary(t('commands.serve.fileWatcherReady')));
     // });
@@ -117,22 +123,27 @@ class Form0Server {
   async handleSchemaChange() {
     // Format timestamp as yyyy-mm-dd hh:mm:ss
     const now = new Date();
-    const timestamp = now.getFullYear() + '-' + 
-                     String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-                     String(now.getDate()).padStart(2, '0') + ' ' +
-                     String(now.getHours()).padStart(2, '0') + ':' + 
-                     String(now.getMinutes()).padStart(2, '0') + ':' + 
-                     String(now.getSeconds()).padStart(2, '0');
+    const timestamp =
+      now.getFullYear() +
+      '-' +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(now.getDate()).padStart(2, '0') +
+      ' ' +
+      String(now.getHours()).padStart(2, '0') +
+      ':' +
+      String(now.getMinutes()).padStart(2, '0') +
+      ':' +
+      String(now.getSeconds()).padStart(2, '0');
 
     console.log(colors.info(t('commands.serve.schemaChanged', { timestamp })));
-    
+
     try {
       await this.loadSchema();
       console.log(colors.success(t('common.schemaReloaded')));
-      
+
       // Broadcast schema update to all connected clients with source
       this.wsServer.broadcastSchemaUpdate(this.currentSchema, this.getSchemaSource());
-      
     } catch (err) {
       console.error(colors.error(t('common.failedToReload', { message: err.message })));
     }
@@ -140,10 +151,10 @@ class Form0Server {
 
   async findAvailablePort(startPort) {
     const net = await import('net');
-    
+
     return new Promise((resolve) => {
       const server = net.createServer();
-      
+
       server.listen(startPort, (err) => {
         if (err) {
           server.close();
@@ -160,24 +171,34 @@ class Form0Server {
 
   async showServerInfo() {
     console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
-    console.log(colors.textSecondary('   📋 ' + t('commands.serve.schemaFile', { path: this.schemaPath })));
-    console.log(colors.textSecondary('   🌐 ' + t('commands.serve.localUrl', { url: `http://${this.host}:${this.port}` })));
-    
+    console.log(
+      colors.textSecondary('   📋 ' + t('commands.serve.schemaFile', { path: this.schemaPath }))
+    );
+    console.log(
+      colors.textSecondary(
+        '   🌐 ' + t('commands.serve.localUrl', { url: `http://${this.host}:${this.port}` })
+      )
+    );
+
     // Try to get network IP
     try {
       const os = await import('os');
       const interfaces = os.networkInterfaces();
       const networkIp = Object.values(interfaces)
         .flat()
-        .find(iface => iface.family === 'IPv4' && !iface.internal)?.address;
-        
+        .find((iface) => iface.family === 'IPv4' && !iface.internal)?.address;
+
       if (networkIp) {
-        console.log(colors.textSecondary('   🌐 ' + t('commands.serve.networkUrl', { url: `http://${networkIp}:${this.port}` })));
+        console.log(
+          colors.textSecondary(
+            '   🌐 ' + t('commands.serve.networkUrl', { url: `http://${networkIp}:${this.port}` })
+          )
+        );
       }
     } catch (err) {
       // Ignore network IP detection errors
     }
-    
+
     console.log(colors.success('\n' + '✅ ' + t('commands.serve.serverRunning')));
     console.log(colors.textMuted(t('commands.serve.pressCtrlC')));
   }
@@ -185,19 +206,19 @@ class Form0Server {
   setupExitHandlers() {
     const cleanup = () => {
       console.log(colors.warning('\n' + t('commands.serve.shuttingDown') + '\n'));
-      
+
       if (this.watcher) {
         this.watcher.close();
       }
-      
+
       if (this.wsServer?.wss) {
         this.wsServer.wss.close();
       }
-      
+
       if (this.server) {
         this.server.close();
       }
-      
+
       process.exit(0);
     };
 
@@ -231,7 +252,7 @@ class Form0Server {
       host: this.host,
       schemaPath: this.schemaPath,
       hasSchema: !!this.currentSchema,
-      watching: !!this.watcher
+      watching: !!this.watcher,
     };
   }
 }
@@ -242,4 +263,4 @@ export async function serveCommand(schemaPath = 'form.schema.json', options) {
 }
 
 // Export the server class for interactive use
-export { Form0Server }; 
+export { Form0Server };

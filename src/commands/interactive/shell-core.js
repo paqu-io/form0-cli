@@ -31,16 +31,16 @@ export class ShellCore {
       prompt: colors.brand('form0> '),
       completer: completer, // Enable tab completion
       history: [], // Enable command history (↑/↓ arrows)
-      historySize: READLINE_CONFIG.historySize
+      historySize: READLINE_CONFIG.historySize,
     });
 
     // Initialize managers
     this.serverManager = new ServerManager(this.schemaManager, this.fileWatcher, this.rl);
     this.commandHandler = new CommandHandler(
-      this.schemaManager, 
-      this.engineRunner, 
-      this.fileWatcher, 
-      this.serverManager, 
+      this.schemaManager,
+      this.engineRunner,
+      this.fileWatcher,
+      this.serverManager,
       this.rl
     );
 
@@ -65,18 +65,18 @@ export class ShellCore {
   async start() {
     // Load configuration first
     await loadConfig();
-    
+
     this.initializeReadline();
-    
+
     showWelcomeBanner();
     console.log(colors.brandBold(t('interactive.welcome')));
     console.log(colors.textSecondary(t('interactive.typeHelp') + '\n'));
-    
+
     // Smart initialization: Auto-load schema or offer to initialize
     await this.schemaManager.smartInit();
-    
+
     this.rl.prompt();
-    
+
     this.rl.on('line', async (input) => {
       const trimmed = input.trim();
       if (trimmed) {
@@ -92,8 +92,6 @@ export class ShellCore {
       process.exit(0);
     });
   }
-
-
 
   /**
    * Prompt the user (used by file watcher for re-prompting)
@@ -111,11 +109,11 @@ export class ShellCore {
     if (this.serverManager) {
       this.serverManager.cleanup();
     }
-    
+
     this.fileWatcher.cleanup();
     if (this.rl) {
       this.rl.close();
       this.rl = null;
     }
   }
-} 
+}

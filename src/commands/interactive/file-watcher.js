@@ -61,20 +61,19 @@ export class FileWatcher {
     // Parse watch options and values from args
     const options = {
       autoRun: args.includes('--auto-run') || args.includes('-r'),
-      autoValidate: args.includes('--auto-validate') || args.includes('-v')
+      autoValidate: args.includes('--auto-validate') || args.includes('-v'),
     };
 
     // Look for --values flag
-    const valuesIndex = args.findIndex(arg => arg === '--values');
+    const valuesIndex = args.findIndex((arg) => arg === '--values');
     if (valuesIndex !== -1 && valuesIndex + 1 < args.length) {
       // Get all arguments after --values (to handle JSON objects with spaces)
       const valuesArgs = args.slice(valuesIndex + 1);
       // Remove any other flags that might come after
-      const nextFlagIndex = valuesArgs.findIndex(arg => arg.startsWith('--'));
-      const valuesInput = nextFlagIndex !== -1 
-        ? valuesArgs.slice(0, nextFlagIndex).join(' ')
-        : valuesArgs.join(' ');
-      
+      const nextFlagIndex = valuesArgs.findIndex((arg) => arg.startsWith('--'));
+      const valuesInput =
+        nextFlagIndex !== -1 ? valuesArgs.slice(0, nextFlagIndex).join(' ') : valuesArgs.join(' ');
+
       try {
         await this.engineRunner.parseAndStoreValues(valuesInput);
         console.log(colors.success(t('fileWatcher.valuesLoaded')));
@@ -109,7 +108,7 @@ export class FileWatcher {
     }
 
     this.watchOptions = options;
-    
+
     this.watcher = chokidar.watch(currentSchemaPath, WATCHER_CONFIG);
 
     this.watcher.on('change', async (filePath) => {
@@ -121,17 +120,19 @@ export class FileWatcher {
     });
 
     this.isWatching = true;
-    
-    console.log(colors.accent1(t('common.watchingChanges', { path: path.basename(currentSchemaPath) })));
-    
+
+    console.log(
+      colors.accent1(t('common.watchingChanges', { path: path.basename(currentSchemaPath) }))
+    );
+
     if (options.autoRun) {
       console.log(colors.warning(t('common.autoRunEnabled')));
     }
-    
+
     if (options.autoValidate) {
       console.log(colors.warning(t('common.autoValidateEnabled')));
     }
-    
+
     console.log(colors.textSecondary('Use "watch stop" to stop watching\n'));
   }
 
@@ -140,7 +141,7 @@ export class FileWatcher {
    */
   startWatchingInServerMode(schemaPath) {
     this.watchOptions = { autoValidate: false, autoRun: false };
-    
+
     this.watcher = chokidar.watch(schemaPath, WATCHER_CONFIG);
 
     this.watcher.on('change', async (filePath) => {
@@ -171,7 +172,7 @@ export class FileWatcher {
 
     this.isWatching = false;
     this.watchOptions = {};
-    
+
     console.log(colors.success(t('fileWatcher.stoppedWatching')));
   }
 
@@ -180,33 +181,39 @@ export class FileWatcher {
    */
   async handleFileChange(filePath) {
     const timestamp = formatTimestamp();
-    console.log(colors.header(`\n${t('common.fileChanged', { timestamp, filename: path.basename(filePath) })}`));
-    
+    console.log(
+      colors.header(
+        `\n${t('common.fileChanged', { timestamp, filename: path.basename(filePath) })}`
+      )
+    );
+
     try {
       // Try to reload schema
       await this.schemaManager.reloadSchema();
-      
+
       // Reset engine since schema changed
       this.engineRunner.resetEngine();
-      
+
       console.log(colors.success(t('common.schemaReloaded')));
-      
+
       // Update development server if running
       if (this.serverManager) {
         this.serverManager.updateDevServerSchema();
       }
-      
+
       // Show basic info about the schema
       const currentSchema = this.schemaManager.getCurrentSchema();
       const formName = currentSchema.form?.name || t('commands.preview.unnamed');
       const elementCount = countElements(currentSchema.form?.elements || []);
-      console.log(colors.info(tn('common.formInfo', elementCount, { name: formName, count: elementCount })));
-      
+      console.log(
+        colors.info(tn('common.formInfo', elementCount, { name: formName, count: elementCount }))
+      );
+
       // Auto-validate if enabled
       if (this.watchOptions.autoValidate) {
         this.schemaManager.validateCurrentSchema();
       }
-      
+
       // Auto-run if enabled
       if (this.watchOptions.autoRun) {
         const lastValues = this.engineRunner.getLastValues();
@@ -215,12 +222,11 @@ export class FileWatcher {
         }
         await this.engineRunner.runEngine([]);
       }
-      
     } catch (err) {
       console.error(colors.error(t('common.failedToReload', { message: err.message })));
       console.log(colors.warning(t('common.keepingPrevious')));
     }
-    
+
     // Show prompt again
     console.log(); // Add spacing
     if (this.shellCore) {
@@ -236,4 +242,4 @@ export class FileWatcher {
       this.stopWatching();
     }
   }
-} 
+}

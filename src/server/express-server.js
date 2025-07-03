@@ -9,10 +9,10 @@ const __dirname = path.dirname(__filename);
 
 export function createApp(getCurrentSchema, getSchemaSource) {
   const app = express();
-  
+
   // Serve static files
   app.use(express.static(path.join(__dirname, 'static')));
-  
+
   // API endpoint to get current schema
   app.get('/api/schema', (req, res) => {
     const schema = getCurrentSchema();
@@ -39,17 +39,17 @@ export function createApp(getCurrentSchema, getSchemaSource) {
       }
 
       const { values = {} } = req.body;
-      
+
       // Create engine with proper helpers (including builtins)
       const engine = createFormEngine({
         schema: schema,
         initialValues: values,
-        helpers: {} // builtins are included by default in createFormEngine
+        helpers: {}, // builtins are included by default in createFormEngine
       });
-      
+
       engine.eval();
       const state = engine.getState();
-      
+
       res.json(state);
     } catch (err) {
       console.error('Engine evaluation error:', err);
@@ -63,4 +63,4 @@ export function createApp(getCurrentSchema, getSchemaSource) {
   });
 
   return app;
-} 
+}

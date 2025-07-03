@@ -13,21 +13,23 @@ export async function localeCommand(localeName) {
   }
 
   const availableLocales = getAvailableLocales();
-  
+
   if (!availableLocales.includes(localeName)) {
     console.log(colors.error(t('locale.invalidLocale', { name: localeName })));
-    console.log(colors.textSecondary(t('locale.availableLocales', { locales: availableLocales.join(', ') })));
+    console.log(
+      colors.textSecondary(t('locale.availableLocales', { locales: availableLocales.join(', ') }))
+    );
     return;
   }
 
   // Update locale
   const success = await updateConfig({ locale: localeName });
-  
+
   if (success) {
     const displayName = localeName === 'auto' ? t('locale.autoDetect') : localeName;
     console.log(colors.success(t('locale.localeSet', { name: displayName })));
     console.log(colors.textSecondary(t('locale.preferenceSaved')));
-    
+
     if (localeName === 'auto') {
       const detectedLocale = getLocale();
       console.log(colors.textSecondary(t('locale.currentlyDetected', { locale: detectedLocale })));
@@ -50,13 +52,22 @@ function showLocaleStatus() {
   console.log(colors.header('\n' + t('locale.localeSettings') + '\n'));
   console.log(colors.textSecondary(t('locale.configuration')), colors.value(configLocale));
   console.log(colors.textSecondary(t('locale.currentLocale')), colors.value(currentLocale));
-  
+
   if (configLocale === 'auto') {
-    console.log(colors.textSecondary(t('locale.detection')), colors.textMuted(t('locale.autoDetectedFromSystem')));
+    console.log(
+      colors.textSecondary(t('locale.detection')),
+      colors.textMuted(t('locale.autoDetectedFromSystem'))
+    );
   }
-  
-  console.log(colors.textSecondary(t('locale.availableOptions')), colors.textMuted(availableLocales.join(', ')));
-  console.log(colors.textSecondary(t('locale.supportedLanguages')), colors.textMuted(supportedLocales.filter(l => l !== 'auto').join(', ')));
+
+  console.log(
+    colors.textSecondary(t('locale.availableOptions')),
+    colors.textMuted(availableLocales.join(', '))
+  );
+  console.log(
+    colors.textSecondary(t('locale.supportedLanguages')),
+    colors.textMuted(supportedLocales.filter((l) => l !== 'auto').join(', '))
+  );
   console.log();
   console.log(colors.textSecondary(t('common.usage')));
   console.log(colors.textMuted(t('locale.showCurrent')));
@@ -69,7 +80,7 @@ function showLocaleStatus() {
   console.log(colors.textMuted(t('locale.exampleFr')));
   console.log(colors.textMuted(t('locale.exampleIt')));
   console.log();
-  
+
   // Show language examples
   showLanguageExamples();
 }
@@ -79,14 +90,14 @@ function showLocaleStatus() {
  */
 function showLanguageExamples() {
   console.log(colors.header(t('locale.languageExamples') + '\n'));
-  
+
   const examples = {
     en: '✅ Schema is valid.',
     es: '✅ El esquema es válido.',
     fr: '✅ Le schéma est valide.',
-    it: '✅ Lo schema è valido.'
+    it: '✅ Lo schema è valido.',
   };
-  
+
   console.log(colors.textSecondary(t('locale.sampleMessage')));
   Object.entries(examples).forEach(([lang, message]) => {
     const isCurrentLang = lang === getLocale();
@@ -94,4 +105,4 @@ function showLanguageExamples() {
     console.log(colors.textSecondary(`    ${lang}:`), colors.text(message) + indicator);
   });
   console.log();
-} 
+}

@@ -60,7 +60,10 @@ if (process.argv.length === 2) {
     .argument('[schema]', 'Path to schema JSON file (defaults to form.schema.json)')
     .option('--auto-run', 'Automatically run engine when schema changes')
     .option('--auto-validate', 'Automatically validate schema when it changes')
-    .option('--values <input>', 'Initial values for auto-run (JSON string or path to .json/.yaml/.yml file)')
+    .option(
+      '--values <input>',
+      'Initial values for auto-run (JSON string or path to .json/.yaml/.yml file)'
+    )
     .description('Watch schema file for changes and reload automatically')
     .action(watchCommand);
 
