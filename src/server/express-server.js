@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createFormEngine } from 'form0-core';
 import { fileURLToPath } from 'url';
+import { getLocale, t, getRawTranslation } from '../utils/i18n.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +21,13 @@ export function createApp(getCurrentSchema, getSchemaSource) {
     }
     const source = getSchemaSource ? getSchemaSource() : 'Current Schema';
     res.json({ schema, source });
+  });
+
+  // API endpoint to get current locale and translations
+  app.get('/api/locale', (req, res) => {
+    const locale = getLocale();
+    const clientTranslations = getRawTranslation('client') || {};
+    res.json({ locale, translations: clientTranslations });
   });
 
   // API endpoint to run engine with values

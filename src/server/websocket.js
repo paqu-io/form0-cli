@@ -1,6 +1,6 @@
 import { WebSocketServer } from 'ws';
 import { colors } from '../utils/theme.js';
-import { t } from '../utils/i18n.js';
+import { t, tn } from '../utils/i18n.js';
 
 export function createWebSocketServer(server, getCurrentSchema, getSchemaSource) {
   const wss = new WebSocketServer({ server });
@@ -11,7 +11,7 @@ export function createWebSocketServer(server, getCurrentSchema, getSchemaSource)
     const isInteractiveMode = source.includes('Interactive Mode');
     
     if (isInteractiveMode) {
-      console.log('\n' + colors.textSecondary('🔗 Browser connected to development server'));
+      console.log('\n' + colors.textSecondary(t('websocket.browserConnected')));
     } else {
       console.log(colors.textSecondary(t('commands.serve.clientConnected')));
     }
@@ -29,7 +29,7 @@ export function createWebSocketServer(server, getCurrentSchema, getSchemaSource)
 
     ws.on('close', () => {
       if (isInteractiveMode) {
-        console.log('\n' + colors.textSecondary('🔌 Browser disconnected from development server'));
+        console.log('\n' + colors.textSecondary(t('websocket.browserDisconnected')));
       } else {
         console.log(colors.textSecondary(t('commands.serve.clientDisconnected')));
       }
@@ -38,7 +38,7 @@ export function createWebSocketServer(server, getCurrentSchema, getSchemaSource)
 
   // Function to broadcast schema updates to all connected clients
   function broadcastSchemaUpdate(schema, schemaSource) {
-    console.log(colors.textSecondary('Broadcasting schema update to clients...'));
+    console.log(colors.textSecondary(t('websocket.broadcastingUpdate')));
     
     const source = schemaSource || 'Current Schema';
     const message = JSON.stringify({
@@ -55,7 +55,7 @@ export function createWebSocketServer(server, getCurrentSchema, getSchemaSource)
       }
     });
     
-    console.log(colors.textSecondary(`📡 Sent update to ${clientCount} connected client(s)`));
+    console.log(colors.textSecondary(tn('websocket.updateSent', clientCount, { count: clientCount })));
   }
 
   return {

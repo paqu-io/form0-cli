@@ -14,8 +14,8 @@ export function showWelcomeBanner() {
   ░·· ··░   ██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║╚██████╔╝  ░·· ··░
   ░·· ··░   ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝   ░·· ··░
     `));
-  console.log(colors.brand('                    ' + t('help.title')));
-  console.log(colors.brand('                    ' + t('help.subtitle') + '\n'));
+  console.log(colors.brand(t('help.title')));
+  console.log(colors.brand(t('help.subtitle') + '\n'));
 }
 
 /**

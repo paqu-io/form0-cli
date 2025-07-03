@@ -57,12 +57,12 @@ export class ServerManager {
    */
   async startDevServer(args) {
     if (!this.schemaManager.getCurrentSchema()) {
-      console.log(colors.error('❌ No schema loaded. Use "load <path>" to load a schema first.'));
+      console.log(colors.error(t('interactive.server.noSchemaLoaded')));
       return;
     }
 
     if (this.devServer && this.devServer.getStatus().running) {
-      console.log(colors.warning('⚠️  Development server is already running. Use "serve stop" to stop it first.'));
+      console.log(colors.warning(t('interactive.server.alreadyRunning')));
       return;
     }
 
@@ -121,8 +121,8 @@ export class ServerManager {
           // Ignore network IP detection errors
         }
         
-        console.log(colors.textSecondary('\n👀 Interactive mode: Schema changes sync automatically'));
-        console.log(colors.textSecondary('   Use "serve stop" to stop server and return to interactive mode'));
+        console.log(colors.textSecondary('\n' + t('interactive.server.interactiveMode')));
+        console.log(colors.textSecondary(t('interactive.server.useServeStop')));
       };
 
       await this.devServer.start();
@@ -136,7 +136,7 @@ export class ServerManager {
       this.readline.prompt();
       
     } catch (err) {
-      console.log(colors.error(`❌ Failed to start development server: ${err.message}`));
+      console.log(colors.error(t('interactive.server.failedToStart', { message: err.message })));
     }
   }
 
@@ -166,7 +166,7 @@ export class ServerManager {
     // Add a no-op handler for server mode (ignore Ctrl+C completely)
     process.on('SIGINT', () => {
       // Ignore Ctrl+C in server mode - only allow "serve stop"
-      console.log(colors.warning('\n⚠️  Use "serve stop" to stop the development server'));
+      console.log(colors.warning('\n' + t('interactive.server.ctrlCBlocked')));
       if (this.readline) {
         this.readline.prompt();
       }
@@ -206,7 +206,7 @@ export class ServerManager {
    */
   stopDevServer() {
     if (!this.devServer || !this.devServer.getStatus().running) {
-      console.log(colors.warning('⚠️  No development server running.'));
+      console.log(colors.warning(t('interactive.server.noServerRunning')));
       return;
     }
 
@@ -223,15 +223,15 @@ export class ServerManager {
         this.fileWatcher.stopWatching();
       }
       
-      console.log(colors.success('✅ Development server stopped'));
-      console.log(colors.textSecondary('   Returning to interactive mode...\n'));
+      console.log(colors.success(t('interactive.server.serverStopped')));
+      console.log(colors.textSecondary(t('interactive.server.returningToInteractive')));
       
       // Restore normal prompt
       this.readline.setPrompt(colors.brand('form0> '));
       this.readline.prompt();
       
     } catch (err) {
-      console.log(colors.error(`❌ Failed to stop development server: ${err.message}`));
+      console.log(colors.error(t('interactive.server.failedToStop', { message: err.message })));
     }
   }
 
@@ -240,18 +240,22 @@ export class ServerManager {
    */
   showServeStatus() {
     if (!this.devServer) {
-      console.log(colors.textSecondary('📊 Development server: Not started'));
+      console.log(colors.textSecondary(t('interactive.server.notStarted')));
       return;
     }
 
     const status = this.devServer.getStatus();
-    console.log(colors.header('📊 Development Server Status:'));
-    console.log(colors.textSecondary(`  Running: ${status.running ? '✅ Yes' : '❌ No'}`));
+    console.log(colors.header(t('interactive.server.statusTitle')));
+    console.log(colors.textSecondary(t('interactive.server.running', { 
+      status: status.running ? t('interactive.server.statusYes') : t('interactive.server.statusNo') 
+    })));
     if (status.running) {
-      console.log(colors.textSecondary(`  Port: ${status.port}`));
-      console.log(colors.textSecondary(`  Host: ${status.host}`));
-      console.log(colors.success(`  URL: http://${status.host}:${status.port}`));
-      console.log(colors.textSecondary(`  Schema: ${status.hasSchema ? '✅ Loaded' : '❌ None'}`));
+      console.log(colors.textSecondary(t('interactive.server.port', { port: status.port })));
+      console.log(colors.textSecondary(t('interactive.server.host', { host: status.host })));
+      console.log(colors.success(t('interactive.server.url', { url: `http://${status.host}:${status.port}` })));
+      console.log(colors.textSecondary(t('interactive.server.schema', { 
+        status: status.hasSchema ? t('interactive.server.schemaLoaded') : t('interactive.server.schemaNone')
+      })));
     }
   }
 
@@ -266,7 +270,7 @@ export class ServerManager {
 
     const schema = this.schemaManager.getCurrentSchema();
     if (!schema) {
-      console.log(colors.error('❌ No schema loaded to update server with.'));
+      console.log(colors.error(t('interactive.server.noSchemaToUpdate')));
       return;
     }
 

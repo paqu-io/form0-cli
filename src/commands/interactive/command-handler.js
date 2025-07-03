@@ -42,17 +42,17 @@ export class CommandHandler {
    */
   showServerModeRestriction(command, reason, action = null) {
     if (reason === 'command_blocked') {
-      console.log(colors.warning(`⚠️  Command "${command}" is not available while development server is running.`));
-      console.log(colors.textSecondary('   Available commands:'));
-      console.log(colors.textSecondary('   • serve stop       - Stop the development server'));
-      console.log(colors.textSecondary('   • serve status     - Show server status'));
-      console.log(colors.textSecondary('   • status           - Show session status'));
-      console.log(colors.textSecondary('   • preview          - Preview current schema'));
-      console.log(colors.textSecondary('   • validate         - Validate current schema'));
-      console.log(colors.textSecondary('   • help             - Show help'));
+      console.log(colors.warning(t('interactive.serverMode.commandBlocked', { command })));
+      console.log(colors.textSecondary(t('interactive.serverMode.availableCommands')));
+      console.log(colors.textSecondary(t('interactive.serverMode.serveStop')));
+      console.log(colors.textSecondary(t('interactive.serverMode.serveStatus')));
+      console.log(colors.textSecondary(t('interactive.serverMode.sessionStatus')));
+      console.log(colors.textSecondary(t('interactive.serverMode.preview')));
+      console.log(colors.textSecondary(t('interactive.serverMode.validate')));
+      console.log(colors.textSecondary(t('interactive.serverMode.help')));
     } else if (reason === 'serve_action_blocked') {
-      console.log(colors.warning(`⚠️  "serve ${action}" is not available while server is running.`));
-      console.log(colors.textSecondary('   Use "serve stop" to stop the server or "serve status" to check status.'));
+      console.log(colors.warning(t('interactive.serverMode.serveActionBlocked', { action })));
+      console.log(colors.textSecondary(t('interactive.serverMode.useServeStop')));
     }
   }
 
@@ -222,7 +222,7 @@ export class CommandHandler {
       // Update development server if running
       this.serverManager.updateDevServerSchema();
       console.log(colors.success(t('interactive.reloadedSchema', { 
-        filename: this.schemaManager.getCurrentSchemaPath() 
+        path: this.schemaManager.getCurrentSchemaPath() 
       })));
     } catch (err) {
       console.log(colors.error(`❌ ${err.message}`));

@@ -66,6 +66,18 @@
       "watchingChanges": "👀 Vigilando cambios en {path}..."
     }
   },
+  "client": {
+    "failedToLoadSchema": "❌ Error al cargar el esquema",
+    "errorLoadingSchema": "❌ Error cargando el esquema",
+    "connectedWatching": "✅ Conectado - vigilando cambios",
+    "disconnectedFromServer": "❌ Desconectado del servidor",
+    "websocketConnectionError": "❌ Error de conexión WebSocket",
+    "schemaUpdated": "✅ Esquema actualizado: {timestamp}",
+    "websocketConnected": "🔗 WebSocket conectado",
+    "receivedSchemaUpdate": "📡 Actualización de esquema recibida del servidor",
+    "websocketDisconnected": "🔌 WebSocket desconectado",
+    "websocketError": "❌ Error de WebSocket"
+  },
   "common": {
     "attemptedToParse": "   Intento de analizar: \"{input}\"",
     "engineState": "🧠 Estado del motor:",
@@ -172,7 +184,7 @@
     "info": "  Información:",
     "invalidTheme": "❌ Tema inválido: {name}",
     "numeric": "    Numérico:",
-    "preferencesSaved": "Preferencia de tema guardada en tu configuración.",
+    "preferencesSaved": "Preferencia de tema guardada en .form0-cli/config.json en directorio home\n      (Windows: C:\\Users\\{usuario}  •  macOS: /Users/{usuario}  •  Linux: /home/{usuario})",
     "section": "    Sección:",
     "showCurrent": "    theme              Mostrar tema actual",
     "success": "  Éxito:",

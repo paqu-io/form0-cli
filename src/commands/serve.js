@@ -26,7 +26,7 @@ class Form0Server {
     try {
       // Load initial schema
       await this.loadSchema();
-      console.log(colors.success(t('commands.serve.schemaLoaded', { path: this.schemaPath })));
+      console.log(colors.success('\n' + t('commands.serve.schemaLoaded', { path: this.schemaPath })));
 
       // Setup Express app with schema provider and schema source
       this.app = createApp(() => this.currentSchema, () => this.getSchemaSource());
@@ -89,7 +89,7 @@ class Form0Server {
   }
 
   startWatching() {
-    console.log(colors.textSecondary(`👀 Watching file: ${this.schemaPath}`));
+    console.log(colors.accent1(t('commands.serve.watchingFile', { path: this.schemaPath })));
     
     this.watcher = chokidar.watch(this.schemaPath, {
       persistent: true,
@@ -101,7 +101,7 @@ class Form0Server {
     });
 
     this.watcher.on('change', async (filePath) => {
-      console.log(colors.info(`📝 File changed: ${filePath}`));
+      console.log(colors.info(t('commands.serve.fileChanged', { path: filePath })));
       await this.handleSchemaChange();
     });
 
@@ -109,9 +109,9 @@ class Form0Server {
       console.error(colors.error(t('commands.serve.watcherError', { message: error.message })));
     });
     
-    this.watcher.on('ready', () => {
-      console.log(colors.textSecondary('👀 File watcher ready'));
-    });
+    // this.watcher.on('ready', () => {
+    //   console.log(colors.textSecondary(t('commands.serve.fileWatcherReady')));
+    // });
   }
 
   async handleSchemaChange() {
@@ -160,8 +160,8 @@ class Form0Server {
 
   async showServerInfo() {
     console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
-    console.log(colors.info('📋 ' + t('commands.serve.schemaFile', { path: this.schemaPath })));
-    console.log(colors.success('🌐 ' + t('commands.serve.localUrl', { url: `http://${this.host}:${this.port}` })));
+    console.log(colors.textSecondary('   📋 ' + t('commands.serve.schemaFile', { path: this.schemaPath })));
+    console.log(colors.textSecondary('   🌐 ' + t('commands.serve.localUrl', { url: `http://${this.host}:${this.port}` })));
     
     // Try to get network IP
     try {
@@ -172,19 +172,19 @@ class Form0Server {
         .find(iface => iface.family === 'IPv4' && !iface.internal)?.address;
         
       if (networkIp) {
-        console.log(colors.success('🌐 ' + t('commands.serve.networkUrl', { url: `http://${networkIp}:${this.port}` })));
+        console.log(colors.textSecondary('   🌐 ' + t('commands.serve.networkUrl', { url: `http://${networkIp}:${this.port}` })));
       }
     } catch (err) {
       // Ignore network IP detection errors
     }
     
-    console.log(colors.textSecondary('\n✅ ' + t('commands.serve.serverRunning')));
-    console.log(colors.textSecondary('   ' + t('commands.serve.pressCtrlC')));
+    console.log(colors.success('\n' + '✅ ' + t('commands.serve.serverRunning')));
+    console.log(colors.textMuted(t('commands.serve.pressCtrlC')));
   }
 
   setupExitHandlers() {
     const cleanup = () => {
-      console.log(colors.info('\n' + t('commands.serve.shuttingDown')));
+      console.log(colors.warning('\n' + t('commands.serve.shuttingDown') + '\n'));
       
       if (this.watcher) {
         this.watcher.close();
@@ -213,13 +213,13 @@ class Form0Server {
 
   // Method for interactive integration
   updateSchema(newSchema) {
-    console.log(colors.textSecondary('🔄 Updating server schema...'));
+    console.log(colors.textSecondary(t('commands.serve.updatingSchema')));
     this.currentSchema = newSchema;
     if (this.wsServer) {
       this.wsServer.broadcastSchemaUpdate(this.currentSchema, this.getSchemaSource());
-      console.log(colors.textSecondary('📡 Schema update broadcasted to clients'));
+      console.log(colors.textSecondary(t('commands.serve.schemaBroadcasted')));
     } else {
-      console.log(colors.warning('⚠️  No WebSocket server available for broadcasting'));
+      console.log(colors.warning(t('commands.serve.noWebSocketServer')));
     }
   }
 

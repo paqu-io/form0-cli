@@ -122,7 +122,7 @@ export class FileWatcher {
 
     this.isWatching = true;
     
-    console.log(colors.info(t('fileWatcher.watchingChanges', { path: path.basename(currentSchemaPath) })));
+    console.log(colors.accent1(t('fileWatcher.watchingChanges', { path: path.basename(currentSchemaPath) })));
     
     if (options.autoRun) {
       console.log(colors.warning(t('fileWatcher.autoRunEnabled')));

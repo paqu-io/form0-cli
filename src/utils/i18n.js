@@ -65,7 +65,9 @@ function determineLocale() {
  */
 export function setLocale(locale) {
   if (!SUPPORTED_LOCALES.includes(locale)) {
-    console.warn(`Warning: Unsupported locale '${locale}'. Using '${DEFAULT_LOCALE}' instead.`);
+    // Use raw translation for system messages to avoid circular dependency
+    const message = getSystemMessage('unsupportedLocale', { locale, defaultLocale: DEFAULT_LOCALE });
+    console.warn(message);
     locale = DEFAULT_LOCALE;
   }
 
@@ -95,6 +97,29 @@ export function getSupportedLocales() {
 }
 
 /**
+ * Get system message for internal i18n warnings
+ * @param {string} key - The system message key
+ * @param {object} params - Parameters to replace
+ * @returns {string} System message with parameters replaced
+ */
+function getSystemMessage(key, params = {}) {
+  const systemMessages = {
+    unsupportedLocale: "Warning: Unsupported locale '{locale}'. Using '{defaultLocale}' instead.",
+    translationFileNotFound: "Warning: Translation file not found: {filePath}",
+    failedToLoadTranslations: "Warning: Could not load translations for '{locale}': {message}",
+    failedToLoadFallback: "Warning: Could not load fallback translations: {message}",
+    translationMissing: "Translation missing for key: '{key}' (locale: {locale})"
+  };
+  
+  let message = systemMessages[key] || key;
+  // Replace parameters
+  Object.keys(params).forEach(param => {
+    message = message.replace(`{${param}}`, params[param]);
+  });
+  return message;
+}
+
+/**
  * Load translations for the specified locale
  * @param {string} locale - The locale to load
  */
@@ -105,11 +130,13 @@ function loadTranslations(locale) {
     if (fs.existsSync(localeFile)) {
       translations = fs.readJsonSync(localeFile);
     } else {
-      console.warn(`Warning: Translation file not found: ${localeFile}`);
+      const message = getSystemMessage('translationFileNotFound', { filePath: localeFile });
+      console.warn(message);
       translations = {};
     }
   } catch (err) {
-    console.warn(`Warning: Could not load translations for '${locale}': ${err.message}`);
+    const message = getSystemMessage('failedToLoadTranslations', { locale, message: err.message });
+    console.warn(message);
     translations = {};
   }
 }
@@ -125,7 +152,8 @@ function loadFallbackTranslations() {
       fallbackTranslations = fs.readJsonSync(fallbackFile);
     }
   } catch (err) {
-    console.warn(`Warning: Could not load fallback translations: ${err.message}`);
+    const message = getSystemMessage('failedToLoadFallback', { message: err.message });
+    console.warn(message);
     fallbackTranslations = {};
   }
 }
@@ -187,7 +215,8 @@ export function t(key, params = {}) {
   
   // If still not found, return the key itself (for debugging)
   if (translation === undefined) {
-    console.warn(`Translation missing for key: '${key}' (locale: ${currentLocale})`);
+    const message = getSystemMessage('translationMissing', { key, locale: currentLocale });
+    console.warn(message);
     return key;
   }
 
@@ -223,7 +252,8 @@ export function tn(key, count, params = {}) {
   }
   
   if (translation === undefined) {
-    console.warn(`Translation missing for key: '${key}' (locale: ${currentLocale})`);
+    const message = getSystemMessage('translationMissing', { key, locale: currentLocale });
+    console.warn(message);
     return key;
   }
 

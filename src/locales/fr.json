@@ -172,7 +172,7 @@
     "info": "  Info :",
     "invalidTheme": "❌ Thème invalide : {name}",
     "numeric": "    Numérique :",
-    "preferencesSaved": "Préférence de thème enregistrée dans votre configuration.",
+    "preferencesSaved": "Préférence de thème enregistrée dans .form0-cli/config.json dans le répertoire home\n      (Windows: C:\\Users\\{utilisateur}  •  macOS: /Users/{utilisateur}  •  Linux: /home/{utilisateur})",
     "section": "    Section :",
     "showCurrent": "    theme              Afficher le thème actuel",
     "success": "  Succès :",
