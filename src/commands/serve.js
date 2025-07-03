@@ -26,7 +26,7 @@ class Form0Server {
     try {
       // Load initial schema
       await this.loadSchema();
-      console.log(colors.success('\n' + t('commands.serve.schemaLoaded', { path: this.schemaPath })));
+      console.log(colors.success('\n' + t('common.schemaLoaded', { path: this.schemaPath })));
 
       // Setup Express app with schema provider and schema source
       this.app = createApp(() => this.currentSchema, () => this.getSchemaSource());
@@ -58,7 +58,7 @@ class Form0Server {
       this.setupExitHandlers();
 
     } catch (err) {
-      console.error(colors.error(t('commands.serve.failedToStart', { message: err.message })));
+      console.error(colors.error(t('common.failedToStart', { message: err.message })));
       process.exit(1);
     }
   }
@@ -89,7 +89,7 @@ class Form0Server {
   }
 
   startWatching() {
-    console.log(colors.accent1(t('commands.serve.watchingFile', { path: this.schemaPath })));
+    console.log(colors.accent1(t('common.watchingChanges', { path: this.schemaPath })));
     
     this.watcher = chokidar.watch(this.schemaPath, {
       persistent: true,
@@ -128,13 +128,13 @@ class Form0Server {
     
     try {
       await this.loadSchema();
-      console.log(colors.success(t('commands.serve.schemaReloaded')));
+      console.log(colors.success(t('common.schemaReloaded')));
       
       // Broadcast schema update to all connected clients with source
       this.wsServer.broadcastSchemaUpdate(this.currentSchema, this.getSchemaSource());
       
     } catch (err) {
-      console.error(colors.error(t('commands.serve.failedToReload', { message: err.message })));
+      console.error(colors.error(t('common.failedToReload', { message: err.message })));
     }
   }
 

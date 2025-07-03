@@ -57,7 +57,7 @@ export class ServerManager {
    */
   async startDevServer(args) {
     if (!this.schemaManager.getCurrentSchema()) {
-      console.log(colors.error(t('interactive.server.noSchemaLoaded')));
+      console.log(colors.error(t('common.noSchemaLoaded')));
       return;
     }
 
@@ -136,7 +136,7 @@ export class ServerManager {
       this.readline.prompt();
       
     } catch (err) {
-      console.log(colors.error(t('interactive.server.failedToStart', { message: err.message })));
+      console.log(colors.error(t('common.failedToStart', { message: err.message })));
     }
   }
 

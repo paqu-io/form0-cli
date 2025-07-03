@@ -92,7 +92,7 @@ export class SchemaManager {
    */
   validateCurrentSchema() {
     if (!this.currentSchema) {
-      console.log(chalk.red(t('interactive.noSchemaLoaded')));
+      console.log(chalk.red(t('common.noSchemaLoaded')));
       return false;
     }
 
@@ -111,7 +111,7 @@ export class SchemaManager {
    */
   previewSchema() {
     if (!this.currentSchema) {
-      console.log(chalk.red(t('interactive.noSchemaLoaded')));
+      console.log(chalk.red(t('common.noSchemaLoaded')));
       return;
     }
 

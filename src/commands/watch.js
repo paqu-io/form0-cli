@@ -51,7 +51,7 @@ class Form0Watcher {
     try {
       // Initial load
       await this.loadSchema();
-      console.log(colors.success('\n' + t('commands.watch.initialSchemaLoaded', { path: this.schemaPath })));
+      console.log(colors.success('\n' + t('common.schemaLoaded', { path: this.schemaPath })));
       
       // Validate and filter initial values against loaded schema
       if (Object.keys(this.lastValues).length > 0) {
@@ -73,15 +73,15 @@ class Form0Watcher {
       // Start watching
       this.startWatching();
       
-      console.log(colors.accent1(t('commands.watch.watchingChanges', { path: this.schemaPath })));
+      console.log(colors.accent1(t('common.watchingChanges', { path: this.schemaPath })));
       console.log(colors.textMuted(t('commands.watch.pressCtrlC')));
       
       if (this.options.autoRun) {
-        console.log(colors.warning(t('commands.watch.autoRunEnabled')));
+        console.log(colors.warning(t('common.autoRunEnabled')));
       }
       
       if (this.options.autoValidate) {
-        console.log(colors.warning(t('commands.watch.autoValidateEnabled')));
+        console.log(colors.warning(t('common.autoValidateEnabled')));
       }
 
       // Keep process alive
@@ -122,19 +122,19 @@ class Form0Watcher {
 
   async handleFileChange(filePath) {
     const timestamp = new Date().toLocaleTimeString();
-    console.log(colors.info('\n' + t('commands.watch.fileChanged', { timestamp, filename: path.basename(filePath) })));
+    console.log(colors.info('\n' + t('common.fileChanged', { timestamp, filename: path.basename(filePath) })));
     
     try {
       // Try to reload schema
       const oldSchema = this.currentSchema;
       await this.loadSchema();
       
-      console.log(colors.success(t('commands.watch.schemaReloaded')));
+      console.log(colors.success(t('common.schemaReloaded')));
       
       // Show basic info about the schema
       const formName = this.currentSchema.form?.name || t('commands.preview.unnamed');
       const elementCount = this.countElements(this.currentSchema.form?.elements || []);
-      console.log(colors.accent1(tn('commands.watch.formInfo', elementCount, { name: formName, count: elementCount })));
+      console.log(colors.accent1(tn('common.formInfo', elementCount, { name: formName, count: elementCount })));
       
       // Auto-validate if enabled
       if (this.options.autoValidate) {
@@ -201,7 +201,7 @@ class Form0Watcher {
         
         if (Object.keys(state).length > calculatedFields.length + 3) {
           const moreCount = Object.keys(state).length - calculatedFields.length;
-          console.log(colors.textMuted(tn('commands.watch.andMore', moreCount, { count: moreCount })));
+          console.log(colors.textMuted(t('commands.watch.andMore', { count: moreCount })));
         }
       }
       

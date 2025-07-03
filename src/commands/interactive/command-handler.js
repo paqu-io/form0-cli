@@ -178,7 +178,7 @@ export class CommandHandler {
     this.engineRunner.resetEngine();
     // Update development server if running
     this.serverManager.updateDevServerSchema();
-    console.log(colors.success(t('interactive.loadedSchema', { filename: args[0] })));
+    console.log(colors.success(t('common.schemaLoaded', { path: args[0] })));
   }
 
   /**

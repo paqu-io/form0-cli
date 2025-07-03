@@ -54,7 +54,7 @@ export class FileWatcher {
 
     const currentSchemaPath = this.schemaManager.getCurrentSchemaPath();
     if (!currentSchemaPath) {
-      console.log(colors.error(t('interactive.noSchemaLoaded')));
+      console.log(colors.error(t('common.noSchemaLoaded')));
       return;
     }
 
@@ -122,14 +122,14 @@ export class FileWatcher {
 
     this.isWatching = true;
     
-    console.log(colors.accent1(t('fileWatcher.watchingChanges', { path: path.basename(currentSchemaPath) })));
+    console.log(colors.accent1(t('common.watchingChanges', { path: path.basename(currentSchemaPath) })));
     
     if (options.autoRun) {
-      console.log(colors.warning(t('fileWatcher.autoRunEnabled')));
+      console.log(colors.warning(t('common.autoRunEnabled')));
     }
     
     if (options.autoValidate) {
-      console.log(colors.warning(t('fileWatcher.autoValidateEnabled')));
+      console.log(colors.warning(t('common.autoValidateEnabled')));
     }
     
     console.log(colors.textSecondary('Use "watch stop" to stop watching\n'));
@@ -180,7 +180,7 @@ export class FileWatcher {
    */
   async handleFileChange(filePath) {
     const timestamp = formatTimestamp();
-    console.log(colors.header(`\n${t('fileWatcher.fileChanged', { timestamp, filename: path.basename(filePath) })}`));
+    console.log(colors.header(`\n${t('common.fileChanged', { timestamp, filename: path.basename(filePath) })}`));
     
     try {
       // Try to reload schema
@@ -189,7 +189,7 @@ export class FileWatcher {
       // Reset engine since schema changed
       this.engineRunner.resetEngine();
       
-      console.log(colors.success(t('fileWatcher.schemaReloaded')));
+      console.log(colors.success(t('common.schemaReloaded')));
       
       // Update development server if running
       if (this.serverManager) {
@@ -200,7 +200,7 @@ export class FileWatcher {
       const currentSchema = this.schemaManager.getCurrentSchema();
       const formName = currentSchema.form?.name || t('commands.preview.unnamed');
       const elementCount = countElements(currentSchema.form?.elements || []);
-      console.log(colors.info(tn('fileWatcher.formInfo', elementCount, { name: formName, count: elementCount })));
+      console.log(colors.info(tn('common.formInfo', elementCount, { name: formName, count: elementCount })));
       
       // Auto-validate if enabled
       if (this.watchOptions.autoValidate) {

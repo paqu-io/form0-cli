@@ -58,7 +58,7 @@ export function showHelp() {
   console.log(colors.text(t('help.exitCommand')));
   console.log();
   console.log(colors.textMuted(t('help.navigation')));
-  console.log(colors.textMuted(t('help.examples')));
+  console.log(colors.textMuted(t('common.examples')));
   console.log(colors.textMuted(t('help.exampleRun1')));
   console.log(colors.textMuted(t('help.exampleRun2')));
   console.log(colors.textMuted(t('help.exampleWatch1')));

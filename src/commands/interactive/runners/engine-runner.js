@@ -43,7 +43,7 @@ export class EngineRunner {
   createEngine(initialValues = {}) {
     const currentSchema = this.schemaManager.getCurrentSchema();
     if (!currentSchema) {
-      throw new Error(t('interactive.noSchemaLoaded'));
+      throw new Error(t('common.noSchemaLoaded'));
     }
     
     this.engine = createFormEngine({
@@ -123,7 +123,7 @@ export class EngineRunner {
         await this.parseAndStoreValues(testFile);
         console.log(colors.success(t('interactive.autoLoadedValues', { filename: testFile })));
       } catch (err) {
-        console.log(colors.warning(t('interactive.autoLoadFailed', { filename: testFile, message: err.message })));
+        console.log(colors.warning(t('interactive.foundButFailedToLoad', { path: testFile, message: err.message })));
       }
     }
   }
