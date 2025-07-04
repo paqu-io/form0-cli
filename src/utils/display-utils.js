@@ -6,16 +6,18 @@ import { t, tn } from './i18n.js';
  * Display the welcome banner with ASCII art
  */
 export function showWelcomeBanner() {
-  console.log(colors.brandBold(`
-  ███████╗ ██████╗ ██████╗ ███╗   ███╗ ██████╗ 
-  ██╔════╝██╔═══██╗██╔══██╗████╗ ████║██╔═████╗
-  █████╗  ██║   ██║██████╔╝██╔████╔██║██║██╔██║
-  ██╔══╝  ██║   ██║██╔══██╗██║╚██╔╝██║████╔╝██║
-  ██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║╚██████╔╝
-  ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝ 
-    `));
-  console.log(colors.brand('                    ' + t('help.title')));
-  console.log(colors.brand('                    ' + t('help.subtitle') + '\n'));
+  console.log(
+    colors.brandBold(`
+  ░·· ··░   ███████╗ ██████╗ ██████╗ ███╗   ███╗ ██████╗   ░·· ··░
+  ░·· ··░   ██╔════╝██╔═══██╗██╔══██╗████╗ ████║██╔═████╗  ░·· ··░
+  ░·· ··░   █████╗  ██║   ██║██████╔╝██╔████╔██║██║██╔██║  ░·· ··░
+  ░·· ··░   ██╔══╝  ██║   ██║██╔══██╗██║╚██╔╝██║████╔╝██║  ░·· ··░
+  ░·· ··░   ██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║╚██████╔╝  ░·· ··░
+  ░·· ··░   ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝   ░·· ··░
+    `)
+  );
+  console.log(colors.brand(t('help.title')));
+  console.log(colors.brand(t('help.subtitle') + '\n'));
 }
 
 /**
@@ -42,6 +44,12 @@ export function showHelp() {
   console.log(colors.text(t('help.valuesCommand')));
   console.log(colors.text(t('help.fieldsCommand')));
   console.log();
+  console.log(colors.accent1(t('help.development')));
+  console.log(colors.text(t('help.serveCommand')));
+  console.log(colors.textSecondary(t('help.serveOptions')));
+  console.log(colors.text(t('help.serveStopCommand')));
+  console.log(colors.text(t('help.serveStatusCommand')));
+  console.log();
   console.log(colors.accent1(t('help.sessionManagement')));
   console.log(colors.text(t('help.statusCommand')));
   console.log(colors.text(t('help.themeCommand')));
@@ -52,7 +60,7 @@ export function showHelp() {
   console.log(colors.text(t('help.exitCommand')));
   console.log();
   console.log(colors.textMuted(t('help.navigation')));
-  console.log(colors.textMuted(t('help.examples')));
+  console.log(colors.textMuted(t('common.examples')));
   console.log(colors.textMuted(t('help.exampleRun1')));
   console.log(colors.textMuted(t('help.exampleRun2')));
   console.log(colors.textMuted(t('help.exampleWatch1')));
@@ -70,16 +78,44 @@ export function showStatus(sessionInfo) {
     engine,
     isWatching,
     watchOptions,
-    lastValues
+    lastValues,
+    devServer,
   } = sessionInfo;
 
   console.log(colors.header('\n' + t('status.sessionStatus')));
-  console.log(colors.textSecondary(t('status.directory')), colors.value(path.basename(process.cwd())));
-  console.log(colors.textSecondary(t('status.schema')), currentSchemaPath ? colors.success(currentSchemaPath) : colors.error(t('status.noneLoaded')));
-  console.log(colors.textSecondary(t('status.form')), currentSchema?.form?.name ? colors.success(currentSchema.form.name) : colors.error(t('status.notApplicable')));
-  console.log(colors.textSecondary(t('status.engine')), engine ? colors.success(t('status.ready')) : colors.warning(t('status.notInitialized')));
-  console.log(colors.textSecondary(t('status.watching')), isWatching ? colors.success(t('status.active')) : colors.error(t('status.stopped')));
-  
+  console.log(
+    colors.textSecondary(t('status.directory')),
+    colors.value(path.basename(process.cwd()))
+  );
+  console.log(
+    colors.textSecondary(t('status.schema')),
+    currentSchemaPath ? colors.success(currentSchemaPath) : colors.error(t('status.noneLoaded'))
+  );
+  console.log(
+    colors.textSecondary(t('status.form')),
+    currentSchema?.form?.name
+      ? colors.success(currentSchema.form.name)
+      : colors.error(t('status.notApplicable'))
+  );
+
+  // Show engine status differently based on dev server context
+  if (devServer && devServer.running) {
+    console.log(
+      colors.textSecondary(t('status.engine')),
+      colors.textMuted(t('status.handledByServer'))
+    );
+  } else {
+    console.log(
+      colors.textSecondary(t('status.engine')),
+      engine ? colors.success(t('status.ready')) : colors.warning(t('status.notInitialized'))
+    );
+  }
+
+  console.log(
+    colors.textSecondary(t('status.watching')),
+    isWatching ? colors.success(t('status.active')) : colors.error(t('status.stopped'))
+  );
+
   if (isWatching) {
     const options = [];
     if (watchOptions.autoRun) options.push('auto-run');
@@ -88,10 +124,27 @@ export function showStatus(sessionInfo) {
       console.log(colors.textSecondary(t('status.options')), colors.warning(options.join(', ')));
     }
   }
-  
+
   const valuesCount = Object.keys(lastValues).length;
-  console.log(colors.textSecondary(t('status.testValues')), valuesCount > 0 ? colors.success(tn('status.fieldsStored', valuesCount, { count: valuesCount })) : colors.error(t('status.none')));
-  
+  console.log(
+    colors.textSecondary(t('status.testValues')),
+    valuesCount > 0
+      ? colors.success(tn('status.fieldsStored', valuesCount, { count: valuesCount }))
+      : colors.error(t('status.none'))
+  );
+
+  // Show development server status
+  if (devServer) {
+    console.log(
+      colors.textSecondary(t('status.devServer')),
+      devServer.running
+        ? colors.success(`http://${devServer.host}:${devServer.port}`)
+        : colors.error(t('status.stopped'))
+    );
+  } else {
+    console.log(colors.textSecondary(t('status.devServer')), colors.error(t('status.notStarted')));
+  }
+
   console.log();
 }
 
@@ -100,7 +153,7 @@ export function showStatus(sessionInfo) {
  */
 export function showValues(lastValues) {
   console.log(colors.header('\n' + t('values.storedTestValues')));
-  
+
   if (Object.keys(lastValues).length === 0) {
     console.log(colors.textSecondary(t('values.noValuesStored')));
     console.log(colors.textMuted(t('values.useRunToStore') + '\n'));
@@ -116,19 +169,19 @@ export function showValues(lastValues) {
  */
 export function showValidFields(validFields, hasSchema) {
   console.log(colors.header('\n' + t('fields.validFieldNames')));
-  
+
   if (!hasSchema) {
     console.log(colors.error(t('fields.noSchemaLoaded')));
     console.log(colors.textMuted(t('fields.useLoadFirst') + '\n'));
     return;
   }
-  
+
   if (validFields.length === 0) {
     console.log(colors.textSecondary(t('fields.noFieldsFound')));
   } else {
     console.log(colors.textSecondary(`  ${validFields.join(', ')}`));
   }
-  
+
   console.log();
 }
 
@@ -140,7 +193,7 @@ export function printFields(elements, indent = '') {
     const isLast = index === elements.length - 1;
     const connector = isLast ? '└─' : '├─';
     const childIndent = indent + (isLast ? '  ' : '│ ');
-    
+
     let typeColor = colors.fieldDefault;
     switch (element.type) {
       case 'Section':
@@ -158,15 +211,15 @@ export function printFields(elements, indent = '') {
       default:
         typeColor = colors.fieldDefault;
     }
-    
+
     const label = element.label || element.data_name || t('commands.preview.unlabeled');
     const dataNameDisplay = element.data_name ? colors.textMuted(` [${element.data_name}]`) : '';
     const keyDisplay = element.key ? colors.textMuted(` (key: ${element.key})`) : '';
-    
+
     console.log(
       `${indent}${connector} ${typeColor(element.type)} ${colors.label(label)}${dataNameDisplay}${keyDisplay}`
     );
-    
+
     if (element.type === 'Section' && element.elements) {
       printFields(element.elements, childIndent);
     }
@@ -178,12 +231,16 @@ export function printFields(elements, indent = '') {
  */
 export function showSchemaPreview(schema) {
   const form = schema.form;
-  console.log(colors.header('\n' + t('commands.preview.formTitle', { name: form.name || t('commands.preview.unnamed') })));
+  console.log(
+    colors.header(
+      '\n' + t('commands.preview.formTitle', { name: form.name || t('commands.preview.unnamed') })
+    )
+  );
   if (form.description) {
     console.log(colors.textSecondary(`   ${form.description}`));
   }
   console.log();
-  
+
   printFields(form.elements || []);
   console.log();
 }
@@ -193,4 +250,4 @@ export function showSchemaPreview(schema) {
  */
 export function formatTimestamp() {
   return new Date().toLocaleTimeString();
-} 
+}

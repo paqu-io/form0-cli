@@ -15,9 +15,17 @@ export class FileWatcher {
     this.schemaManager = schemaManager;
     this.engineRunner = engineRunner;
     this.shellCore = shellCore;
+    this.serverManager = null; // Will be set by ShellCore after initialization
     this.watcher = null;
     this.isWatching = false;
     this.watchOptions = {};
+  }
+
+  /**
+   * Set the server manager reference (called by ShellCore after initialization)
+   */
+  setServerManager(serverManager) {
+    this.serverManager = serverManager;
   }
 
   /**
@@ -46,27 +54,26 @@ export class FileWatcher {
 
     const currentSchemaPath = this.schemaManager.getCurrentSchemaPath();
     if (!currentSchemaPath) {
-      console.log(colors.error(t('interactive.noSchemaLoaded')));
+      console.log(colors.error(t('common.noSchemaLoaded')));
       return;
     }
 
     // Parse watch options and values from args
     const options = {
       autoRun: args.includes('--auto-run') || args.includes('-r'),
-      autoValidate: args.includes('--auto-validate') || args.includes('-v')
+      autoValidate: args.includes('--auto-validate') || args.includes('-v'),
     };
 
     // Look for --values flag
-    const valuesIndex = args.findIndex(arg => arg === '--values');
+    const valuesIndex = args.findIndex((arg) => arg === '--values');
     if (valuesIndex !== -1 && valuesIndex + 1 < args.length) {
       // Get all arguments after --values (to handle JSON objects with spaces)
       const valuesArgs = args.slice(valuesIndex + 1);
       // Remove any other flags that might come after
-      const nextFlagIndex = valuesArgs.findIndex(arg => arg.startsWith('--'));
-      const valuesInput = nextFlagIndex !== -1 
-        ? valuesArgs.slice(0, nextFlagIndex).join(' ')
-        : valuesArgs.join(' ');
-      
+      const nextFlagIndex = valuesArgs.findIndex((arg) => arg.startsWith('--'));
+      const valuesInput =
+        nextFlagIndex !== -1 ? valuesArgs.slice(0, nextFlagIndex).join(' ') : valuesArgs.join(' ');
+
       try {
         await this.engineRunner.parseAndStoreValues(valuesInput);
         console.log(colors.success(t('fileWatcher.valuesLoaded')));
@@ -101,7 +108,7 @@ export class FileWatcher {
     }
 
     this.watchOptions = options;
-    
+
     this.watcher = chokidar.watch(currentSchemaPath, WATCHER_CONFIG);
 
     this.watcher.on('change', async (filePath) => {
@@ -113,18 +120,40 @@ export class FileWatcher {
     });
 
     this.isWatching = true;
-    
-    console.log(colors.info(t('fileWatcher.watchingChanges', { path: path.basename(currentSchemaPath) })));
-    
+
+    console.log(
+      colors.accent1(t('common.watchingChanges', { path: path.basename(currentSchemaPath) }))
+    );
+
     if (options.autoRun) {
-      console.log(colors.warning(t('fileWatcher.autoRunEnabled')));
+      console.log(colors.warning(t('common.autoRunEnabled')));
     }
-    
+
     if (options.autoValidate) {
-      console.log(colors.warning(t('fileWatcher.autoValidateEnabled')));
+      console.log(colors.warning(t('common.autoValidateEnabled')));
     }
-    
-    console.log(colors.textSecondary(t('fileWatcher.pressCtrlC') + '\n'));
+
+    console.log(colors.textSecondary('Use "watch stop" to stop watching\n'));
+  }
+
+  /**
+   * Start watching in server mode (silently, without Ctrl+C messages)
+   */
+  startWatchingInServerMode(schemaPath) {
+    this.watchOptions = { autoValidate: false, autoRun: false };
+
+    this.watcher = chokidar.watch(schemaPath, WATCHER_CONFIG);
+
+    this.watcher.on('change', async (filePath) => {
+      await this.handleFileChange(filePath);
+    });
+
+    this.watcher.on('error', (error) => {
+      console.error(colors.error(t('fileWatcher.watcherError', { message: error.message })));
+    });
+
+    this.isWatching = true;
+    // No console.log messages for silent server mode watching
   }
 
   /**
@@ -143,7 +172,7 @@ export class FileWatcher {
 
     this.isWatching = false;
     this.watchOptions = {};
-    
+
     console.log(colors.success(t('fileWatcher.stoppedWatching')));
   }
 
@@ -152,28 +181,39 @@ export class FileWatcher {
    */
   async handleFileChange(filePath) {
     const timestamp = formatTimestamp();
-    console.log(colors.header(`\n${t('fileWatcher.fileChanged', { timestamp, filename: path.basename(filePath) })}`));
-    
+    console.log(
+      colors.header(
+        `\n${t('common.fileChanged', { timestamp, filename: path.basename(filePath) })}`
+      )
+    );
+
     try {
       // Try to reload schema
       await this.schemaManager.reloadSchema();
-      
+
       // Reset engine since schema changed
       this.engineRunner.resetEngine();
-      
-      console.log(colors.success(t('fileWatcher.schemaReloaded')));
-      
+
+      console.log(colors.success(t('common.schemaReloaded')));
+
+      // Update development server if running
+      if (this.serverManager) {
+        this.serverManager.updateDevServerSchema();
+      }
+
       // Show basic info about the schema
       const currentSchema = this.schemaManager.getCurrentSchema();
       const formName = currentSchema.form?.name || t('commands.preview.unnamed');
       const elementCount = countElements(currentSchema.form?.elements || []);
-      console.log(colors.info(tn('fileWatcher.formInfo', elementCount, { name: formName, count: elementCount })));
-      
+      console.log(
+        colors.info(tn('common.formInfo', elementCount, { name: formName, count: elementCount }))
+      );
+
       // Auto-validate if enabled
       if (this.watchOptions.autoValidate) {
         this.schemaManager.validateCurrentSchema();
       }
-      
+
       // Auto-run if enabled
       if (this.watchOptions.autoRun) {
         const lastValues = this.engineRunner.getLastValues();
@@ -182,12 +222,11 @@ export class FileWatcher {
         }
         await this.engineRunner.runEngine([]);
       }
-      
     } catch (err) {
       console.error(colors.error(t('common.failedToReload', { message: err.message })));
       console.log(colors.warning(t('common.keepingPrevious')));
     }
-    
+
     // Show prompt again
     console.log(); // Add spacing
     if (this.shellCore) {
@@ -203,4 +242,4 @@ export class FileWatcher {
       this.stopWatching();
     }
   }
-} 
+}

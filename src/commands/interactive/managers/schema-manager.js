@@ -2,11 +2,11 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import { validateSchema } from 'form0-core';
-import { initForInteractive } from '../init.js';
-import { COMMON_SCHEMA_PATHS } from '../../utils/constants.js';
-import { findExistingSchema } from '../../utils/schema-utils.js';
-import { showSchemaPreview } from '../../utils/display-utils.js';
-import { t } from '../../utils/i18n.js';
+import { initForInteractive } from '../../init.js';
+import { COMMON_SCHEMA_PATHS } from '../../../utils/constants.js';
+import { findExistingSchema } from '../../../utils/schema-utils.js';
+import { showSchemaPreview } from '../../../utils/display-utils.js';
+import { t } from '../../../utils/i18n.js';
 
 /**
  * Manages schema loading, validation, and initialization
@@ -47,22 +47,33 @@ export class SchemaManager {
     if (existingSchema) {
       try {
         await this.loadSchema(existingSchema);
-        console.log(chalk.green(t('interactive.autoLoadedSchema', { path: existingSchema }) + '\n'));
+        console.log(
+          chalk.green(t('interactive.autoLoadedSchema', { path: existingSchema }) + '\n')
+        );
         return true;
       } catch (err) {
-        console.log(chalk.yellow(t('interactive.foundButFailedToLoad', { path: existingSchema, message: err.message }) + '\n'));
+        console.log(
+          chalk.yellow(
+            t('interactive.foundButFailedToLoad', { path: existingSchema, message: err.message }) +
+              '\n'
+          )
+        );
       }
     }
-    
+
     // No valid schema found, offer to initialize
-    console.log(chalk.yellow(t('interactive.noSchemaFound', { dir: path.basename(process.cwd()) })));
-    console.log(chalk.gray(t('interactive.lookingFor', { files: COMMON_SCHEMA_PATHS.join(', ') }) + '\n'));
-    
+    console.log(
+      chalk.yellow(t('interactive.noSchemaFound', { dir: path.basename(process.cwd()) }))
+    );
+    console.log(
+      chalk.gray(t('interactive.lookingFor', { files: COMMON_SCHEMA_PATHS.join(', ') }) + '\n')
+    );
+
     console.log(chalk.cyan(t('interactive.wouldYouLikeToInit')));
     console.log(chalk.gray(t('interactive.typeInit')));
     console.log(chalk.gray(t('interactive.typeLoad')));
     console.log(chalk.gray(t('interactive.continueWithOther') + '\n'));
-    
+
     return false;
   }
 
@@ -92,7 +103,7 @@ export class SchemaManager {
    */
   validateCurrentSchema() {
     if (!this.currentSchema) {
-      console.log(chalk.red(t('interactive.noSchemaLoaded')));
+      console.log(chalk.red(t('common.noSchemaLoaded')));
       return false;
     }
 
@@ -111,7 +122,7 @@ export class SchemaManager {
    */
   previewSchema() {
     if (!this.currentSchema) {
-      console.log(chalk.red(t('interactive.noSchemaLoaded')));
+      console.log(chalk.red(t('common.noSchemaLoaded')));
       return;
     }
 
@@ -123,25 +134,27 @@ export class SchemaManager {
    */
   async handleInitCommand(args) {
     const dir = args[0] || '.';
-    
+
     if (dir === '.') {
       // Check if current directory already has a schema
-      const existingSchema = COMMON_SCHEMA_PATHS.find(p => fs.pathExistsSync(p));
-      
+      const existingSchema = COMMON_SCHEMA_PATHS.find((p) => fs.pathExistsSync(p));
+
       if (existingSchema) {
         console.log(chalk.yellow(t('interactive.foundExistingSchema', { path: existingSchema })));
         console.log(chalk.gray(t('interactive.useLoadOrSpecify')));
         return;
       }
-      
-      console.log(chalk.cyan(t('interactive.initializingInCurrent', { dir: path.basename(process.cwd()) })));
+
+      console.log(
+        chalk.cyan(t('interactive.initializingInCurrent', { dir: path.basename(process.cwd()) }))
+      );
     } else {
       console.log(chalk.cyan(t('interactive.initializingIn', { dir })));
     }
-    
+
     try {
       await initForInteractive(dir);
-      
+
       // Auto-load the newly created schema if initialized in current directory
       if (dir === '.') {
         await this.loadSchema('form.schema.json');
@@ -159,4 +172,4 @@ export class SchemaManager {
     this.currentSchema = null;
     this.currentSchemaPath = null;
   }
-} 
+}

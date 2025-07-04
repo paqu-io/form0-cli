@@ -1,7 +1,7 @@
 {
   "commands": {
     "init": {
-      "success": "✅ Initialized form0 project in {dir}",
+      "success": "✅ Initialized form0 project in {dir}.",
       "nextSteps": "Next steps:",
       "installDeps": "npm install    # Install dependencies",
       "runTest": "form0 test     # Run the test (will auto-install if needed)",
@@ -11,19 +11,19 @@
       "manualRun": "   node test.js   # After manually installing dependencies"
     },
     "test": {
-      "noTestFile": "❌ No test.js file found in {base}",
-      "noSchemaFile": "❌ No form.schema.json file found in {base}",
-      "createProjectFirst": "💡 Run {command} to create a test project first",
-      "ensureValidSchema": "💡 Make sure you have a valid form schema file",
-      "npmNotAvailable": "⚠️  npm is not available in your PATH.",
+      "noTestFile": "❌ No test.js file found in {base}.",
+      "noSchemaFile": "❌ No form.schema.json file found in {base}.",
+      "createProjectFirst": "💡 Run {command} to create a test project first.",
+      "ensureValidSchema": "💡 Make sure you have a valid form schema file.",
+      "npmNotAvailable": "⚠️ npm is not available in your PATH.",
       "installManually": "💡 Please install Node.js/npm or run {command} manually in:",
       "attemptingRun": "🔄 Attempting to run test anyway...",
       "installingDeps": "📦 Installing dependencies...",
-      "failedAutoInstall": "⚠️  Failed to auto-install dependencies.",
+      "failedAutoInstall": "⚠️ Failed to auto-install dependencies.",
       "runManually": "💡 Please run {command} manually before testing.",
       "runningTest": "🧪 Running test file: {path}",
-      "testCompleted": "✅ Test completed successfully",
-      "testFailed": "❌ Test failed with exit code {code}",
+      "testCompleted": "✅ Test completed successfully.",
+      "testFailed": "❌ Test failed with exit code {code}.",
       "failedToRunTest": "❌ Failed to run test: {message}"
     },
     "validate": {
@@ -32,38 +32,46 @@
     "preview": {
       "failedToPreview": "❌ Failed to preview schema: {message}",
       "formTitle": "📋 Form: {name}",
-      "unnamed": "Unnamed",
-      "unlabeled": "Unlabeled"
+      "unnamed": "Unnamed.",
+      "unlabeled": "Unlabeled."
     },
     "watch": {
-      "initialSchemaLoaded": "✅ Initial schema loaded: {path}",
       "loadedValidValues": {
-        "singular": "✅ Loaded {count} valid test value",
-        "plural": "✅ Loaded {count} valid test values"
+        "singular": "✅ Loaded {count} valid test value.",
+        "plural": "✅ Loaded {count} valid test values."
       },
-      "watchingChanges": "👀 Watching {path} for changes...",
-      "pressCtrlC": "Press Ctrl+C to stop watching",
-      "autoRunEnabled": "🔄 Auto-run enabled - engine will execute on changes",
-      "autoValidateEnabled": "✅ Auto-validate enabled - schema will be validated on changes",
-      "failedToStartWatching": "❌ Failed to start watching: {message}",
-      "fileChanged": "🔄 [{timestamp}] File changed: {filename}",
-      "schemaReloaded": "✅ Schema reloaded successfully",
-      "formInfo": {
-        "singular": "📋 Form: \"{name}\" ({count} element)",
-        "plural": "📋 Form: \"{name}\" ({count} elements)"
-      },
-      "validationPassed": "✅ Schema validation passed",
+      "pressCtrlC": "Press Ctrl+C to stop watching.",
+      "validationPassed": "✅ Schema validation passed.",
       "validationFailed": "❌ Schema validation failed: {message}",
       "engineExecuted": "🧠 Engine executed:",
       "fieldsProcessed": {
-        "singular": "   {count} field processed",
-        "plural": "   {count} fields processed"
+        "singular": "   {count} field processed.",
+        "plural": "   {count} fields processed."
       },
       "calculatedFields": "   Calculated fields:",
-      "andMore": {
-        "singular": "     ... and {count} more",
-        "plural": "     ... and {count} more"
-      }
+      "andMore": "     ... and {count} more.",
+      "stoppingWatcher": "👋 Stopping watcher...",
+      "engineExecutionFailed": "❌ Engine execution failed: {message}.",
+      "noSchemaFileFound": "❌ No schema file found. Please specify a path or ensure form.schema.json exists.",
+      "schemaFileNotFound": "❌ Schema file not found: {path}."
+    },
+    "serve": {
+      "serverStarted": "form0 Development Server Started",
+      "schemaFile": "Schema: {path}",
+      "localUrl": "Local: {url}",
+      "networkUrl": "Network: {url}",
+      "serverRunning": "Server running...",
+      "pressCtrlC": "Press Ctrl+C to stop server.",
+      "clientConnected": "🔗 Client connected.",
+      "clientDisconnected": "🔌 Client disconnected.",
+      "schemaChanged": "[{timestamp}] Schema file changed.",
+      "watcherError": "❌ File watcher error: {message}",
+      "shuttingDown": "🛑 Shutting down server...",
+      "fileChanged": "📝 File changed: {path}",
+      "fileWatcherReady": "👀 File watcher ready.",
+      "updatingSchema": "🔄 Updating server schema...",
+      "schemaBroadcasted": "📡 Schema update broadcasted to clients.",
+      "noWebSocketServer": "⚠️ No WebSocket server available for broadcasting."
     }
   },
   "interactive": {
@@ -71,39 +79,69 @@
     "typeHelp": "Type \"help\" for available commands or \"exit\" to quit",
     "goodbye": "🦙 ¡Hasta pronto! 🦙",
     "usageLoad": "❌ Usage: load <schema-file>",
-    "loadedSchema": "✅ Loaded schema: {filename}",
     "testFailed": "❌ Test failed: {message}",
     "reloadedSchema": "✅ Reloaded schema: {path}",
     "unknownCommand": "❌ Unknown command: {command}",
-    "typeHelpForCommands": "Type \"help\" for available commands",
     "error": "❌ Error: {message}",
     "autoLoadedSchema": "✅ Auto-loaded schema: {path}",
-    "foundButFailedToLoad": "⚠️  Found {path} but failed to load: {message}",
+    "foundButFailedToLoad": "⚠️ Found {path} but failed to load: {message}",
     "noSchemaFound": "🔍 No form schema found in current directory ({dir}).",
     "lookingFor": "   Looking for: {files}",
     "wouldYouLikeToInit": "💡 Would you like to initialize a new form0 project?",
     "typeInit": "   • Type \"init\" to create a sample schema",
     "typeLoad": "   • Type \"load <path>\" to load an existing schema",
     "continueWithOther": "   • Continue with other commands",
-    "noSchemaLoaded": "❌ No schema loaded. Use \"load <path>\" to load a schema first.",
-    "foundExistingSchema": "⚠️  Found existing schema: {path}",
-    "useLoadOrSpecify": "   Use \"load\" to load it or specify a different directory for init",
+    "foundExistingSchema": "⚠️ Found existing schema: {path}",
+    "useLoadOrSpecify": "   Use \"load\" to load it or specify a different directory for init.",
     "initializingInCurrent": "🚀 Initializing form0 project in current directory ({dir})...",
     "initializingIn": "🚀 Initializing form0 project in: {dir}",
-    "autoLoadedNewSchema": "✅ Auto-loaded the newly created schema",
+    "autoLoadedNewSchema": "✅ Auto-loaded the newly created schema.",
     "failedToInitialize": "❌ Failed to initialize: {message}",
-    "usingPreviousValues": "Using previous values for engine execution",
+    "usingPreviousValues": "Using previous values for engine execution.",
     "autoLoadedValues": "✅ Auto-loaded test values from: {filename}",
-    "autoLoadFailed": "⚠️  Found {filename} but failed to load: {message}",
     "clearedValues": {
-      "singular": "✅ Cleared {count} stored value",
-      "plural": "✅ Cleared {count} stored values"
+      "singular": "✅ Cleared {count} stored value.",
+      "plural": "✅ Cleared {count} stored values."
     },
-    "noValuesStored": "⚠️  No values were stored"
+    "noValuesStored": "⚠️ No values were stored.",
+    "serverMode": {
+      "commandBlocked": "⚠️ Command \"{command}\" is not available while development server is running.",
+      "availableCommands": "   Available commands:",
+      "serveStop": "   • serve stop       - Stop the development server",
+      "serveStatus": "   • serve status     - Show server status",
+      "sessionStatus": "   • status           - Show session status",
+      "preview": "   • preview          - Preview current schema",
+      "validate": "   • validate         - Validate current schema",
+      "help": "   • help             - Show help",
+      "serveActionBlocked": "⚠️ \"serve {action}\" is not available while server is running.",
+      "useServeStop": "   Use \"serve stop\" to stop the server or \"serve status\" to check status."
+    },
+    "server": {
+      "alreadyRunning": "⚠️ Development server is already running. Use \"serve stop\" to stop it first.",
+      "interactiveMode": "👀 Interactive mode: Schema changes sync automatically",
+      "useServeStop": "   Use \"serve stop\" to stop server and return to interactive mode.",
+      "ctrlCBlocked": "⚠️ Use \"serve stop\" to stop the development server.",
+      "noServerRunning": "⚠️ No development server running.",
+      "serverStopped": "✅ Development server stopped.",
+      "returningToInteractive": "   Returning to interactive mode...",
+      "notStarted": "📊 Development server: Not started",
+      "statusTitle": "📊 Development Server Status:",
+      "running": "  Running: {status}",
+      "port": "  Port: {port}",
+      "host": "  Host: {host}",
+      "url": "  URL: {url}",
+      "schema": "  Schema: {status}",
+      "noSchemaToUpdate": "❌ No schema loaded to update server with",
+      "failedToStop": "❌ Failed to stop development server: {message}",
+      "statusYes": "✅ Yes",
+      "statusNo": "❌ No",
+      "schemaLoaded": "✅ Loaded",
+      "schemaNone": "❌ None"
+    }
   },
   "help": {
-    "title": "Interactive CLI Environment",
-    "subtitle": "Made with 🦙 by paqu.io",
+    "title": "                                       Interactive CLI Environment",
+    "subtitle": "                                           Made with 🦙 by paqu.io",
     "availableCommands": "📚 Available Commands:",
     "notation": "  Notation: <required> [optional]",
     "schemaManagement": "  Schema Management:",
@@ -121,6 +159,11 @@
     "watchStopCommand": "    watch stop           Stop watching current schema",
     "valuesCommand": "    values               Show stored test values",
     "fieldsCommand": "    fields, f            Show valid field names from schema",
+    "development": "  Development Server:",
+    "serveCommand": "    serve                Start development server",
+    "serveOptions": "      options: --port <port>, --host <host>",
+    "serveStopCommand": "    serve stop           Stop development server",
+    "serveStatusCommand": "    serve status         Show server status",
     "sessionManagement": "  Session Management:",
     "statusCommand": "    status, s            Show session status",
     "themeCommand": "    theme [name]         View or change theme (dark, light)",
@@ -130,7 +173,6 @@
     "helpCommand": "    help, h              Show this help",
     "exitCommand": "    exit, quit, q        Exit interactive mode",
     "navigation": "  Navigation: Use ↑/↓ arrows for command history, Tab for completion",
-    "examples": "  Examples:",
     "exampleRun1": "    run --values {\"first_name\": \"Alice\", \"age\": 25}",
     "exampleRun2": "    run --values values.json  (uses values from file)",
     "exampleWatch1": "    watch --auto-run  (uses stored values)",
@@ -149,20 +191,23 @@
     "notApplicable": "N/A",
     "ready": "Ready",
     "notInitialized": "Not initialized",
+    "handledByServer": "Handled by dev server",
     "active": "Active",
     "stopped": "Stopped",
     "none": "None",
     "fieldsStored": {
       "singular": "{count} field stored",
       "plural": "{count} fields stored"
-    }
+    },
+    "devServer": "  Dev Server:",
+    "notStarted": "Not started"
   },
   "theme": {
     "invalidTheme": "❌ Invalid theme: {name}",
     "availableThemes": "  Available themes: {themes}",
     "themeSwitched": "✅ Theme switched to: {name}",
-    "preferencesSaved": "Theme preference saved to your configuration.",
-    "failedToSave": "❌ Failed to save theme preference",
+    "preferencesSaved": "Theme preference saved to .form0-cli/config.json in home directory\n(Windows: C:\\Users\\{username}  •  macOS: /Users/{username}  •  Linux: /home/{username})",
+    "failedToSave": "❌ Failed to save theme preference.",
     "themeSettings": "🎨 Theme Settings:",
     "currentTheme": "  Current theme:",
     "showCurrent": "    theme              Show current theme",
@@ -185,9 +230,9 @@
     "invalidLocale": "❌ Invalid locale: {name}",
     "availableLocales": "  Available locales: {locales}",
     "localeSet": "✅ Locale set to: {name}",
-    "preferenceSaved": "Locale preference saved to your configuration.",
+    "preferenceSaved": "Locale preference saved to .form0-cli/config.json in home directory\n(Windows: C:\\Users\\{username}  •  macOS: /Users/{username}  •  Linux: /home/{username})",
     "currentlyDetected": "Currently detected: {locale}",
-    "failedToSave": "❌ Failed to save locale preference",
+    "failedToSave": "❌ Failed to save locale preference.",
     "autoDetect": "auto-detect",
     "localeSettings": "🌍 Locale Settings:",
     "configuration": "  Configuration:",
@@ -203,46 +248,53 @@
     "exampleEs": "    locale es           Force Spanish",
     "exampleFr": "    locale fr           Force French",
     "exampleIt": "    locale it           Force Italian",
-    "languageExamples": "🗣️  Language Examples:",
+    "languageExamples": "🗣️ Language Examples:",
     "sampleMessage": "  Sample message in different languages:",
     "currentIndicator": " ← current"
   },
   "fileWatcher": {
-    "valuesLoaded": "✅ Values loaded for auto-run",
-    "watchingChanges": "👀 Watching {path} for changes...",
-    "autoRunEnabled": "🔄 Auto-run enabled - engine will execute on changes",
-    "autoValidateEnabled": "✅ Auto-validate enabled - schema will be validated on changes",
-    "pressCtrlC": "Press Ctrl+C to stop watching",
-    "notWatching": "⚠️  Not currently watching any files.",
-    "stoppedWatching": "✅ Stopped watching files",
+    "valuesLoaded": "✅ Values loaded for auto-run.",
+    "notWatching": "⚠️ Not currently watching any files.",
+    "stoppedWatching": "✅ Stopped watching files.",
     "watcherError": "❌ Watcher error: {message}",
-    "fileChanged": "🔄 [{timestamp}] File changed: {filename}",
-    "schemaReloaded": "✅ Schema reloaded successfully",
-    "formInfo": {
-      "singular": "📋 Form: \"{name}\" ({count} element)",
-      "plural": "📋 Form: \"{name}\" ({count} elements)"
-    },
-    "runningWithStoredValues": "Running engine with stored values...",
-    "engineExecutionFailed": "❌ Engine execution failed: {message}",
-    "stoppingWatcher": "👋 Stopping watcher...",
-    "noSchemaFileFound": "❌ No schema file found. Please specify a path or ensure form.schema.json exists.",
-    "schemaFileNotFound": "❌ Schema file not found: {path}"
+    "runningWithStoredValues": "Running engine with stored values..."
   },
   "values": {
     "storedTestValues": "💾 Stored Test Values:",
-    "noValuesStored": "  No values currently stored",
-    "useRunToStore": "  Use \"run --values <values>\" to store values"
+    "noValuesStored": "  No values currently stored.",
+    "useRunToStore": "  Use \"run --values <values>\" to store values."
   },
   "fields": {
     "validFieldNames": "📋 Valid Field Names:",
     "noSchemaLoaded": "  No schema loaded",
-    "useLoadFirst": "  Use \"load <file>\" to load a schema first",
-    "noFieldsFound": "  No fields found in schema"
+    "useLoadFirst": "  Use \"load <file>\" to load a schema first.",
+    "noFieldsFound": "  No fields found in schema."
+  },
+  "websocket": {
+    "browserConnected": "🔗 Browser connected to development server.",
+    "browserDisconnected": "🔌 Browser disconnected from development server.",
+    "broadcastingUpdate": "Broadcasting schema update to clients...",
+    "updateSent": {
+      "singular": "📡 Sent update to {count} connected client.",
+      "plural": "📡 Sent update to {count} connected clients."
+    }
+  },
+  "client": {
+    "failedToLoadSchema": "❌ Failed to load schema.",
+    "errorLoadingSchema": "❌ Error loading schema.",
+    "connectedWatching": "✅ Connected - watching for changes.",
+    "disconnectedFromServer": "❌ Disconnected from server.",
+    "websocketConnectionError": "❌ WebSocket connection error.",
+    "schemaUpdated": "✅ Schema updated: {timestamp}",
+    "websocketConnected": "🔗 WebSocket connected.",
+    "receivedSchemaUpdate": "📡 Received schema update from server.",
+    "websocketDisconnected": "🔌 WebSocket disconnected.",
+    "websocketError": "❌ WebSocket error."
   },
   "common": {
     "failedToLoadValues": "❌ Failed to load initial values: {message}",
     "attemptedToParse": "   Attempted to parse: \"{input}\"",
-    "ignoringInvalidFields": "⚠️  Ignoring invalid field names: {fields}",
+    "ignoringInvalidFields": "⚠️ Ignoring invalid field names: {fields}",
     "validFieldNames": "   Valid field names: {fields}",
     "engineState": "🧠 Engine State:",
     "failedToRunEngine": "❌ Failed to run engine: {message}",
@@ -250,6 +302,18 @@
     "usage": "  Usage:",
     "schemaIsValid": "✅ Schema is valid.",
     "failedToReload": "❌ Failed to reload schema: {message}",
-    "keepingPrevious": "⚠️  Keeping previous schema loaded"
+    "keepingPrevious": "⚠️ Keeping previous schema loaded.",
+    "watchingChanges": "👀 Watching {path} for changes...",
+    "autoRunEnabled": "🔄 Auto-run enabled - engine will execute on changes.",
+    "autoValidateEnabled": "✅ Auto-validate enabled - schema will be validated on changes.",
+    "fileChanged": "🔄 [{timestamp}] File changed: {filename}",
+    "schemaReloaded": "✅ Schema reloaded successfully.",
+    "formInfo": {
+      "singular": "📋 Form: \"{name}\" ({count} element)",
+      "plural": "📋 Form: \"{name}\" ({count} elements)"
+    },
+    "noSchemaLoaded": "❌ No schema loaded. Use \"load <path>\" to load a schema first.",
+    "schemaLoaded": "✅ Schema loaded: {path}",
+    "failedToStart": "❌ Failed to start development server: {message}"
   }
 }

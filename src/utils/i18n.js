@@ -49,7 +49,7 @@ function detectSystemLocale() {
 function determineLocale() {
   const config = getConfig();
   const configLocale = config.locale || 'auto';
-  
+
   if (configLocale === 'auto') {
     return detectSystemLocale();
   } else if (SUPPORTED_LOCALES.includes(configLocale)) {
@@ -65,13 +65,18 @@ function determineLocale() {
  */
 export function setLocale(locale) {
   if (!SUPPORTED_LOCALES.includes(locale)) {
-    console.warn(`Warning: Unsupported locale '${locale}'. Using '${DEFAULT_LOCALE}' instead.`);
+    // Use raw translation for system messages to avoid circular dependency
+    const message = getSystemMessage('unsupportedLocale', {
+      locale,
+      defaultLocale: DEFAULT_LOCALE,
+    });
+    console.warn(message);
     locale = DEFAULT_LOCALE;
   }
 
   currentLocale = locale;
   loadTranslations(locale);
-  
+
   // Always load fallback translations (English) if not already loaded
   if (locale !== DEFAULT_LOCALE) {
     loadFallbackTranslations();
@@ -95,21 +100,46 @@ export function getSupportedLocales() {
 }
 
 /**
+ * Get system message for internal i18n warnings
+ * @param {string} key - The system message key
+ * @param {object} params - Parameters to replace
+ * @returns {string} System message with parameters replaced
+ */
+function getSystemMessage(key, params = {}) {
+  const systemMessages = {
+    unsupportedLocale: "Warning: Unsupported locale '{locale}'. Using '{defaultLocale}' instead.",
+    translationFileNotFound: 'Warning: Translation file not found: {filePath}',
+    failedToLoadTranslations: "Warning: Could not load translations for '{locale}': {message}",
+    failedToLoadFallback: 'Warning: Could not load fallback translations: {message}',
+    translationMissing: "Translation missing for key: '{key}' (locale: {locale})",
+  };
+
+  let message = systemMessages[key] || key;
+  // Replace parameters
+  Object.keys(params).forEach((param) => {
+    message = message.replace(`{${param}}`, params[param]);
+  });
+  return message;
+}
+
+/**
  * Load translations for the specified locale
  * @param {string} locale - The locale to load
  */
 function loadTranslations(locale) {
   try {
     const localeFile = path.join(LOCALES_DIR, `${locale}.json`);
-    
+
     if (fs.existsSync(localeFile)) {
       translations = fs.readJsonSync(localeFile);
     } else {
-      console.warn(`Warning: Translation file not found: ${localeFile}`);
+      const message = getSystemMessage('translationFileNotFound', { filePath: localeFile });
+      console.warn(message);
       translations = {};
     }
   } catch (err) {
-    console.warn(`Warning: Could not load translations for '${locale}': ${err.message}`);
+    const message = getSystemMessage('failedToLoadTranslations', { locale, message: err.message });
+    console.warn(message);
     translations = {};
   }
 }
@@ -120,12 +150,13 @@ function loadTranslations(locale) {
 function loadFallbackTranslations() {
   try {
     const fallbackFile = path.join(LOCALES_DIR, `${DEFAULT_LOCALE}.json`);
-    
+
     if (fs.existsSync(fallbackFile)) {
       fallbackTranslations = fs.readJsonSync(fallbackFile);
     }
   } catch (err) {
-    console.warn(`Warning: Could not load fallback translations: ${err.message}`);
+    const message = getSystemMessage('failedToLoadFallback', { message: err.message });
+    console.warn(message);
     fallbackTranslations = {};
   }
 }
@@ -179,15 +210,16 @@ export function t(key, params = {}) {
 
   // Try to get translation from current locale
   let translation = getNestedValue(translations, key);
-  
+
   // If not found, try fallback translations
   if (translation === undefined && fallbackTranslations) {
     translation = getNestedValue(fallbackTranslations, key);
   }
-  
+
   // If still not found, return the key itself (for debugging)
   if (translation === undefined) {
-    console.warn(`Translation missing for key: '${key}' (locale: ${currentLocale})`);
+    const message = getSystemMessage('translationMissing', { key, locale: currentLocale });
+    console.warn(message);
     return key;
   }
 
@@ -205,25 +237,26 @@ export function t(key, params = {}) {
 export function tn(key, count, params = {}) {
   // Add count to params
   const extendedParams = { ...params, count };
-  
+
   // For English, simple plural rule: 1 = singular, != 1 = plural
   // For other languages, this could be extended with proper plural rules
   const pluralKey = count === 1 ? `${key}.singular` : `${key}.plural`;
-  
+
   // Try plural key first, fall back to base key
   let translation = getNestedValue(translations, pluralKey);
   if (translation === undefined) {
     translation = getNestedValue(translations, key);
   }
-  
+
   // If still not found, try fallback
   if (translation === undefined && fallbackTranslations) {
-    translation = getNestedValue(fallbackTranslations, pluralKey) || 
-                  getNestedValue(fallbackTranslations, key);
+    translation =
+      getNestedValue(fallbackTranslations, pluralKey) || getNestedValue(fallbackTranslations, key);
   }
-  
+
   if (translation === undefined) {
-    console.warn(`Translation missing for key: '${key}' (locale: ${currentLocale})`);
+    const message = getSystemMessage('translationMissing', { key, locale: currentLocale });
+    console.warn(message);
     return key;
   }
 
@@ -236,8 +269,10 @@ export function tn(key, count, params = {}) {
  * @returns {boolean} True if translation exists
  */
 export function hasTranslation(key) {
-  return getNestedValue(translations, key) !== undefined ||
-         getNestedValue(fallbackTranslations, key) !== undefined;
+  return (
+    getNestedValue(translations, key) !== undefined ||
+    getNestedValue(fallbackTranslations, key) !== undefined
+  );
 }
 
 /**
@@ -246,8 +281,7 @@ export function hasTranslation(key) {
  * @returns {*} The raw translation value (could be string, object, etc.)
  */
 export function getRawTranslation(key) {
-  return getNestedValue(translations, key) || 
-         getNestedValue(fallbackTranslations, key);
+  return getNestedValue(translations, key) || getNestedValue(fallbackTranslations, key);
 }
 
 /**
@@ -269,4 +303,4 @@ export function reinitializeLocale() {
 }
 
 // Don't initialize immediately - wait for config to be loaded
-// initialize(); 
+// initialize();

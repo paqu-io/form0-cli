@@ -1,5 +1,5 @@
-import { SchemaManager } from './interactive/schema-manager.js';
-import { EngineRunner } from './interactive/engine-runner.js';
+import { SchemaManager } from './interactive/managers/schema-manager.js';
+import { EngineRunner } from './interactive/runners/engine-runner.js';
 import { FileWatcher } from './interactive/file-watcher.js';
 import { ShellCore } from './interactive/shell-core.js';
 
@@ -14,7 +14,7 @@ class Form0Interactive {
     this.engineRunner = new EngineRunner(this.schemaManager);
     this.fileWatcher = new FileWatcher(this.schemaManager, this.engineRunner);
     this.shellCore = new ShellCore(this.schemaManager, this.engineRunner, this.fileWatcher);
-    
+
     // Set up circular dependency for re-prompting
     this.fileWatcher.shellCore = this.shellCore;
   }
@@ -33,4 +33,4 @@ class Form0Interactive {
 export async function interactiveCommand() {
   const interactive = new Form0Interactive();
   await interactive.start();
-} 
+}

@@ -7,7 +7,7 @@ function printFields(elements, indent = '') {
     const isLast = index === elements.length - 1;
     const connector = isLast ? '└─' : '├─';
     const childIndent = indent + (isLast ? '  ' : '│ ');
-    
+
     let typeColor = chalk.white;
     switch (element.type) {
       case 'Section':
@@ -25,15 +25,15 @@ function printFields(elements, indent = '') {
       default:
         typeColor = chalk.cyan;
     }
-    
+
     const label = element.label || element.data_name || t('commands.preview.unlabeled');
     const dataNameDisplay = element.data_name ? chalk.gray(` [${element.data_name}]`) : '';
     const keyDisplay = element.key ? chalk.gray(` (key: ${element.key})`) : '';
-    
+
     console.log(
       `${indent}${connector} ${typeColor(element.type)} ${chalk.bold(label)}${dataNameDisplay}${keyDisplay}`
     );
-    
+
     if (element.type === 'Section' && element.elements) {
       printFields(element.elements, childIndent);
     }
@@ -44,13 +44,15 @@ export async function previewCommand(file) {
   try {
     const data = await fs.readJson(file);
     const form = data.form;
-    
-    console.log(chalk.blue.bold(t('commands.preview.formTitle', { name: form?.name || t('preview.unnamed') })));
+
+    console.log(
+      chalk.blue.bold(t('commands.preview.formTitle', { name: form?.name || t('preview.unnamed') }))
+    );
     if (form?.description) {
       console.log(chalk.gray(`   ${form.description}`));
     }
     console.log();
-    
+
     printFields(form?.elements || []);
     console.log();
   } catch (err) {
