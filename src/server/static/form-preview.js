@@ -178,8 +178,12 @@ function addFormEventListeners() {
   // Add event listeners to all form inputs, but exclude ChoiceField internal elements
   const inputs = document.querySelectorAll('#main-form input, #main-form select');
   inputs.forEach((input) => {
-    // Skip ChoiceField internal elements (select and other input)
-    if (input.name.endsWith('_choice') || input.name.endsWith('_other')) {
+    // Skip ChoiceField and MultiChoiceField internal elements
+    if (input.name.endsWith('_choice') || input.name.endsWith('_other') || 
+        input.name.endsWith('_choices') ||
+        input.classList.contains('choice-field-simple-select') ||
+        input.classList.contains('multi-choice-field-select') ||
+        input.classList.contains('multi-choice-field-simple-select')) {
       return;
     }
     
@@ -189,6 +193,11 @@ function addFormEventListeners() {
   
   // Listen for ChoiceField custom events
   document.addEventListener('choicefield-change', () => {
+    formStateManager.updateFormState();
+  });
+  
+  // Listen for MultiChoiceField custom events
+  document.addEventListener('multichoicefield-change', () => {
     formStateManager.updateFormState();
   });
 }

@@ -98,6 +98,16 @@ export class FormRenderer {
         const otherInput = input.querySelector('.choice-field-other');
         if (select) select.disabled = true;
         if (otherInput) otherInput.readOnly = true;
+      } else if (field.type === 'MultiChoiceField' && field.allow_other) {
+        // Handle allow_other MultiChoiceField readonly
+        const select = input.querySelector('.multi-choice-field-select');
+        const otherInput = input.querySelector('.multi-choice-field-other');
+        if (select) select.disabled = true;
+        if (otherInput) otherInput.readOnly = true;
+      } else if (field.type === 'MultiChoiceField') {
+        // Handle simple MultiChoiceField readonly
+        const select = input.querySelector('.multi-choice-field-simple-select');
+        if (select) select.disabled = true;
       } else {
         input.readOnly = true;
       }
@@ -231,20 +241,219 @@ export class FormRenderer {
           input = container;
         } else {
           // Simple select for non-allow_other fields
-          input = document.createElement('select');
+          const container = document.createElement('div');
+          container.className = 'choice-field-simple-container';
+          
+          const select = document.createElement('select');
+          select.className = 'choice-field-simple-select';
           
           // Add default empty option
           const emptyOption = document.createElement('option');
           emptyOption.value = '';
           emptyOption.textContent = 'Select an option...';
-          input.appendChild(emptyOption);
+          select.appendChild(emptyOption);
           
           (field.choices || []).forEach((choice) => {
             const option = document.createElement('option');
             option.value = choice.value;
             option.textContent = choice.label || choice.value;
-            input.appendChild(option);
+            select.appendChild(option);
           });
+          
+          // Create hidden input for the actual field value
+          const hiddenInput = document.createElement('input');
+          hiddenInput.type = 'hidden';
+          hiddenInput.name = field.data_name;
+          
+          // Function to update hidden value for simple choice field
+          function updateSimpleHiddenValue() {
+            const choiceValue = select.value;
+            const value = {
+              choice: choiceValue ? [{ value: choiceValue }] : [],
+              other: []
+            };
+            hiddenInput.value = JSON.stringify(value);
+            
+            // Dispatch custom event to trigger form state update
+            const changeEvent = new CustomEvent('choicefield-change', {
+              bubbles: true,
+              detail: { fieldName: field.data_name, value: value }
+            });
+            hiddenInput.dispatchEvent(changeEvent);
+          }
+          
+          // Add event listener for select change
+          select.addEventListener('change', updateSimpleHiddenValue);
+          
+          container.appendChild(select);
+          container.appendChild(hiddenInput);
+          
+          input = container;
+        }
+        break;
+
+      case 'MultiChoiceField':
+        if (field.allow_other) {
+          // Create a container for multi choice field with "other" option
+          const container = document.createElement('div');
+          container.className = 'multi-choice-field-container';
+          
+          const select = document.createElement('select');
+          select.name = field.data_name + '_choices';
+          select.className = 'multi-choice-field-select';
+          select.multiple = true;
+          select.size = Math.min(field.choices ? field.choices.length + 1 : 6, 8); // Show up to 8 options
+          
+          // Add regular choices
+          (field.choices || []).forEach((choice) => {
+            const option = document.createElement('option');
+            option.value = choice.value;
+            option.textContent = choice.label || choice.value;
+            select.appendChild(option);
+          });
+          
+          // Add "Other" option
+          const otherOption = document.createElement('option');
+          otherOption.value = '__other__';
+          otherOption.textContent = 'Other (specify)';
+          select.appendChild(otherOption);
+          
+          // Create text input for "other" value
+          const otherInput = document.createElement('input');
+          otherInput.type = 'text';
+          otherInput.name = field.data_name + '_other';
+          otherInput.className = 'multi-choice-field-other';
+          otherInput.placeholder = 'Please specify...';
+          otherInput.style.display = 'none';
+          
+          // Create hidden input for the actual field value
+          const hiddenInput = document.createElement('input');
+          hiddenInput.type = 'hidden';
+          hiddenInput.name = field.data_name;
+          
+          // Initialize with correct structure
+          hiddenInput.value = JSON.stringify({
+            choices: [],
+            other: []
+          });
+          
+          // Flag to prevent recursive updates
+          let isUpdating = false;
+          
+          // Function to update hidden value
+          function updateHiddenValue() {
+            if (isUpdating) return;
+            
+            const selectedOptions = Array.from(select.selectedOptions);
+            const hasOther = selectedOptions.some(option => option.value === '__other__');
+            
+            // Get regular choices (excluding "other")
+            const choiceValues = selectedOptions
+              .filter(option => option.value !== '__other__')
+              .map(option => ({ value: option.value }));
+            
+            // Get other value if selected - only include if there's text (same as ChoiceField)
+            const otherValue = hasOther ? otherInput.value.trim() : '';
+            
+            const value = {
+              choices: choiceValues,
+              other: otherValue ? [{ label: otherValue }] : []
+            };
+            
+            hiddenInput.value = JSON.stringify(value);
+            
+            // Dispatch custom event to trigger form state update
+            const changeEvent = new CustomEvent('multichoicefield-change', {
+              bubbles: true,
+              detail: { fieldName: field.data_name, value: value }
+            });
+            hiddenInput.dispatchEvent(changeEvent);
+          }
+          
+          // Add event listener for select change
+          select.addEventListener('change', function() {
+            if (isUpdating) return;
+            
+            const selectedOptions = Array.from(this.selectedOptions);
+            const hasOther = selectedOptions.some(option => option.value === '__other__');
+            
+            if (hasOther) {
+              otherInput.style.display = 'block';
+              otherInput.focus();
+            } else {
+              otherInput.style.display = 'none';
+              otherInput.value = '';
+            }
+            updateHiddenValue();
+          });
+          
+          // Add event listener for other input
+          otherInput.addEventListener('input', updateHiddenValue);
+          
+          // Store the update flag and function on the container for external access
+          container._isUpdating = () => isUpdating;
+          container._setUpdating = (value) => { isUpdating = value; };
+          container._updateHiddenValue = updateHiddenValue;
+          
+          container.appendChild(select);
+          container.appendChild(otherInput);
+          container.appendChild(hiddenInput);
+          
+          input = container;
+        } else {
+          // Simple multi-select for non-allow_other fields
+          const container = document.createElement('div');
+          container.className = 'multi-choice-field-simple-container';
+          
+          const select = document.createElement('select');
+          select.className = 'multi-choice-field-simple-select';
+          select.multiple = true;
+          select.size = Math.min(field.choices ? field.choices.length : 6, 8); // Show up to 8 options
+          
+          (field.choices || []).forEach((choice) => {
+            const option = document.createElement('option');
+            option.value = choice.value;
+            option.textContent = choice.label || choice.value;
+            select.appendChild(option);
+          });
+          
+          // Create hidden input for the actual field value
+          const hiddenInput = document.createElement('input');
+          hiddenInput.type = 'hidden';
+          hiddenInput.name = field.data_name;
+          
+          // Initialize with correct structure
+          hiddenInput.value = JSON.stringify({
+            choices: [],
+            other: []
+          });
+          
+          // Function to update hidden value for simple multi choice field
+          function updateSimpleHiddenValue() {
+            const selectedOptions = Array.from(select.selectedOptions);
+            const choiceValues = selectedOptions.map(option => ({ value: option.value }));
+            
+            const value = {
+              choices: choiceValues,
+              other: []
+            };
+            hiddenInput.value = JSON.stringify(value);
+            
+            // Dispatch custom event to trigger form state update
+            const changeEvent = new CustomEvent('multichoicefield-change', {
+              bubbles: true,
+              detail: { fieldName: field.data_name, value: value }
+            });
+            hiddenInput.dispatchEvent(changeEvent);
+          }
+          
+          // Add event listener for select change
+          select.addEventListener('change', updateSimpleHiddenValue);
+          
+          container.appendChild(select);
+          container.appendChild(hiddenInput);
+          
+          input = container;
         }
         break;
 

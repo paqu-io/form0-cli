@@ -43,17 +43,23 @@ body {
 }
 
 /* ChoiceField styling */
-.choice-field-container {
+.choice-field-container,
+.choice-field-simple-container {
     width: 100%;
 }
 
-.choice-field-select {
+.choice-field-select,
+.choice-field-simple-select {
     width: 100%;
     padding: 8px;
     border: 1px solid #ddd;
     border-radius: 4px;
     box-sizing: border-box;
     margin-bottom: 8px;
+}
+
+.choice-field-simple-select {
+    margin-bottom: 0; /* No margin for simple select since there's no other input */
 }
 
 .choice-field-other {
@@ -70,12 +76,86 @@ body {
     border-color: #4a90e2;
 }
 
+/* MultiChoiceField styling */
+.multi-choice-field-container,
+.multi-choice-field-simple-container {
+    width: 100%;
+}
+
+.multi-choice-field-select,
+.multi-choice-field-simple-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+    min-height: 100px;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.multi-choice-field-simple-select {
+    margin-bottom: 0; /* No margin for simple select since there's no other input */
+}
+
+.multi-choice-field-select:focus,
+.multi-choice-field-simple-select:focus {
+    outline: none;
+    border-color: #4a90e2;
+}
+
+.multi-choice-field-other {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-top: 5px;
+}
+
+.multi-choice-field-other:focus {
+    outline: none;
+    border-color: #4a90e2;
+}
+
+/* Multi-select option styling */
+.multi-choice-field-select option,
+.multi-choice-field-simple-select option {
+    padding: 4px 8px;
+    margin: 1px 0;
+}
+
+.multi-choice-field-select option:checked,
+.multi-choice-field-simple-select option:checked {
+    background-color: #4a90e2;
+    color: white;
+}
+
+/* Help text for multi-select */
+.multi-choice-field-container::after,
+.multi-choice-field-simple-container::after {
+    content: "Hold Ctrl (or Cmd on Mac) to select multiple options or Shift to select a range";
+    display: block;
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+    font-style: italic;
+}
+
 .field.error input { 
     border-color: #e74c3c; 
 }
 
 .field.error .choice-field-select,
+.field.error .choice-field-simple-select,
 .field.error .choice-field-other { 
+    border-color: #e74c3c; 
+}
+
+.field.error .multi-choice-field-select,
+.field.error .multi-choice-field-simple-select,
+.field.error .multi-choice-field-other { 
     border-color: #e74c3c; 
 }
 
@@ -122,7 +202,16 @@ body {
 }
 
 .readonly .choice-field-select,
+.readonly .choice-field-simple-select,
 .readonly .choice-field-other {
+    background: #f8f9fa; 
+    color: #6c757d; 
+    cursor: not-allowed; 
+}
+
+.readonly .multi-choice-field-select,
+.readonly .multi-choice-field-simple-select,
+.readonly .multi-choice-field-other {
     background: #f8f9fa; 
     color: #6c757d; 
     cursor: not-allowed; 
