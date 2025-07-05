@@ -175,10 +175,20 @@ function renderForm() {
 }
 
 function addFormEventListeners() {
-  // Add event listeners to all form inputs
+  // Add event listeners to all form inputs, but exclude ChoiceField internal elements
   const inputs = document.querySelectorAll('#main-form input, #main-form select');
   inputs.forEach((input) => {
+    // Skip ChoiceField internal elements (select and other input)
+    if (input.name.endsWith('_choice') || input.name.endsWith('_other')) {
+      return;
+    }
+    
     input.addEventListener('input', () => formStateManager.updateFormState());
     input.addEventListener('change', () => formStateManager.updateFormState());
+  });
+  
+  // Listen for ChoiceField custom events
+  document.addEventListener('choicefield-change', () => {
+    formStateManager.updateFormState();
   });
 }

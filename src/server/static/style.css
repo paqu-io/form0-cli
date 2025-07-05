@@ -42,7 +42,40 @@ body {
     box-sizing: border-box; 
 }
 
+/* ChoiceField styling */
+.choice-field-container {
+    width: 100%;
+}
+
+.choice-field-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+}
+
+.choice-field-other {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-top: 5px;
+}
+
+.choice-field-other:focus {
+    outline: none;
+    border-color: #4a90e2;
+}
+
 .field.error input { 
+    border-color: #e74c3c; 
+}
+
+.field.error .choice-field-select,
+.field.error .choice-field-other { 
     border-color: #e74c3c; 
 }
 
@@ -86,6 +119,13 @@ body {
     color: #6c757d; 
     cursor: not-allowed; 
     box-sizing: border-box; 
+}
+
+.readonly .choice-field-select,
+.readonly .choice-field-other {
+    background: #f8f9fa; 
+    color: #6c757d; 
+    cursor: not-allowed; 
 }
 
 .hidden { 

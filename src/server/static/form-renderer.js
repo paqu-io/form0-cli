@@ -84,11 +84,23 @@ export class FormRenderer {
     fieldDiv.appendChild(label);
 
     const input = this.createFieldInput(field);
-    input.name = field.data_name;
+    
+    // Only set name attribute if input is a form element (not a container)
+    if (input.tagName && input.tagName.toLowerCase() !== 'div') {
+      input.name = field.data_name;
+    }
 
     // Set read-only state based on schema
     if (field.read_only === true || field.type === 'CalculatedField') {
-      input.readOnly = true;
+      if (field.type === 'ChoiceField' && field.allow_other) {
+        // Handle allow_other ChoiceField readonly
+        const select = input.querySelector('.choice-field-select');
+        const otherInput = input.querySelector('.choice-field-other');
+        if (select) select.disabled = true;
+        if (otherInput) otherInput.readOnly = true;
+      } else {
+        input.readOnly = true;
+      }
       fieldDiv.classList.add('readonly');
     }
 
@@ -123,13 +135,117 @@ export class FormRenderer {
         break;
 
       case 'ChoiceField':
-        input = document.createElement('select');
-        (field.choices || []).forEach((choice) => {
-          const option = document.createElement('option');
-          option.value = choice.value;
-          option.textContent = choice.label || choice.value;
-          input.appendChild(option);
-        });
+        if (field.allow_other) {
+          // Create a container for choice field with "other" option
+          const container = document.createElement('div');
+          container.className = 'choice-field-container';
+          
+          const select = document.createElement('select');
+          select.name = field.data_name + '_choice';
+          select.className = 'choice-field-select';
+          
+          // Add default empty option
+          const emptyOption = document.createElement('option');
+          emptyOption.value = '';
+          emptyOption.textContent = 'Select an option...';
+          select.appendChild(emptyOption);
+          
+          // Add regular choices
+          (field.choices || []).forEach((choice) => {
+            const option = document.createElement('option');
+            option.value = choice.value;
+            option.textContent = choice.label || choice.value;
+            select.appendChild(option);
+          });
+          
+          // Add "Other" option
+          const otherOption = document.createElement('option');
+          otherOption.value = '__other__';
+          otherOption.textContent = 'Other (specify)';
+          select.appendChild(otherOption);
+          
+          // Create text input for "other" value
+          const otherInput = document.createElement('input');
+          otherInput.type = 'text';
+          otherInput.name = field.data_name + '_other';
+          otherInput.className = 'choice-field-other';
+          otherInput.placeholder = 'Please specify...';
+          otherInput.style.display = 'none';
+          
+          // Create hidden input for the actual field value
+          const hiddenInput = document.createElement('input');
+          hiddenInput.type = 'hidden';
+          hiddenInput.name = field.data_name;
+          
+          // Flag to prevent recursive updates
+          let isUpdating = false;
+          
+          // Function to update hidden value
+          function updateHiddenValue() {
+            if (isUpdating) return;
+            
+            const choiceValue = select.value === '__other__' ? '' : select.value;
+            const otherValue = select.value === '__other__' ? otherInput.value.trim() : '';
+            
+            const value = {
+              choice: choiceValue ? [{ value: choiceValue }] : [],
+              other: otherValue ? [{ label: otherValue }] : []
+            };
+            
+            hiddenInput.value = JSON.stringify(value);
+            
+            // Dispatch custom event to trigger form state update
+            const changeEvent = new CustomEvent('choicefield-change', {
+              bubbles: true,
+              detail: { fieldName: field.data_name, value: value }
+            });
+            hiddenInput.dispatchEvent(changeEvent);
+          }
+          
+          // Add event listener for select change
+          select.addEventListener('change', function() {
+            if (isUpdating) return;
+            
+            if (this.value === '__other__') {
+              otherInput.style.display = 'block';
+              otherInput.focus();
+            } else {
+              otherInput.style.display = 'none';
+              otherInput.value = '';
+            }
+            updateHiddenValue();
+          });
+          
+          // Add event listener for other input
+          otherInput.addEventListener('input', updateHiddenValue);
+          
+          // Store the update flag and function on the container for external access
+          container._isUpdating = () => isUpdating;
+          container._setUpdating = (value) => { isUpdating = value; };
+          container._updateHiddenValue = updateHiddenValue;
+          
+          container.appendChild(select);
+          container.appendChild(otherInput);
+          container.appendChild(hiddenInput);
+          
+          input = container;
+        } else {
+          // Simple select for non-allow_other fields
+          input = document.createElement('select');
+          
+          // Add default empty option
+          const emptyOption = document.createElement('option');
+          emptyOption.value = '';
+          emptyOption.textContent = 'Select an option...';
+          input.appendChild(emptyOption);
+          
+          (field.choices || []).forEach((choice) => {
+            const option = document.createElement('option');
+            option.value = choice.value;
+            option.textContent = choice.label || choice.value;
+            input.appendChild(option);
+          });
+        }
         break;
 
       case 'CalculatedField':

@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
 import { validateSchema } from 'form0-core';
+import { ensureChoiceValuesForSchema } from '../../../utils/ensure-choice-values.js';
 import { initForInteractive } from '../../init.js';
 import { COMMON_SCHEMA_PATHS } from '../../../utils/constants.js';
 import { findExistingSchema } from '../../../utils/schema-utils.js';
@@ -82,6 +83,10 @@ export class SchemaManager {
    */
   async loadSchema(schemaPath) {
     const data = await fs.readJson(schemaPath);
+    
+    // Process ChoiceField choices before validation
+    ensureChoiceValuesForSchema(data.form.elements || []);
+    
     validateSchema(data.form);
     this.currentSchema = data;
     this.currentSchemaPath = schemaPath;
