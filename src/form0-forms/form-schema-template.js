@@ -24,16 +24,17 @@ export const defaultFormTemplate = {
               'One or more letters (uppercase or lowercase), with no spaces, numbers, or symbols',
           },
           {
-            type: 'ChoiceField',
+            type: 'SingleChoiceField',
             data_name: 'city',
             label: 'City',
+            display: 'default', //SingleChoiceField can be 'default' or 'radio'
             required: true,
             required_conditions: null,
             hidden: false,
             visible_conditions: null,
             read_only: false,
             read_only_conditions: null,
-            allow_other: true, //ChoiceField can be true or false
+            allow_other: true, //SingleChoiceField can be true or false
             choices: [
               {
                 label: 'Bogotá',
@@ -57,13 +58,14 @@ export const defaultFormTemplate = {
             type: 'MultiChoiceField',
             data_name: 'colors',
             label: 'Please select your favorite colors',
+            display: 'default', //MultiChoiceField can be 'default' or 'checkbox'
             required: true,
             required_conditions: null,
             hidden: false,
             visible_conditions: null,
             read_only: false,
             read_only_conditions: null,
-            allow_other: true, //ChoiceField can be true or false
+            allow_other: true, //MultiChoiceField can be true or false
             choices: [
               {
                 label: 'Red',

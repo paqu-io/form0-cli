@@ -84,7 +84,7 @@ export class SchemaManager {
   async loadSchema(schemaPath) {
     const data = await fs.readJson(schemaPath);
     
-    // Process ChoiceField choices before validation
+    // Process SingleChoiceField choices before validation
     ensureChoiceValuesForSchema(data.form.elements || []);
     
     validateSchema(data.form);

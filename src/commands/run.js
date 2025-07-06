@@ -11,7 +11,7 @@ export async function runCommand(schemaPath, options) {
   try {
     const data = await fs.readJson(schemaPath);
     
-    // Process ChoiceField choices before engine creation
+    // Process SingleChoiceField choices before engine creation
     ensureChoiceValuesForSchema(data.form.elements || []);
     
     const valuesInput = options.values;

@@ -20,7 +20,7 @@ function printFields(elements, indent = '') {
       case 'NumericField':
         typeColor = chalk.blue;
         break;
-      case 'ChoiceField':
+      case 'SingleChoiceField':
         typeColor = chalk.cyan;
         break;
       case 'CalculatedField':
@@ -48,7 +48,7 @@ export async function previewCommand(file) {
   try {
     const data = await fs.readJson(file);
     
-    // Process ChoiceField choices before preview
+    // Process SingleChoiceField choices before preview
     ensureChoiceValuesForSchema(data.form.elements || []);
     
     const form = data.form;

@@ -42,9 +42,10 @@ body {
     box-sizing: border-box; 
 }
 
-/* ChoiceField styling */
+/* SingleChoiceField styling */
 .choice-field-container,
-.choice-field-simple-container {
+.choice-field-simple-container,
+.choice-field-radio-container {
     width: 100%;
 }
 
@@ -76,9 +77,42 @@ body {
     border-color: #4a90e2;
 }
 
+/* Radio button styling for SingleChoiceField */
+.choice-field-radio-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.choice-field-radio-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.choice-field-radio-option input[type="radio"] {
+    margin: 0;
+    margin-top: 2px; /* Align with text baseline */
+    width: auto;
+}
+
+.choice-field-radio-option label {
+    margin: 0;
+    cursor: pointer;
+    flex: 1;
+    font-weight: normal;
+}
+
+.choice-field-radio-option .choice-field-other {
+    width: calc(100% - 20px);
+    margin-top: 5px;
+    margin-left: 0;
+}
+
 /* MultiChoiceField styling */
 .multi-choice-field-container,
-.multi-choice-field-simple-container {
+.multi-choice-field-simple-container,
+.multi-choice-field-checkbox-container {
     width: 100%;
 }
 
@@ -119,6 +153,38 @@ body {
     border-color: #4a90e2;
 }
 
+/* Checkbox styling for MultiChoiceField */
+.multi-choice-field-checkbox-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.multi-choice-field-checkbox-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.multi-choice-field-checkbox-option input[type="checkbox"] {
+    margin: 0;
+    margin-top: 2px; /* Align with text baseline */
+    width: auto;
+}
+
+.multi-choice-field-checkbox-option label {
+    margin: 0;
+    cursor: pointer;
+    flex: 1;
+    font-weight: normal;
+}
+
+.multi-choice-field-checkbox-option .multi-choice-field-other {
+    width: calc(100% - 20px);
+    margin-top: 5px;
+    margin-left: 0;
+}
+
 /* Multi-select option styling */
 .multi-choice-field-select option,
 .multi-choice-field-simple-select option {
@@ -153,10 +219,18 @@ body {
     border-color: #e74c3c; 
 }
 
+.field.error .choice-field-radio-option input[type="radio"] {
+    outline: 2px solid #e74c3c;
+}
+
 .field.error .multi-choice-field-select,
 .field.error .multi-choice-field-simple-select,
 .field.error .multi-choice-field-other { 
     border-color: #e74c3c; 
+}
+
+.field.error .multi-choice-field-checkbox-option input[type="checkbox"] {
+    outline: 2px solid #e74c3c;
 }
 
 .error-message { 
@@ -203,18 +277,36 @@ body {
 
 .readonly .choice-field-select,
 .readonly .choice-field-simple-select,
-.readonly .choice-field-other {
+.readonly .choice-field-other { 
     background: #f8f9fa; 
     color: #6c757d; 
     cursor: not-allowed; 
 }
 
+.readonly .choice-field-radio-option input[type="radio"] {
+    cursor: not-allowed;
+}
+
+.readonly .choice-field-radio-option label {
+    color: #6c757d;
+    cursor: not-allowed;
+}
+
 .readonly .multi-choice-field-select,
 .readonly .multi-choice-field-simple-select,
-.readonly .multi-choice-field-other {
+.readonly .multi-choice-field-other { 
     background: #f8f9fa; 
     color: #6c757d; 
     cursor: not-allowed; 
+}
+
+.readonly .multi-choice-field-checkbox-option input[type="checkbox"] {
+    cursor: not-allowed;
+}
+
+.readonly .multi-choice-field-checkbox-option label {
+    color: #6c757d;
+    cursor: not-allowed;
 }
 
 .hidden { 

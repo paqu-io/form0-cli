@@ -175,10 +175,10 @@ function renderForm() {
 }
 
 function addFormEventListeners() {
-  // Add event listeners to all form inputs, but exclude ChoiceField internal elements
+  // Add event listeners to all form inputs, but exclude SingleChoiceField internal elements
   const inputs = document.querySelectorAll('#main-form input, #main-form select');
   inputs.forEach((input) => {
-    // Skip ChoiceField and MultiChoiceField internal elements
+    // Skip SingleChoiceField and MultiChoiceField internal elements
     if (input.name.endsWith('_choice') || input.name.endsWith('_other') || 
         input.name.endsWith('_choices') ||
         input.classList.contains('choice-field-simple-select') ||
@@ -191,7 +191,7 @@ function addFormEventListeners() {
     input.addEventListener('change', () => formStateManager.updateFormState());
   });
   
-  // Listen for ChoiceField custom events
+  // Listen for SingleChoiceField custom events
   document.addEventListener('choicefield-change', () => {
     formStateManager.updateFormState();
   });

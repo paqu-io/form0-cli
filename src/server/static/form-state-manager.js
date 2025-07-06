@@ -37,71 +37,151 @@ export class FormStateManager {
     let restoredCount = 0;
     Object.entries(this.preservedValues).forEach(([fieldName, value]) => {
       const field = this.formRenderer.findFieldByDataName(fieldName);
-      if (field && this.isValueCompatible(field, value)) {
-        if (field.type === 'ChoiceField') {
-          // Handle ChoiceField restoration (both simple and allow_other)
+              if (field && this.isValueCompatible(field, value)) {
+          if (field.type === 'SingleChoiceField') {
+            // Handle SingleChoiceField restoration (both simple and allow_other)
+            try {
+              const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+              const container = document.querySelector(`[data-name="${fieldName}"] .choice-field-container`) ||
+                              document.querySelector(`[data-name="${fieldName}"] .choice-field-simple-container`) ||
+                              document.querySelector(`[data-name="${fieldName}"] .choice-field-radio-container`);
+              
+              if (container) {
+                const hiddenInput = container.querySelector(`input[name="${fieldName}"]`);
+                
+                // Check if this is a radio container
+                if (container.classList.contains('choice-field-radio-container')) {
+                  // Handle radio SingleChoiceField restoration
+                  if (hiddenInput) {
+                    // Set updating flag to prevent event conflicts
+                    if (container._setUpdating) container._setUpdating(true);
+                    
+                    // Clear all radio selections first
+                    const allRadios = container.querySelectorAll('input[type="radio"]');
+                    allRadios.forEach(radio => radio.checked = false);
+                    
+                    if (parsedValue.choice && parsedValue.choice.length > 0) {
+                      // Select the regular choice radio
+                      const targetRadio = container.querySelector(`input[type="radio"][value="${parsedValue.choice[0].value}"]`);
+                      if (targetRadio) {
+                        targetRadio.checked = true;
+                      }
+                      // Hide other input
+                      const otherInput = container.querySelector('.choice-field-other');
+                      if (otherInput) {
+                        otherInput.style.display = 'none';
+                        otherInput.value = '';
+                      }
+                    } else if (parsedValue.other && parsedValue.other.length > 0) {
+                      // Select the "other" radio and show/populate other input
+                      const otherRadio = container.querySelector('input[type="radio"][value="__other__"]');
+                      const otherInput = container.querySelector('.choice-field-other');
+                      if (otherRadio && otherInput) {
+                        otherRadio.checked = true;
+                        otherInput.value = parsedValue.other[0].label || parsedValue.other[0].value || '';
+                        otherInput.style.display = 'block';
+                      }
+                    }
+                    
+                    hiddenInput.value = JSON.stringify(parsedValue);
+                    
+                    // Clear updating flag
+                    if (container._setUpdating) container._setUpdating(false);
+                    restoredCount++;
+                  }
+                } else if (field.allow_other) {
+                  // Handle allow_other SingleChoiceField (dropdown)
+                  const select = container.querySelector('.choice-field-select');
+                  const otherInput = container.querySelector('.choice-field-other');
+                  
+                  if (select && otherInput && hiddenInput) {
+                    // Set updating flag to prevent event conflicts
+                    if (container._setUpdating) container._setUpdating(true);
+                    
+                    if (parsedValue.choice && parsedValue.choice.length > 0) {
+                      select.value = parsedValue.choice[0].value;
+                      otherInput.style.display = 'none';
+                      otherInput.value = '';
+                    } else if (parsedValue.other && parsedValue.other.length > 0) {
+                      select.value = '__other__';
+                      otherInput.value = parsedValue.other[0].label || parsedValue.other[0].value || '';
+                      otherInput.style.display = 'block';
+                    }
+                    hiddenInput.value = JSON.stringify(parsedValue);
+                    
+                    // Clear updating flag
+                    if (container._setUpdating) container._setUpdating(false);
+                    restoredCount++;
+                  }
+                } else {
+                  // Handle simple SingleChoiceField (dropdown)
+                  const select = container.querySelector('.choice-field-simple-select');
+                  
+                  if (select && hiddenInput) {
+                    if (parsedValue.choice && parsedValue.choice.length > 0) {
+                      select.value = parsedValue.choice[0].value;
+                    } else {
+                      select.value = '';
+                    }
+                    hiddenInput.value = JSON.stringify(parsedValue);
+                    restoredCount++;
+                  }
+                }
+              }
+            } catch (e) {
+              // Ignore invalid JSON
+            }
+        } else if (field.type === 'MultiChoiceField') {
+          // Handle MultiChoiceField restoration (both simple and allow_other)
           try {
             const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
-            const container = document.querySelector(`[data-name="${fieldName}"] .choice-field-container`) ||
-                            document.querySelector(`[data-name="${fieldName}"] .choice-field-simple-container`);
+            const container = document.querySelector(`[data-name="${fieldName}"] .multi-choice-field-container`) ||
+                            document.querySelector(`[data-name="${fieldName}"] .multi-choice-field-simple-container`) ||
+                            document.querySelector(`[data-name="${fieldName}"] .multi-choice-field-checkbox-container`);
             
             if (container) {
               const hiddenInput = container.querySelector(`input[name="${fieldName}"]`);
               
-              if (field.allow_other) {
-                // Handle allow_other ChoiceField
-                const select = container.querySelector('.choice-field-select');
-                const otherInput = container.querySelector('.choice-field-other');
-                
-                if (select && otherInput && hiddenInput) {
+              // Check if this is a checkbox container
+              if (container.classList.contains('multi-choice-field-checkbox-container')) {
+                // Handle checkbox MultiChoiceField restoration
+                if (hiddenInput) {
                   // Set updating flag to prevent event conflicts
                   if (container._setUpdating) container._setUpdating(true);
                   
-                  if (parsedValue.choice && parsedValue.choice.length > 0) {
-                    select.value = parsedValue.choice[0].value;
-                    otherInput.style.display = 'none';
-                    otherInput.value = '';
-                  } else if (parsedValue.other && parsedValue.other.length > 0) {
-                    select.value = '__other__';
-                    otherInput.value = parsedValue.other[0].label || parsedValue.other[0].value || '';
-                    otherInput.style.display = 'block';
+                  // Clear all checkbox selections first
+                  const allCheckboxes = container.querySelectorAll('input[type="checkbox"]');
+                  allCheckboxes.forEach(checkbox => checkbox.checked = false);
+                  
+                  // Restore regular choices
+                  if (parsedValue.choices && parsedValue.choices.length > 0) {
+                    parsedValue.choices.forEach(choice => {
+                      const targetCheckbox = container.querySelector(`input[type="checkbox"][value="${choice.value}"]`);
+                      if (targetCheckbox) {
+                        targetCheckbox.checked = true;
+                      }
+                    });
                   }
+                  
+                  // Restore other value
+                  if (parsedValue.other && parsedValue.other.length > 0) {
+                    const otherCheckbox = container.querySelector('input[type="checkbox"][value="__other__"]');
+                    const otherInput = container.querySelector('.multi-choice-field-other');
+                    if (otherCheckbox && otherInput) {
+                      otherCheckbox.checked = true;
+                      otherInput.value = parsedValue.other[0].label || parsedValue.other[0].value || '';
+                      otherInput.style.display = 'block';
+                    }
+                  }
+                  
                   hiddenInput.value = JSON.stringify(parsedValue);
                   
                   // Clear updating flag
                   if (container._setUpdating) container._setUpdating(false);
                   restoredCount++;
                 }
-              } else {
-                // Handle simple ChoiceField
-                const select = container.querySelector('.choice-field-simple-select');
-                
-                if (select && hiddenInput) {
-                  if (parsedValue.choice && parsedValue.choice.length > 0) {
-                    select.value = parsedValue.choice[0].value;
-                  } else {
-                    select.value = '';
-                  }
-                  hiddenInput.value = JSON.stringify(parsedValue);
-                  restoredCount++;
-                }
-              }
-            }
-          } catch (e) {
-            // Ignore invalid JSON
-          }
-        } else if (field.type === 'MultiChoiceField') {
-          // Handle MultiChoiceField restoration (both simple and allow_other)
-          try {
-            const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
-            const container = document.querySelector(`[data-name="${fieldName}"] .multi-choice-field-container`) ||
-                            document.querySelector(`[data-name="${fieldName}"] .multi-choice-field-simple-container`);
-            
-            if (container) {
-              const hiddenInput = container.querySelector(`input[name="${fieldName}"]`);
-              
-              if (field.allow_other) {
-                // Handle allow_other MultiChoiceField
+              } else if (field.allow_other) {
+                // Handle allow_other MultiChoiceField (dropdown)
                 const select = container.querySelector('.multi-choice-field-select');
                 const otherInput = container.querySelector('.multi-choice-field-other');
                 
@@ -120,14 +200,14 @@ export class FormStateManager {
                     });
                   }
                   
-                  // Restore other value - only restore when there's actual data (same as ChoiceField)
+                  // Restore other value - only restore when there's actual data (same as SingleChoiceField)
                   if (parsedValue.other && parsedValue.other.length > 0) {
                     const otherOption = select.querySelector('option[value="__other__"]');
                     if (otherOption) otherOption.selected = true;
                     otherInput.value = parsedValue.other[0].label || parsedValue.other[0].value || '';
                     otherInput.style.display = 'block';
                   }
-                  // When other is empty, don't touch the current selection (like ChoiceField)
+                  // When other is empty, don't touch the current selection (like SingleChoiceField)
                   
                   hiddenInput.value = JSON.stringify(parsedValue);
                   
@@ -136,7 +216,7 @@ export class FormStateManager {
                   restoredCount++;
                 }
               } else {
-                // Handle simple MultiChoiceField
+                // Handle simple MultiChoiceField (dropdown)
                 const select = container.querySelector('.multi-choice-field-simple-select');
                 
                 if (select && hiddenInput) {
@@ -186,7 +266,7 @@ export class FormStateManager {
     switch (field.type) {
       case 'NumericField':
         return !isNaN(Number(value));
-      case 'ChoiceField':
+      case 'SingleChoiceField':
         // For all ChoiceFields, value should be a JSON string with choice/other structure
         try {
           const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
@@ -224,7 +304,7 @@ export class FormStateManager {
         if (field.type === 'NumericField') {
           // Convert to number, handle empty strings
           values[key] = value === '' ? null : Number(value);
-        } else if (field.type === 'ChoiceField') {
+        } else if (field.type === 'SingleChoiceField') {
           // For all ChoiceFields, the value is JSON from the hidden input
           try {
             values[key] = value === '' ? null : JSON.parse(value);
@@ -284,8 +364,8 @@ export class FormStateManager {
     // Apply readonly
     Object.entries(state.read_only || {}).forEach(([fieldName, isReadOnly]) => {
       const field = this.formRenderer.findFieldByDataName(fieldName);
-      if (field && field.type === 'ChoiceField') {
-        // Handle ChoiceField readonly (both simple and allow_other)
+      if (field && field.type === 'SingleChoiceField') {
+        // Handle SingleChoiceField readonly (both simple and allow_other)
         const container = document.querySelector(`[data-name="${fieldName}"] .choice-field-container`) ||
                         document.querySelector(`[data-name="${fieldName}"] .choice-field-simple-container`);
         if (container) {
@@ -344,10 +424,11 @@ export class FormStateManager {
     Object.entries(state.values || {}).forEach(([fieldName, value]) => {
       const field = this.formRenderer.findFieldByDataName(fieldName);
       
-      if (field && field.type === 'ChoiceField') {
-        // Handle ChoiceField values (both simple and allow_other)
+      if (field && field.type === 'SingleChoiceField') {
+        // Handle SingleChoiceField values (both simple and allow_other)
         const container = document.querySelector(`[data-name="${fieldName}"] .choice-field-container`) ||
-                        document.querySelector(`[data-name="${fieldName}"] .choice-field-simple-container`);
+                        document.querySelector(`[data-name="${fieldName}"] .choice-field-simple-container`) ||
+                        document.querySelector(`[data-name="${fieldName}"] .choice-field-radio-container`);
         
         if (container && value) {
           const hiddenInput = container.querySelector(`input[name="${fieldName}"]`);
@@ -356,8 +437,20 @@ export class FormStateManager {
             try {
               const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
               
-              if (field.allow_other) {
-                // Handle allow_other ChoiceField
+              // Check if this is a radio container
+              if (container.classList.contains('choice-field-radio-container')) {
+                // Handle radio SingleChoiceField values
+                // Set updating flag to prevent event conflicts
+                if (container._setUpdating) container._setUpdating(true);
+                
+                // For radio buttons, only update the hidden input value
+                // Let the original event handlers manage the UI state
+                hiddenInput.value = JSON.stringify(parsedValue);
+                
+                // Clear updating flag
+                if (container._setUpdating) container._setUpdating(false);
+              } else if (field.allow_other) {
+                // Handle allow_other SingleChoiceField (dropdown)
                 const select = container.querySelector('.choice-field-select');
                 const otherInput = container.querySelector('.choice-field-other');
                 
@@ -380,7 +473,7 @@ export class FormStateManager {
                   if (container._setUpdating) container._setUpdating(false);
                 }
               } else {
-                // Handle simple ChoiceField
+                // Handle simple SingleChoiceField (dropdown)
                 const select = container.querySelector('.choice-field-simple-select');
                 
                 if (select) {
@@ -400,7 +493,8 @@ export class FormStateManager {
       } else if (field && field.type === 'MultiChoiceField') {
         // Handle MultiChoiceField values (both simple and allow_other)
         const container = document.querySelector(`[data-name="${fieldName}"] .multi-choice-field-container`) ||
-                        document.querySelector(`[data-name="${fieldName}"] .multi-choice-field-simple-container`);
+                        document.querySelector(`[data-name="${fieldName}"] .multi-choice-field-simple-container`) ||
+                        document.querySelector(`[data-name="${fieldName}"] .multi-choice-field-checkbox-container`);
         
         if (container && value) {
           const hiddenInput = container.querySelector(`input[name="${fieldName}"]`);
@@ -409,8 +503,20 @@ export class FormStateManager {
             try {
               const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
               
-              if (field.allow_other) {
-                // Handle allow_other MultiChoiceField
+              // Check if this is a checkbox container
+              if (container.classList.contains('multi-choice-field-checkbox-container')) {
+                // Handle checkbox MultiChoiceField values
+                // Set updating flag to prevent event conflicts
+                if (container._setUpdating) container._setUpdating(true);
+                
+                // For checkboxes, only update the hidden input value
+                // Let the original event handlers manage the UI state
+                hiddenInput.value = JSON.stringify(parsedValue);
+                
+                // Clear updating flag
+                if (container._setUpdating) container._setUpdating(false);
+              } else if (field.allow_other) {
+                // Handle allow_other MultiChoiceField (dropdown)
                 const select = container.querySelector('.multi-choice-field-select');
                 const otherInput = container.querySelector('.multi-choice-field-other');
                 
@@ -449,7 +555,7 @@ export class FormStateManager {
                   if (container._setUpdating) container._setUpdating(false);
                 }
               } else {
-                // Handle simple MultiChoiceField
+                // Handle simple MultiChoiceField (dropdown)
                 const select = container.querySelector('.multi-choice-field-simple-select');
                 
                 if (select) {
@@ -535,8 +641,8 @@ export class FormStateManager {
     if (fieldDiv && field && isRequired) {
       let hasValue = false;
       
-      if (field.type === 'ChoiceField') {
-        // Check if ChoiceField has a value (both simple and allow_other)
+      if (field.type === 'SingleChoiceField') {
+        // Check if SingleChoiceField has a value (both simple and allow_other)
         const hiddenInput = document.querySelector(`input[name="${fieldName}"]`);
         if (hiddenInput && hiddenInput.value) {
           try {
@@ -546,6 +652,22 @@ export class FormStateManager {
                         (parsedValue.other && parsedValue.other.length > 0 && parsedValue.other[0].label);
             } else {
               hasValue = (parsedValue.choice && parsedValue.choice.length > 0);
+            }
+          } catch (e) {
+            hasValue = false;
+          }
+        }
+      } else if (field.type === 'MultiChoiceField') {
+        // Check if MultiChoiceField has a value (both simple and allow_other)
+        const hiddenInput = document.querySelector(`input[name="${fieldName}"]`);
+        if (hiddenInput && hiddenInput.value) {
+          try {
+            const parsedValue = JSON.parse(hiddenInput.value);
+            if (field.allow_other) {
+              hasValue = (parsedValue.choices && parsedValue.choices.length > 0) ||
+                        (parsedValue.other && parsedValue.other.length > 0 && parsedValue.other[0].label);
+            } else {
+              hasValue = (parsedValue.choices && parsedValue.choices.length > 0);
             }
           } catch (e) {
             hasValue = false;
