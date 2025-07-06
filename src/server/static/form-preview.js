@@ -181,7 +181,7 @@ function addFormEventListeners() {
     // Skip SingleChoiceField and MultiChoiceField internal elements
     if (input.name.endsWith('_choice') || input.name.endsWith('_other') || 
         input.name.endsWith('_choices') ||
-        input.classList.contains('choice-field-simple-select') ||
+        input.classList.contains('single-choice-field-simple-select') ||
         input.classList.contains('multi-choice-field-select') ||
         input.classList.contains('multi-choice-field-simple-select')) {
       return;
@@ -192,7 +192,7 @@ function addFormEventListeners() {
   });
   
   // Listen for SingleChoiceField custom events
-  document.addEventListener('choicefield-change', () => {
+  document.addEventListener('singlechoicefield-change', () => {
     formStateManager.updateFormState();
   });
   

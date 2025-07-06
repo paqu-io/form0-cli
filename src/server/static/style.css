@@ -43,14 +43,14 @@ body {
 }
 
 /* SingleChoiceField styling */
-.choice-field-container,
-.choice-field-simple-container,
-.choice-field-radio-container {
+.single-choice-field-container,
+.single-choice-field-simple-container,
+.single-choice-field-radio-container {
     width: 100%;
 }
 
-.choice-field-select,
-.choice-field-simple-select {
+.single-choice-field-select,
+.single-choice-field-simple-select {
     width: 100%;
     padding: 8px;
     border: 1px solid #ddd;
@@ -59,11 +59,11 @@ body {
     margin-bottom: 8px;
 }
 
-.choice-field-simple-select {
+.single-choice-field-simple-select {
     margin-bottom: 0; /* No margin for simple select since there's no other input */
 }
 
-.choice-field-other {
+.single-choice-field-other {
     width: 100%;
     padding: 8px;
     border: 1px solid #ddd;
@@ -72,38 +72,38 @@ body {
     margin-top: 5px;
 }
 
-.choice-field-other:focus {
+.single-choice-field-other:focus {
     outline: none;
     border-color: #4a90e2;
 }
 
 /* Radio button styling for SingleChoiceField */
-.choice-field-radio-container {
+.single-choice-field-radio-container {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-.choice-field-radio-option {
+.single-choice-field-radio-option {
     display: flex;
     align-items: flex-start;
     gap: 8px;
 }
 
-.choice-field-radio-option input[type="radio"] {
+.single-choice-field-radio-option input[type="radio"] {
     margin: 0;
     margin-top: 2px; /* Align with text baseline */
     width: auto;
 }
 
-.choice-field-radio-option label {
+.single-choice-field-radio-option label {
     margin: 0;
     cursor: pointer;
     flex: 1;
     font-weight: normal;
 }
 
-.choice-field-radio-option .choice-field-other {
+.single-choice-field-radio-option .single-choice-field-other {
     width: calc(100% - 20px);
     margin-top: 5px;
     margin-left: 0;
@@ -213,13 +213,13 @@ body {
     border-color: #e74c3c; 
 }
 
-.field.error .choice-field-select,
-.field.error .choice-field-simple-select,
-.field.error .choice-field-other { 
+.field.error .single-choice-field-select,
+.field.error .single-choice-field-simple-select,
+.field.error .single-choice-field-other { 
     border-color: #e74c3c; 
 }
 
-.field.error .choice-field-radio-option input[type="radio"] {
+.field.error .single-choice-field-radio-option input[type="radio"] {
     outline: 2px solid #e74c3c;
 }
 
@@ -275,19 +275,19 @@ body {
     box-sizing: border-box; 
 }
 
-.readonly .choice-field-select,
-.readonly .choice-field-simple-select,
-.readonly .choice-field-other { 
+.readonly .single-choice-field-select,
+.readonly .single-choice-field-simple-select,
+.readonly .single-choice-field-other { 
     background: #f8f9fa; 
     color: #6c757d; 
     cursor: not-allowed; 
 }
 
-.readonly .choice-field-radio-option input[type="radio"] {
+.readonly .single-choice-field-radio-option input[type="radio"] {
     cursor: not-allowed;
 }
 
-.readonly .choice-field-radio-option label {
+.readonly .single-choice-field-radio-option label {
     color: #6c757d;
     cursor: not-allowed;
 }

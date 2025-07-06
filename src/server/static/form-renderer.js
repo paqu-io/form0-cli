@@ -97,18 +97,18 @@ export class FormRenderer {
         if (choiceDisplay === 'radio') {
           // Handle radio button readonly
           const radios = input.querySelectorAll('input[type="radio"]');
-          const otherInput = input.querySelector('.choice-field-other');
+          const otherInput = input.querySelector('.single-choice-field-other');
           radios.forEach(radio => radio.disabled = true);
           if (otherInput) otherInput.readOnly = true;
         } else if (field.allow_other) {
           // Handle allow_other SingleChoiceField readonly
-          const select = input.querySelector('.choice-field-select');
-          const otherInput = input.querySelector('.choice-field-other');
+          const select = input.querySelector('.single-choice-field-select');
+          const otherInput = input.querySelector('.single-choice-field-other');
           if (select) select.disabled = true;
           if (otherInput) otherInput.readOnly = true;
         } else {
           // Handle simple SingleChoiceField readonly
-          const select = input.querySelector('.choice-field-simple-select');
+          const select = input.querySelector('.single-choice-field-simple-select');
           if (select) select.disabled = true;
         }
       } else if (field.type === 'MultiChoiceField') {
@@ -116,18 +116,18 @@ export class FormRenderer {
         if (multiChoiceDisplay === 'checkbox') {
           // Handle checkbox readonly
           const checkboxes = input.querySelectorAll('input[type="checkbox"]');
-          const otherInput = input.querySelector('.multi-choice-field-other');
+          const otherInput = input.querySelector('.multi-single-choice-field-other');
           checkboxes.forEach(checkbox => checkbox.disabled = true);
           if (otherInput) otherInput.readOnly = true;
         } else if (field.allow_other) {
           // Handle allow_other MultiChoiceField readonly
-          const select = input.querySelector('.multi-choice-field-select');
-          const otherInput = input.querySelector('.multi-choice-field-other');
+          const select = input.querySelector('.multi-single-choice-field-select');
+          const otherInput = input.querySelector('.multi-single-choice-field-other');
           if (select) select.disabled = true;
           if (otherInput) otherInput.readOnly = true;
         } else {
           // Handle simple MultiChoiceField readonly
-          const select = input.querySelector('.multi-choice-field-simple-select');
+          const select = input.querySelector('.multi-single-choice-field-simple-select');
           if (select) select.disabled = true;
         }
       } else {
@@ -173,7 +173,7 @@ export class FormRenderer {
         if (choiceDisplay === 'radio') {
           // Render as radio buttons
           const container = document.createElement('div');
-          container.className = 'choice-field-radio-container';
+          container.className = 'single-choice-field-radio-container';
           
           // Create hidden input for the actual field value
           const hiddenInput = document.createElement('input');
@@ -193,7 +193,7 @@ export class FormRenderer {
             
             if (selectedRadio) {
               if (selectedRadio.value === '__other__') {
-                const otherInput = container.querySelector('.choice-field-other');
+                const otherInput = container.querySelector('.single-choice-field-other');
                 otherValue = otherInput ? otherInput.value.trim() : '';
               } else {
                 choiceValue = selectedRadio.value;
@@ -208,7 +208,7 @@ export class FormRenderer {
             hiddenInput.value = JSON.stringify(value);
             
             // Dispatch custom event to trigger form state update
-            const changeEvent = new CustomEvent('choicefield-change', {
+            const changeEvent = new CustomEvent('singlechoicefield-change', {
               bubbles: true,
               detail: { fieldName: field.data_name, value: value }
             });
@@ -218,7 +218,7 @@ export class FormRenderer {
           // Add regular choices as radio buttons
           (field.choices || []).forEach((choice) => {
             const radioDiv = document.createElement('div');
-            radioDiv.className = 'choice-field-radio-option';
+            radioDiv.className = 'single-choice-field-radio-option';
             
             const radio = document.createElement('input');
             radio.type = 'radio';
@@ -240,7 +240,7 @@ export class FormRenderer {
           // Add "Other" option if allowed
           if (field.allow_other) {
             const otherDiv = document.createElement('div');
-            otherDiv.className = 'choice-field-radio-option';
+            otherDiv.className = 'single-choice-field-radio-option';
             
             const otherRadio = document.createElement('input');
             otherRadio.type = 'radio';
@@ -254,7 +254,7 @@ export class FormRenderer {
             
             const otherInput = document.createElement('input');
             otherInput.type = 'text';
-            otherInput.className = 'choice-field-other';
+            otherInput.className = 'single-choice-field-other';
             otherInput.placeholder = 'Please specify...';
             otherInput.style.display = 'none';
             otherInput.style.marginLeft = '20px';
@@ -296,11 +296,11 @@ export class FormRenderer {
           if (field.allow_other) {
             // Create a container for choice field with "other" option
             const container = document.createElement('div');
-            container.className = 'choice-field-container';
+            container.className = 'single-choice-field-container';
             
             const select = document.createElement('select');
             select.name = field.data_name + '_choice';
-            select.className = 'choice-field-select';
+            select.className = 'single-choice-field-select';
             
             // Add default empty option
             const emptyOption = document.createElement('option');
@@ -326,7 +326,7 @@ export class FormRenderer {
             const otherInput = document.createElement('input');
             otherInput.type = 'text';
             otherInput.name = field.data_name + '_other';
-            otherInput.className = 'choice-field-other';
+            otherInput.className = 'single-choice-field-other';
             otherInput.placeholder = 'Please specify...';
             otherInput.style.display = 'none';
             
@@ -353,7 +353,7 @@ export class FormRenderer {
               hiddenInput.value = JSON.stringify(value);
               
               // Dispatch custom event to trigger form state update
-              const changeEvent = new CustomEvent('choicefield-change', {
+              const changeEvent = new CustomEvent('singlechoicefield-change', {
                 bubbles: true,
                 detail: { fieldName: field.data_name, value: value }
               });
@@ -390,10 +390,10 @@ export class FormRenderer {
           } else {
             // Simple select for non-allow_other fields
             const container = document.createElement('div');
-            container.className = 'choice-field-simple-container';
+            container.className = 'single-choice-field-simple-container';
             
             const select = document.createElement('select');
-            select.className = 'choice-field-simple-select';
+            select.className = 'single-choice-field-simple-select';
             
             // Add default empty option
             const emptyOption = document.createElement('option');
@@ -423,7 +423,7 @@ export class FormRenderer {
               hiddenInput.value = JSON.stringify(value);
               
               // Dispatch custom event to trigger form state update
-              const changeEvent = new CustomEvent('choicefield-change', {
+              const changeEvent = new CustomEvent('singlechoicefield-change', {
                 bubbles: true,
                 detail: { fieldName: field.data_name, value: value }
               });

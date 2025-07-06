@@ -42,15 +42,15 @@ export class FormStateManager {
             // Handle SingleChoiceField restoration (both simple and allow_other)
             try {
               const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
-              const container = document.querySelector(`[data-name="${fieldName}"] .choice-field-container`) ||
-                              document.querySelector(`[data-name="${fieldName}"] .choice-field-simple-container`) ||
-                              document.querySelector(`[data-name="${fieldName}"] .choice-field-radio-container`);
+              const container = document.querySelector(`[data-name="${fieldName}"] .single-choice-field-container`) ||
+                              document.querySelector(`[data-name="${fieldName}"] .single-choice-field-simple-container`) ||
+                              document.querySelector(`[data-name="${fieldName}"] .single-choice-field-radio-container`);
               
               if (container) {
                 const hiddenInput = container.querySelector(`input[name="${fieldName}"]`);
                 
                 // Check if this is a radio container
-                if (container.classList.contains('choice-field-radio-container')) {
+                if (container.classList.contains('single-choice-field-radio-container')) {
                   // Handle radio SingleChoiceField restoration
                   if (hiddenInput) {
                     // Set updating flag to prevent event conflicts
@@ -67,7 +67,7 @@ export class FormStateManager {
                         targetRadio.checked = true;
                       }
                       // Hide other input
-                      const otherInput = container.querySelector('.choice-field-other');
+                      const otherInput = container.querySelector('.single-choice-field-other');
                       if (otherInput) {
                         otherInput.style.display = 'none';
                         otherInput.value = '';
@@ -75,7 +75,7 @@ export class FormStateManager {
                     } else if (parsedValue.other && parsedValue.other.length > 0) {
                       // Select the "other" radio and show/populate other input
                       const otherRadio = container.querySelector('input[type="radio"][value="__other__"]');
-                      const otherInput = container.querySelector('.choice-field-other');
+                      const otherInput = container.querySelector('.single-choice-field-other');
                       if (otherRadio && otherInput) {
                         otherRadio.checked = true;
                         otherInput.value = parsedValue.other[0].label || parsedValue.other[0].value || '';
@@ -91,8 +91,8 @@ export class FormStateManager {
                   }
                 } else if (field.allow_other) {
                   // Handle allow_other SingleChoiceField (dropdown)
-                  const select = container.querySelector('.choice-field-select');
-                  const otherInput = container.querySelector('.choice-field-other');
+                  const select = container.querySelector('.single-choice-field-select');
+                  const otherInput = container.querySelector('.single-choice-field-other');
                   
                   if (select && otherInput && hiddenInput) {
                     // Set updating flag to prevent event conflicts
@@ -115,7 +115,7 @@ export class FormStateManager {
                   }
                 } else {
                   // Handle simple SingleChoiceField (dropdown)
-                  const select = container.querySelector('.choice-field-simple-select');
+                  const select = container.querySelector('.single-choice-field-simple-select');
                   
                   if (select && hiddenInput) {
                     if (parsedValue.choice && parsedValue.choice.length > 0) {
@@ -366,16 +366,16 @@ export class FormStateManager {
       const field = this.formRenderer.findFieldByDataName(fieldName);
       if (field && field.type === 'SingleChoiceField') {
         // Handle SingleChoiceField readonly (both simple and allow_other)
-        const container = document.querySelector(`[data-name="${fieldName}"] .choice-field-container`) ||
-                        document.querySelector(`[data-name="${fieldName}"] .choice-field-simple-container`);
+        const container = document.querySelector(`[data-name="${fieldName}"] .single-choice-field-container`) ||
+                        document.querySelector(`[data-name="${fieldName}"] .single-choice-field-simple-container`);
         if (container) {
           if (field.allow_other) {
-            const select = container.querySelector('.choice-field-select');
-            const otherInput = container.querySelector('.choice-field-other');
+            const select = container.querySelector('.single-choice-field-select');
+            const otherInput = container.querySelector('.single-choice-field-other');
             if (select) select.disabled = isReadOnly;
             if (otherInput) otherInput.readOnly = isReadOnly;
           } else {
-            const select = container.querySelector('.choice-field-simple-select');
+            const select = container.querySelector('.single-choice-field-simple-select');
             if (select) select.disabled = isReadOnly;
           }
           
@@ -426,9 +426,9 @@ export class FormStateManager {
       
       if (field && field.type === 'SingleChoiceField') {
         // Handle SingleChoiceField values (both simple and allow_other)
-        const container = document.querySelector(`[data-name="${fieldName}"] .choice-field-container`) ||
-                        document.querySelector(`[data-name="${fieldName}"] .choice-field-simple-container`) ||
-                        document.querySelector(`[data-name="${fieldName}"] .choice-field-radio-container`);
+        const container = document.querySelector(`[data-name="${fieldName}"] .single-choice-field-container`) ||
+                        document.querySelector(`[data-name="${fieldName}"] .single-choice-field-simple-container`) ||
+                        document.querySelector(`[data-name="${fieldName}"] .single-choice-field-radio-container`);
         
         if (container && value) {
           const hiddenInput = container.querySelector(`input[name="${fieldName}"]`);
@@ -438,7 +438,7 @@ export class FormStateManager {
               const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
               
               // Check if this is a radio container
-              if (container.classList.contains('choice-field-radio-container')) {
+              if (container.classList.contains('single-choice-field-radio-container')) {
                 // Handle radio SingleChoiceField values
                 // Set updating flag to prevent event conflicts
                 if (container._setUpdating) container._setUpdating(true);
@@ -451,8 +451,8 @@ export class FormStateManager {
                 if (container._setUpdating) container._setUpdating(false);
               } else if (field.allow_other) {
                 // Handle allow_other SingleChoiceField (dropdown)
-                const select = container.querySelector('.choice-field-select');
-                const otherInput = container.querySelector('.choice-field-other');
+                const select = container.querySelector('.single-choice-field-select');
+                const otherInput = container.querySelector('.single-choice-field-other');
                 
                 if (select && otherInput) {
                   // Set updating flag to prevent event conflicts
@@ -474,7 +474,7 @@ export class FormStateManager {
                 }
               } else {
                 // Handle simple SingleChoiceField (dropdown)
-                const select = container.querySelector('.choice-field-simple-select');
+                const select = container.querySelector('.single-choice-field-simple-select');
                 
                 if (select) {
                   if (parsedValue.choice && parsedValue.choice.length > 0) {
