@@ -1,5 +1,6 @@
 import fs from 'fs-extra';
 import chalk from 'chalk';
+import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
 import { t } from '../utils/i18n.js';
 
 function printFields(elements, indent = '') {
@@ -18,6 +19,9 @@ function printFields(elements, indent = '') {
         break;
       case 'NumericField':
         typeColor = chalk.blue;
+        break;
+      case 'SingleChoiceField':
+        typeColor = chalk.cyan;
         break;
       case 'CalculatedField':
         typeColor = chalk.yellow;
@@ -43,6 +47,10 @@ function printFields(elements, indent = '') {
 export async function previewCommand(file) {
   try {
     const data = await fs.readJson(file);
+    
+    // Process SingleChoiceField choices before preview
+    ensureChoiceValuesForSchema(data.form.elements || []);
+    
     const form = data.form;
 
     console.log(

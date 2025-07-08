@@ -175,10 +175,29 @@ function renderForm() {
 }
 
 function addFormEventListeners() {
-  // Add event listeners to all form inputs
+  // Add event listeners to all form inputs, but exclude SingleChoiceField internal elements
   const inputs = document.querySelectorAll('#main-form input, #main-form select');
   inputs.forEach((input) => {
+    // Skip SingleChoiceField and MultiChoiceField internal elements
+    if (input.name.endsWith('_choice') || input.name.endsWith('_other') || 
+        input.name.endsWith('_choices') ||
+        input.classList.contains('single-choice-field-simple-select') ||
+        input.classList.contains('multi-choice-field-select') ||
+        input.classList.contains('multi-choice-field-simple-select')) {
+      return;
+    }
+    
     input.addEventListener('input', () => formStateManager.updateFormState());
     input.addEventListener('change', () => formStateManager.updateFormState());
+  });
+  
+  // Listen for SingleChoiceField custom events
+  document.addEventListener('singlechoicefield-change', () => {
+    formStateManager.updateFormState();
+  });
+  
+  // Listen for MultiChoiceField custom events
+  document.addEventListener('multichoicefield-change', () => {
+    formStateManager.updateFormState();
   });
 }

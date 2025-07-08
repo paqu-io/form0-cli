@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { colors } from '../utils/theme.js';
 import { createFormEngine } from 'form0-core';
+import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
 import { filterValidValues } from '../utils/value-validation.js';
 import yaml from 'yaml';
 import { t } from '../utils/i18n.js';
@@ -9,6 +10,10 @@ import { t } from '../utils/i18n.js';
 export async function runCommand(schemaPath, options) {
   try {
     const data = await fs.readJson(schemaPath);
+    
+    // Process SingleChoiceField choices before engine creation
+    ensureChoiceValuesForSchema(data.form.elements || []);
+    
     const valuesInput = options.values;
     let initialValues = {};
 

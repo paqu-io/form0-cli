@@ -4,6 +4,7 @@ import { createServer } from 'http';
 import path from 'path';
 import { colors } from '../utils/theme.js';
 import { validateSchema } from 'form0-core';
+import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
 import { t } from '../utils/i18n.js';
 import { createApp } from '../server/express-server.js';
 import { createWebSocketServer } from '../server/websocket.js';
@@ -90,6 +91,10 @@ class Form0Server {
 
   async loadSchema() {
     const data = await fs.readJson(this.schemaPath);
+    
+    // Process SingleChoiceField choices before validation
+    ensureChoiceValuesForSchema(data.form.elements || []);
+    
     validateSchema(data.form);
     this.currentSchema = data;
   }

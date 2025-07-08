@@ -42,8 +42,195 @@ body {
     box-sizing: border-box; 
 }
 
+/* SingleChoiceField styling */
+.single-choice-field-container,
+.single-choice-field-simple-container,
+.single-choice-field-radio-container {
+    width: 100%;
+}
+
+.single-choice-field-select,
+.single-choice-field-simple-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+}
+
+.single-choice-field-simple-select {
+    margin-bottom: 0; /* No margin for simple select since there's no other input */
+}
+
+.single-choice-field-other {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-top: 5px;
+}
+
+.single-choice-field-other:focus {
+    outline: none;
+    border-color: #4a90e2;
+}
+
+/* Radio button styling for SingleChoiceField */
+.single-choice-field-radio-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.single-choice-field-radio-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.single-choice-field-radio-option input[type="radio"] {
+    margin: 0;
+    margin-top: 2px; /* Align with text baseline */
+    width: auto;
+}
+
+.single-choice-field-radio-option label {
+    margin: 0;
+    cursor: pointer;
+    flex: 1;
+    font-weight: normal;
+}
+
+.single-choice-field-radio-option .single-choice-field-other {
+    width: calc(100% - 20px);
+    margin-top: 5px;
+    margin-left: 0;
+}
+
+/* MultiChoiceField styling */
+.multi-choice-field-container,
+.multi-choice-field-simple-container,
+.multi-choice-field-checkbox-container {
+    width: 100%;
+}
+
+.multi-choice-field-select,
+.multi-choice-field-simple-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+    min-height: 100px;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.multi-choice-field-simple-select {
+    margin-bottom: 0; /* No margin for simple select since there's no other input */
+}
+
+.multi-choice-field-select:focus,
+.multi-choice-field-simple-select:focus {
+    outline: none;
+    border-color: #4a90e2;
+}
+
+.multi-choice-field-other {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-top: 5px;
+}
+
+.multi-choice-field-other:focus {
+    outline: none;
+    border-color: #4a90e2;
+}
+
+/* Checkbox styling for MultiChoiceField */
+.multi-choice-field-checkbox-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.multi-choice-field-checkbox-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.multi-choice-field-checkbox-option input[type="checkbox"] {
+    margin: 0;
+    margin-top: 2px; /* Align with text baseline */
+    width: auto;
+}
+
+.multi-choice-field-checkbox-option label {
+    margin: 0;
+    cursor: pointer;
+    flex: 1;
+    font-weight: normal;
+}
+
+.multi-choice-field-checkbox-option .multi-choice-field-other {
+    width: calc(100% - 20px);
+    margin-top: 5px;
+    margin-left: 0;
+}
+
+/* Multi-select option styling */
+.multi-choice-field-select option,
+.multi-choice-field-simple-select option {
+    padding: 4px 8px;
+    margin: 1px 0;
+}
+
+.multi-choice-field-select option:checked,
+.multi-choice-field-simple-select option:checked {
+    background-color: #4a90e2;
+    color: white;
+}
+
+/* Help text for multi-select */
+.multi-choice-field-container::after,
+.multi-choice-field-simple-container::after {
+    content: "Hold Ctrl (or Cmd on Mac) to select multiple options or Shift to select a range";
+    display: block;
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+    font-style: italic;
+}
+
 .field.error input { 
     border-color: #e74c3c; 
+}
+
+.field.error .single-choice-field-select,
+.field.error .single-choice-field-simple-select,
+.field.error .single-choice-field-other { 
+    border-color: #e74c3c; 
+}
+
+.field.error .single-choice-field-radio-option input[type="radio"] {
+    outline: 2px solid #e74c3c;
+}
+
+.field.error .multi-choice-field-select,
+.field.error .multi-choice-field-simple-select,
+.field.error .multi-choice-field-other { 
+    border-color: #e74c3c; 
+}
+
+.field.error .multi-choice-field-checkbox-option input[type="checkbox"] {
+    outline: 2px solid #e74c3c;
 }
 
 .error-message { 
@@ -86,6 +273,40 @@ body {
     color: #6c757d; 
     cursor: not-allowed; 
     box-sizing: border-box; 
+}
+
+.readonly .single-choice-field-select,
+.readonly .single-choice-field-simple-select,
+.readonly .single-choice-field-other { 
+    background: #f8f9fa; 
+    color: #6c757d; 
+    cursor: not-allowed; 
+}
+
+.readonly .single-choice-field-radio-option input[type="radio"] {
+    cursor: not-allowed;
+}
+
+.readonly .single-choice-field-radio-option label {
+    color: #6c757d;
+    cursor: not-allowed;
+}
+
+.readonly .multi-choice-field-select,
+.readonly .multi-choice-field-simple-select,
+.readonly .multi-choice-field-other { 
+    background: #f8f9fa; 
+    color: #6c757d; 
+    cursor: not-allowed; 
+}
+
+.readonly .multi-choice-field-checkbox-option input[type="checkbox"] {
+    cursor: not-allowed;
+}
+
+.readonly .multi-choice-field-checkbox-option label {
+    color: #6c757d;
+    cursor: not-allowed;
 }
 
 .hidden { 

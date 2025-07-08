@@ -2,8 +2,8 @@ import chokidar from 'chokidar';
 import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
-import { createFormEngine } from 'form0-core';
-import { validateSchema } from 'form0-core';
+import { createFormEngine, validateSchema } from 'form0-core';
+import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
 import { filterValidValues } from '../utils/value-validation.js';
 import yaml from 'yaml';
 import { colors } from '../utils/theme.js';
@@ -94,6 +94,10 @@ class Form0Watcher {
 
   async loadSchema() {
     const data = await fs.readJson(this.schemaPath);
+    
+    // Process SingleChoiceField choices before validation
+    ensureChoiceValuesForSchema(data.form.elements || []);
+    
     validateSchema(data.form); // Validate on load
     this.currentSchema = data;
   }
