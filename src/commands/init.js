@@ -6,6 +6,54 @@ import { testScriptTemplate } from '../utils/test-template.js';
 import { createReadmeTemplate } from '../utils/test-readme.js';
 import { t } from '../utils/i18n.js';
 
+// Dedent function to remove common leading whitespace
+function dedent(str) {
+  if (typeof str !== 'string') return str;
+  
+  // Normalize line endings to \n for processing
+  const normalized = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  const lines = normalized.split('\n');
+  const nonEmptyLines = lines.filter(line => line.trim().length > 0);
+  
+  if (nonEmptyLines.length === 0) return str;
+  
+  // Find minimum indentation
+  const minIndent = Math.min(...nonEmptyLines.map(line => 
+    line.match(/^\s*/)[0].length
+  ));
+  
+  // Remove the minimum indentation from all lines
+  return lines.map(line => line.slice(minIndent)).join('\n').trim();
+}
+
+// Recursively process schema to dedent code strings
+function dedentCodeInSchema(obj) {
+  if (typeof obj === 'string') {
+    return obj;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => dedentCodeInSchema(item));
+  }
+  
+  if (obj && typeof obj === 'object') {
+    const result = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === 'code' && typeof value === 'string') {
+        result[key] = dedent(value);
+      } else if (key === 'calculate' && typeof value === 'string') {
+        result[key] = dedent(value);
+      } else {
+        result[key] = dedentCodeInSchema(value);
+      }
+    }
+    return result;
+  }
+  
+  return obj;
+}
+
 async function createFormProject(dir, showInstructions = true) {
   const base = path.resolve(process.cwd(), dir);
   await fs.ensureDir(base);
@@ -13,6 +61,9 @@ async function createFormProject(dir, showInstructions = true) {
   // Get the default form template and ensure it has keys
   const schema = structuredClone(defaultFormTemplate);
   ensureKeysForSchema(schema.form.elements);
+
+  // Apply dedent to code strings before writing JSON
+  const compactSchema = dedentCodeInSchema(schema);
 
   const testScript = testScriptTemplate;
 
@@ -33,7 +84,7 @@ async function createFormProject(dir, showInstructions = true) {
 
   // Write all files
   await fs.writeJson(`${base}/package.json`, packageJson, { spaces: 2 });
-  await fs.writeJson(`${base}/form.schema.json`, schema, { spaces: 2 });
+  await fs.writeJson(`${base}/form.schema.json`, compactSchema, { spaces: 2 });
   await fs.writeFile(`${base}/test.js`, testScript);
   await fs.writeFile(`${base}/README.md`, createReadmeTemplate(dir));
 
