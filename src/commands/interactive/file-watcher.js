@@ -211,7 +211,7 @@ export class FileWatcher {
 
       // Auto-validate if enabled
       if (this.watchOptions.autoValidate) {
-        this.schemaManager.validateCurrentSchema();
+        await this.schemaManager.validateCurrentSchema();
       }
 
       // Auto-run if enabled

@@ -8,6 +8,7 @@ import { COMMON_SCHEMA_PATHS } from '../../../utils/constants.js';
 import { findExistingSchema } from '../../../utils/schema-utils.js';
 import { showSchemaPreview } from '../../../utils/display-utils.js';
 import { t } from '../../../utils/i18n.js';
+import { colors } from '../../../utils/theme.js';
 
 /**
  * Manages schema loading, validation, and initialization
@@ -49,28 +50,33 @@ export class SchemaManager {
       try {
         await this.loadSchema(existingSchema);
         console.log(
-          chalk.green(t('interactive.autoLoadedSchema', { path: existingSchema }) + '\n')
+          colors.success(t('interactive.autoLoadedSchema', { path: existingSchema }) + '\n')
         );
         return true;
       } catch (err) {
         console.log(
-          chalk.yellow(
+          colors.warning(
             t('interactive.foundButFailedToLoad', { path: existingSchema, message: err.message }) +
               '\n'
           )
         );
+        console.log(colors.accent1(t('interactive.wouldYouLikeToInit')));
+        console.log(chalk.gray(t('interactive.typeInit')));
+        console.log(chalk.gray(t('interactive.typeLoad')));
+        console.log(chalk.gray(t('interactive.continueWithOther') + '\n'));
+        return false;
       }
     }
 
     // No valid schema found, offer to initialize
     console.log(
-      chalk.yellow(t('interactive.noSchemaFound', { dir: path.basename(process.cwd()) }))
+      colors.warning(t('interactive.noSchemaFound', { dir: path.basename(process.cwd()) }))
     );
     console.log(
       chalk.gray(t('interactive.lookingFor', { files: COMMON_SCHEMA_PATHS.join(', ') }) + '\n')
     );
 
-    console.log(chalk.cyan(t('interactive.wouldYouLikeToInit')));
+    console.log(colors.accent1(t('interactive.wouldYouLikeToInit')));
     console.log(chalk.gray(t('interactive.typeInit')));
     console.log(chalk.gray(t('interactive.typeLoad')));
     console.log(chalk.gray(t('interactive.continueWithOther') + '\n'));
@@ -104,20 +110,23 @@ export class SchemaManager {
   }
 
   /**
-   * Validate the current schema
+   * Validate the current schema (always reloads from file first)
    */
-  validateCurrentSchema() {
-    if (!this.currentSchema) {
-      console.log(chalk.red(t('common.noSchemaLoaded')));
+  async validateCurrentSchema() {
+    if (!this.currentSchemaPath) {
+      console.log(colors.error(t('common.noSchemaLoaded')));
       return false;
     }
 
     try {
+      // Always reload from file before validating to ensure we're validating the current file state
+      await this.reloadSchema();
+      
       validateSchema(this.currentSchema.form);
-      console.log(chalk.green(t('common.schemaIsValid')));
+      console.log(colors.success(t('common.schemaIsValid')));
       return true;
     } catch (err) {
-      console.log(chalk.red(t('commands.validate.validationFailed', { message: err.message })));
+      console.log(colors.error(t('commands.validate.validationFailed', { message: err.message })));
       return false;
     }
   }
@@ -127,7 +136,7 @@ export class SchemaManager {
    */
   previewSchema() {
     if (!this.currentSchema) {
-      console.log(chalk.red(t('common.noSchemaLoaded')));
+      console.log(colors.error(t('common.noSchemaLoaded')));
       return;
     }
 
@@ -145,16 +154,16 @@ export class SchemaManager {
       const existingSchema = COMMON_SCHEMA_PATHS.find((p) => fs.pathExistsSync(p));
 
       if (existingSchema) {
-        console.log(chalk.yellow(t('interactive.foundExistingSchema', { path: existingSchema })));
+        console.log(colors.warning(t('interactive.foundExistingSchema', { path: existingSchema })));
         console.log(chalk.gray(t('interactive.useLoadOrSpecify')));
         return;
       }
 
       console.log(
-        chalk.cyan(t('interactive.initializingInCurrent', { dir: path.basename(process.cwd()) }))
+        colors.accent1(t('interactive.initializingInCurrent', { dir: path.basename(process.cwd()) }))
       );
     } else {
-      console.log(chalk.cyan(t('interactive.initializingIn', { dir })));
+      console.log(colors.accent1(t('interactive.initializingIn', { dir })));
     }
 
     try {
@@ -163,10 +172,10 @@ export class SchemaManager {
       // Auto-load the newly created schema if initialized in current directory
       if (dir === '.') {
         await this.loadSchema('form.schema.json');
-        console.log(chalk.green(t('interactive.autoLoadedNewSchema')));
+        console.log(colors.success(t('interactive.autoLoadedNewSchema')));
       }
     } catch (err) {
-      console.log(chalk.red(t('interactive.failedToInitialize', { message: err.message })));
+      console.log(colors.error(t('interactive.failedToInitialize', { message: err.message })));
     }
   }
 

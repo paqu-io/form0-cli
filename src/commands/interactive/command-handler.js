@@ -100,7 +100,7 @@ export class CommandHandler {
 
         case 'validate':
         case 'v':
-          this.schemaManager.validateCurrentSchema();
+          await this.schemaManager.validateCurrentSchema();
           break;
 
         case 'test':

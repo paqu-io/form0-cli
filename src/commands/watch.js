@@ -1,7 +1,6 @@
 import chokidar from 'chokidar';
 import fs from 'fs-extra';
 import path from 'path';
-import chalk from 'chalk';
 import { createFormEngine, validateSchema } from 'form0-core';
 import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
 import { filterValidValues } from '../utils/value-validation.js';

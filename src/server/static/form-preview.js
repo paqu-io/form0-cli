@@ -1,5 +1,6 @@
 import { FormRenderer } from './form-renderer.js';
 import { FormStateManager } from './form-state-manager.js';
+import { OperationProcessor } from './operation-processor.js';
 
 // Global variables for translations
 let currentLocale = 'en';
@@ -66,6 +67,48 @@ let schemaSource = 'Current Schema'; // Will be updated by server
 // Initialize modular components
 const formRenderer = new FormRenderer();
 const formStateManager = new FormStateManager(formRenderer);
+const operationProcessor = new OperationProcessor(formStateManager);
+
+/**
+ * Trigger a form event
+ */
+async function triggerFormEvent(eventType, fieldKey = null) {
+  try {
+    const values = formStateManager.getCurrentFormValues();
+    
+    const response = await fetch('/api/engine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values, eventType, fieldKey }),
+    });
+    
+    if (!response.ok) {
+      console.warn('Failed to trigger form event:', response.statusText);
+      return;
+    }
+    
+    const result = await response.json();
+    
+    // Apply state updates (non-blocking - if this fails, continue anyway)
+    try {
+      formStateManager.applyFormState(result);
+    } catch (err) {
+      console.warn('Failed to apply state after event:', err);
+    }
+    
+    // Process event operations using the operation processor
+    if (result.operations && result.operations.length > 0) {
+      const eventDesc = fieldKey ? `${eventType}:${fieldKey}` : eventType;
+      console.log(`🔴 [FORM EVENT] ${eventDesc} → Processing ${result.operations.length} operations`);
+      
+      // Process operations through the operation processor
+      await operationProcessor.processOperations(result.operations);
+    }
+  } catch (err) {
+    // Don't block form functionality if events fail
+    console.warn('Form event error (non-blocking):', err);
+  }
+}
 
 // Initialize WebSocket connection
 function initializeWebSocket() {
@@ -170,34 +213,89 @@ function renderForm() {
   // Restore preserved values AFTER form is fully rendered
   formStateManager.restorePreservedValues();
 
+  // Trigger load-record event BEFORE initial engine evaluation
+  triggerFormEvent('load-record');
+
   // Initial engine evaluation (this will also recalculate any calculated fields)
   formStateManager.updateFormState();
 }
 
+// Keep track of document event listeners so we can remove them
+let documentEventListeners = [];
+
 function addFormEventListeners() {
-  // Add event listeners to all form inputs, but exclude SingleChoiceField internal elements
+  // Remove old document event listeners first
+  documentEventListeners.forEach(({ type, handler }) => {
+    document.removeEventListener(type, handler);
+  });
+  documentEventListeners = [];
+  
+  // Add event listeners to all form inputs, but exclude choice fields (they have custom handlers)
   const inputs = document.querySelectorAll('#main-form input, #main-form select');
   inputs.forEach((input) => {
-    // Skip SingleChoiceField and MultiChoiceField internal elements
-    if (input.name.endsWith('_choice') || input.name.endsWith('_other') || 
-        input.name.endsWith('_choices') ||
-        input.classList.contains('single-choice-field-simple-select') ||
-        input.classList.contains('multi-choice-field-select') ||
-        input.classList.contains('multi-choice-field-simple-select')) {
+    // Skip all choice field elements - they use custom event handlers
+    if (input.closest('[class*="choice-field"]')) {
       return;
     }
     
-    input.addEventListener('input', () => formStateManager.updateFormState());
-    input.addEventListener('change', () => formStateManager.updateFormState());
+    input.addEventListener('input', () => {
+      formStateManager.updateFormState();
+      // Trigger change event for this specific field
+      if (input.name) {
+        triggerFormEvent('change', input.name);
+      }
+    });
+    
+    input.addEventListener('change', () => {
+      formStateManager.updateFormState();
+      // Note: We don't trigger form events on 'change' (blur) to avoid duplicates
+      // and to prepare for potential future blur/focus event handling
+    });
   });
   
-  // Listen for SingleChoiceField custom events
-  document.addEventListener('singlechoicefield-change', () => {
+  // Create handlers and keep track of them
+  const singleChoiceHandler = (event) => {
     formStateManager.updateFormState();
-  });
+    const fieldName = extractFieldNameFromChoiceEvent(event, 'single');
+    if (fieldName) {
+      triggerFormEvent('change', fieldName);
+    }
+  };
   
-  // Listen for MultiChoiceField custom events
-  document.addEventListener('multichoicefield-change', () => {
+  const multiChoiceHandler = (event) => {
     formStateManager.updateFormState();
-  });
+    const fieldName = extractFieldNameFromChoiceEvent(event, 'multi');
+    if (fieldName) {
+      triggerFormEvent('change', fieldName);
+    }
+  };
+  
+  // Add document event listeners and track them
+  document.addEventListener('singlechoicefield-change', singleChoiceHandler);
+  document.addEventListener('multichoicefield-change', multiChoiceHandler);
+  
+  documentEventListeners.push(
+    { type: 'singlechoicefield-change', handler: singleChoiceHandler },
+    { type: 'multichoicefield-change', handler: multiChoiceHandler }
+  );
+}
+
+/**
+ * Extract field name from choice field custom events
+ */
+function extractFieldNameFromChoiceEvent(event, fieldType) {
+  // Try to get field name from event target's closest field container
+  try {
+    const target = event.target;
+    if (target) {
+      // Look for the field container that has data-name attribute
+      const fieldContainer = target.closest('[data-name]');
+      if (fieldContainer) {
+        return fieldContainer.getAttribute('data-name');
+      }
+    }
+  } catch (err) {
+    console.warn('Could not extract field name from choice event:', err);
+  }
+  return null;
 }
