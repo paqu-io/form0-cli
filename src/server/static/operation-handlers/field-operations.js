@@ -19,9 +19,8 @@ function handleSetValue(params, formStateManager) {
     return;
   }
 
-  console.log(`[SETVALUE] Setting field "${fieldDataName}" to:`, valueToSet);
-  
   // Use the FormStateManager to set the field value
+  // (logging happens in FormStateManager.setFieldValue with more detail)
   formStateManager.setFieldValue(fieldDataName, valueToSet);
 }
 

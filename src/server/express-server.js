@@ -57,10 +57,21 @@ export function createApp(getCurrentSchema, getSchemaSource) {
         
         // Log events on server (simple format for now)
         operations.forEach(op => {
-          if (fieldKey) {
-            console.log(`🔴 [FORM EVENT] ${eventType}:${fieldKey} → ${op.operation}: "${op.params.message}"`);
+          let message = '';
+          
+          // Format message based on operation type
+          if (op.operation === 'ALERT') {
+            message = `"${op.params.message}"`;
+          } else if (op.operation === 'SETVALUE') {
+            message = `"${op.params.fieldDataName}" = ${JSON.stringify(op.params.valueToSet)}`;
           } else {
-            console.log(`🔴 [FORM EVENT] ${eventType} → ${op.operation}: "${op.params.message}"`);
+            message = JSON.stringify(op.params);
+          }
+          
+          if (fieldKey) {
+            console.log(`🔴 [FORM EVENT] ${eventType}:${fieldKey} → ${op.operation}: ${message}`);
+          } else {
+            console.log(`🔴 [FORM EVENT] ${eventType} → ${op.operation}: ${message}`);
           }
         });
       }

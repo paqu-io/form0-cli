@@ -14,14 +14,24 @@ export class FormStateManager {
     const form = document.getElementById('main-form');
     if (!form) return;
 
-    const formData = new FormData(form);
     this.preservedValues = {};
 
+    // First, get values from FormData (for regular fields)
+    const formData = new FormData(form);
     for (const [key, value] of formData.entries()) {
       if (value !== '') {
         this.preservedValues[key] = value;
       }
     }
+
+    // Then, capture values from read-only fields (including those set by SETVALUE)
+    const allInputs = form.querySelectorAll('input, textarea, select');
+    allInputs.forEach(input => {
+      if (input.name && input.value !== '' && !this.preservedValues[input.name]) {
+        // Only capture if not already in FormData and has a value
+        this.preservedValues[input.name] = input.value;
+      }
+    });
 
     if (Object.keys(this.preservedValues).length > 0) {
       console.log('💾 Preserved values:', this.preservedValues);
