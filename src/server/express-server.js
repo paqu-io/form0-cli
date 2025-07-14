@@ -38,7 +38,7 @@ export function createApp(getCurrentSchema, getSchemaSource) {
         return res.status(404).json({ error: 'No schema loaded' });
       }
 
-      const { values = {} } = req.body;
+      const { values = {}, eventType, fieldKey } = req.body;
 
       // Create engine with proper helpers (including builtins)
       const engine = createFormEngine({
@@ -50,7 +50,34 @@ export function createApp(getCurrentSchema, getSchemaSource) {
       engine.eval();
       const state = engine.getState();
 
-      res.json(state);
+      // Handle event triggering if specified (backward compatible - existing calls don't include eventType)
+      let operations = [];
+      if (eventType) {
+        operations = engine.trigger(eventType, fieldKey);
+        
+        // Log events on server (simple format for now)
+        operations.forEach(op => {
+          let message = '';
+          
+          // Format message based on operation type
+          if (op.operation === 'ALERT') {
+            message = `"${op.params.message}"`;
+          } else if (op.operation === 'SETVALUE') {
+            message = `"${op.params.fieldDataName}" = ${JSON.stringify(op.params.valueToSet)}`;
+          } else {
+            message = JSON.stringify(op.params);
+          }
+          
+          if (fieldKey) {
+            console.log(`🔴 [FORM EVENT] ${eventType}:${fieldKey} → ${op.operation}: ${message}`);
+          } else {
+            console.log(`🔴 [FORM EVENT] ${eventType} → ${op.operation}: ${message}`);
+          }
+        });
+      }
+
+      // Return state with operations (backward compatible - existing clients ignore operations)
+      res.json({ ...state, operations });
     } catch (err) {
       console.error('Engine evaluation error:', err);
       res.status(400).json({ error: err.message });

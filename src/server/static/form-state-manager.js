@@ -14,14 +14,24 @@ export class FormStateManager {
     const form = document.getElementById('main-form');
     if (!form) return;
 
-    const formData = new FormData(form);
     this.preservedValues = {};
 
+    // First, get values from FormData (for regular fields)
+    const formData = new FormData(form);
     for (const [key, value] of formData.entries()) {
       if (value !== '') {
         this.preservedValues[key] = value;
       }
     }
+
+    // Then, capture values from read-only fields (including those set by SETVALUE)
+    const allInputs = form.querySelectorAll('input, textarea, select');
+    allInputs.forEach(input => {
+      if (input.name && input.value !== '' && !this.preservedValues[input.name]) {
+        // Only capture if not already in FormData and has a value
+        this.preservedValues[input.name] = input.value;
+      }
+    });
 
     if (Object.keys(this.preservedValues).length > 0) {
       console.log('💾 Preserved values:', this.preservedValues);
@@ -689,5 +699,185 @@ export class FormStateManager {
         }
       }
     }
+  }
+
+  /**
+   * Programmatically set a field value
+   * This method is used by operation handlers to set field values
+   * @param {string} fieldDataName - The field data name to set
+   * @param {any} valueToSet - The value to set
+   */
+  setFieldValue(fieldDataName, valueToSet) {
+    const field = this.formRenderer.findFieldByDataName(fieldDataName);
+    
+    if (!field) {
+      console.warn(`[SETVALUE] Field "${fieldDataName}" not found in form`);
+      return;
+    }
+
+    console.log(`[SETVALUE] Setting field "${fieldDataName}" (${field.type}) to:`, valueToSet);
+
+    if (field.type === 'SingleChoiceField') {
+      this.setSingleChoiceFieldValue(fieldDataName, valueToSet);
+    } else if (field.type === 'MultiChoiceField') {
+      this.setMultiChoiceFieldValue(fieldDataName, valueToSet);
+    } else {
+      this.setRegularFieldValue(fieldDataName, valueToSet);
+    }
+
+    // After setting the value, update the form state to trigger calculations
+    this.updateFormState();
+  }
+
+  /**
+   * Set value for SingleChoiceField
+   * @param {string} fieldDataName - Field data name
+   * @param {any} valueToSet - Value to set (string or object)
+   */
+  setSingleChoiceFieldValue(fieldDataName, valueToSet) {
+    const container = document.querySelector(`[data-name="${fieldDataName}"] .single-choice-field-container`) ||
+                    document.querySelector(`[data-name="${fieldDataName}"] .single-choice-field-simple-container`) ||
+                    document.querySelector(`[data-name="${fieldDataName}"] .single-choice-field-radio-container`);
+    
+    if (!container) {
+      console.warn(`[SETVALUE] SingleChoiceField container not found for "${fieldDataName}"`);
+      return;
+    }
+
+    const hiddenInput = container.querySelector(`input[name="${fieldDataName}"]`);
+    if (!hiddenInput) {
+      console.warn(`[SETVALUE] Hidden input not found for SingleChoiceField "${fieldDataName}"`);
+      return;
+    }
+
+    // Convert string value to proper SingleChoiceField format
+    let choiceValue;
+    if (typeof valueToSet === 'string') {
+      choiceValue = {
+        choice: [{ value: valueToSet, label: valueToSet }],
+        other: []
+      };
+    } else {
+      choiceValue = valueToSet;
+    }
+
+    // Set updating flag to prevent event conflicts
+    if (container._setUpdating) container._setUpdating(true);
+
+    // Update the hidden input
+    hiddenInput.value = JSON.stringify(choiceValue);
+
+    // Update the UI based on container type
+    if (container.classList.contains('single-choice-field-radio-container')) {
+      // Handle radio buttons
+      const allRadios = container.querySelectorAll('input[type="radio"]');
+      allRadios.forEach(radio => radio.checked = false);
+      
+      if (choiceValue.choice && choiceValue.choice.length > 0) {
+        const targetRadio = container.querySelector(`input[type="radio"][value="${choiceValue.choice[0].value}"]`);
+        if (targetRadio) {
+          targetRadio.checked = true;
+        }
+      }
+    } else {
+      // Handle dropdown
+      const select = container.querySelector('.single-choice-field-select') || 
+                    container.querySelector('.single-choice-field-simple-select');
+      
+      if (select && choiceValue.choice && choiceValue.choice.length > 0) {
+        select.value = choiceValue.choice[0].value;
+      }
+    }
+
+    // Clear updating flag
+    if (container._setUpdating) container._setUpdating(false);
+  }
+
+  /**
+   * Set value for MultiChoiceField
+   * @param {string} fieldDataName - Field data name
+   * @param {any} valueToSet - Value to set (array of strings or object)
+   */
+  setMultiChoiceFieldValue(fieldDataName, valueToSet) {
+    const container = document.querySelector(`[data-name="${fieldDataName}"] .multi-choice-field-container`) ||
+                    document.querySelector(`[data-name="${fieldDataName}"] .multi-choice-field-simple-container`) ||
+                    document.querySelector(`[data-name="${fieldDataName}"] .multi-choice-field-checkbox-container`);
+    
+    if (!container) {
+      console.warn(`[SETVALUE] MultiChoiceField container not found for "${fieldDataName}"`);
+      return;
+    }
+
+    const hiddenInput = container.querySelector(`input[name="${fieldDataName}"]`);
+    if (!hiddenInput) {
+      console.warn(`[SETVALUE] Hidden input not found for MultiChoiceField "${fieldDataName}"`);
+      return;
+    }
+
+    // Convert array of strings to proper MultiChoiceField format
+    let choiceValue;
+    if (Array.isArray(valueToSet)) {
+      choiceValue = {
+        choices: valueToSet.map(value => ({ value, label: value })),
+        other: []
+      };
+    } else {
+      choiceValue = valueToSet;
+    }
+
+    // Set updating flag to prevent event conflicts
+    if (container._setUpdating) container._setUpdating(true);
+
+    // Update the hidden input
+    hiddenInput.value = JSON.stringify(choiceValue);
+
+    // Update the UI based on container type
+    if (container.classList.contains('multi-choice-field-checkbox-container')) {
+      // Handle checkboxes
+      const allCheckboxes = container.querySelectorAll('input[type="checkbox"]');
+      allCheckboxes.forEach(checkbox => checkbox.checked = false);
+      
+      if (choiceValue.choices && choiceValue.choices.length > 0) {
+        choiceValue.choices.forEach(choice => {
+          const targetCheckbox = container.querySelector(`input[type="checkbox"][value="${choice.value}"]`);
+          if (targetCheckbox) {
+            targetCheckbox.checked = true;
+          }
+        });
+      }
+    } else {
+      // Handle dropdown
+      const select = container.querySelector('.multi-choice-field-select') || 
+                    container.querySelector('.multi-choice-field-simple-select');
+      
+      if (select && choiceValue.choices && choiceValue.choices.length > 0) {
+        Array.from(select.options).forEach(option => option.selected = false);
+        choiceValue.choices.forEach(choice => {
+          const option = select.querySelector(`option[value="${choice.value}"]`);
+          if (option) option.selected = true;
+        });
+      }
+    }
+
+    // Clear updating flag
+    if (container._setUpdating) container._setUpdating(false);
+  }
+
+  /**
+   * Set value for regular fields (TextField, NumericField, etc.)
+   * @param {string} fieldDataName - Field data name
+   * @param {any} valueToSet - Value to set
+   */
+  setRegularFieldValue(fieldDataName, valueToSet) {
+    const input = document.querySelector(`input[name="${fieldDataName}"], select[name="${fieldDataName}"]`);
+    
+    if (!input) {
+      console.warn(`[SETVALUE] Input not found for field "${fieldDataName}"`);
+      return;
+    }
+
+    // Convert the value to string for display
+    const displayValue = valueToSet === null || valueToSet === undefined ? '' : String(valueToSet);
+    input.value = displayValue;
   }
 }
