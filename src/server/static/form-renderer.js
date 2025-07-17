@@ -1224,76 +1224,42 @@ export class FormRenderer {
         const container = document.createElement('div');
         container.className = 'photo-field-container';
 
-        // Track selected photos in a JS array
         let selectedPhotos = [];
 
-        // File input
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.multiple = true;
-        fileInput.id = field.data_name;
-        fileInput.name = field.data_name;
-        if (field.read_only) fileInput.disabled = true;
-        container.appendChild(fileInput);
-
-        // Preview area
-        const preview = document.createElement('div');
-        preview.className = 'photo-field-preview';
-        container.appendChild(preview);
-
-        // Hidden input to store value as JSON
         const hiddenInput = document.createElement('input');
         hiddenInput.type = 'hidden';
         hiddenInput.name = field.data_name;
         container.appendChild(hiddenInput);
 
-        // Helper to render preview and update hidden input
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.multiple = true;
+        if (field.read_only) fileInput.disabled = true;
+        container.appendChild(fileInput);
+
+        const preview = document.createElement('div');
+        preview.className = 'file-preview-container';
+        container.appendChild(preview);
+
         function renderPhotos() {
           preview.innerHTML = '';
           selectedPhotos.forEach((photo, idx) => {
             const photoContainer = document.createElement('div');
-            photoContainer.style.position = 'relative';
-            photoContainer.style.display = 'inline-block';
-            photoContainer.style.marginRight = '8px';
-            photoContainer.style.marginBottom = '8px';
+            photoContainer.className = 'file-preview-item';
             
             const img = document.createElement('img');
             img.className = 'photo-field-thumb';
-            img.style.width = '80px';
-            img.style.height = '80px';
-            img.style.objectFit = 'cover';
-            img.style.border = '1px solid #bbb';
-            img.style.borderRadius = '4px';
-            img.style.background = '#fff';
-            img.style.boxShadow = '0 1px 2px rgba(0,0,0,0.04)';
             img.alt = photo.name;
             img.src = photo.url;
             photoContainer.appendChild(img);
 
-            // Remove button positioned on top-right
             if (!field.read_only) {
               const removeBtn = document.createElement('button');
               removeBtn.type = 'button';
+              removeBtn.className = 'file-remove-btn';
               removeBtn.textContent = '×';
               removeBtn.title = 'Remove photo';
-              removeBtn.style.position = 'absolute';
-              removeBtn.style.top = '-8px';
-              removeBtn.style.right = '-8px';
-              removeBtn.style.width = '20px';
-              removeBtn.style.height = '20px';
-              removeBtn.style.background = '#e74c3c';
-              removeBtn.style.color = 'white';
-              removeBtn.style.border = 'none';
-              removeBtn.style.borderRadius = '50%';
-              removeBtn.style.cursor = 'pointer';
-              removeBtn.style.fontSize = '14px';
-              removeBtn.style.fontWeight = 'bold';
-              removeBtn.style.lineHeight = '1';
-              removeBtn.style.display = 'flex';
-              removeBtn.style.alignItems = 'center';
-              removeBtn.style.justifyContent = 'center';
-              removeBtn.style.zIndex = '10';
               removeBtn.onclick = () => {
                 selectedPhotos.splice(idx, 1);
                 renderPhotos();
@@ -1303,23 +1269,131 @@ export class FormRenderer {
             
             preview.appendChild(photoContainer);
           });
-          // Update hidden input for validation (array of {name, url} objects)
+
           hiddenInput.value = JSON.stringify(selectedPhotos.map(({ name, url }) => ({ name, url })));
-          // Dispatch custom event to trigger form state update
           hiddenInput.dispatchEvent(new CustomEvent('photofield-change', { bubbles: true }));
         }
 
-        // On file input change, add new files to array
         fileInput.addEventListener('change', function() {
           if (fileInput.files && fileInput.files.length > 0) {
             Array.from(fileInput.files).forEach(file => {
-              // Prevent duplicates by name
               if (!selectedPhotos.some(p => p.name === file.name)) {
                 const url = URL.createObjectURL(file);
                 selectedPhotos.push({ name: file.name, url, file });
               }
             });
             renderPhotos();
+          }
+          fileInput.value = '';
+        });
+
+        if (field.min_length || field.max_length) {
+          const info = document.createElement('div');
+          info.className = 'photo-field-info';
+          let msg = '';
+          if (field.min_length) msg += `Min: ${field.min_length} photo(s). `;
+          if (field.max_length) msg += `Max: ${field.max_length} photo(s).`;
+          info.textContent = msg.trim();
+          container.appendChild(info);
+        }
+
+        input = container;
+        break;
+      }
+
+      case 'VideoField': {
+        const container = document.createElement('div');
+        container.className = 'video-field-container';
+
+        let selectedVideos = [];
+
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = field.data_name;
+        container.appendChild(hiddenInput);
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'video/*';
+        fileInput.multiple = true;
+        if (field.read_only) fileInput.disabled = true;
+        container.appendChild(fileInput);
+
+        const preview = document.createElement('div');
+        preview.className = 'file-preview-container';
+        container.appendChild(preview);
+
+        // Helper to render preview and update hidden input
+        function renderVideos() {
+          preview.innerHTML = '';
+          selectedVideos.forEach((video, idx) => {
+            const videoContainer = document.createElement('div');
+            videoContainer.className = 'file-preview-item';
+
+            const thumb = document.createElement('div');
+            thumb.className = 'video-field-thumb';
+            thumb.textContent = `${video.name} (${formatDuration(video.duration)})`;
+            videoContainer.appendChild(thumb);
+
+            if (!field.read_only) {
+              const removeBtn = document.createElement('button');
+              removeBtn.type = 'button';
+              removeBtn.className = 'file-remove-btn';
+              removeBtn.textContent = '×';
+              removeBtn.title = 'Remove video';
+              removeBtn.onclick = () => {
+                selectedVideos.splice(idx, 1);
+                renderVideos();
+              };
+              videoContainer.appendChild(removeBtn);
+            }
+
+            preview.appendChild(videoContainer);
+          });
+          // Update hidden input for validation (array of {name, duration} objects)
+          hiddenInput.value = JSON.stringify(selectedVideos.map(({ name, duration }) => ({ name, duration })));
+          // Dispatch custom event to trigger form state update
+          hiddenInput.dispatchEvent(new CustomEvent('videofield-change', { bubbles: true }));
+        }
+
+        // Helper to get video duration
+        function formatDuration(seconds) {
+          if (isNaN(seconds) || seconds < 0) return '0 m 0 s';
+          const minutes = Math.floor(seconds / 60);
+          const remainingSeconds = Math.round(seconds % 60);
+          return `${minutes} m ${remainingSeconds} s`;
+        }
+
+        function getVideoDuration(file) {
+          return new Promise((resolve, reject) => {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.onloadedmetadata = function() {
+              window.URL.revokeObjectURL(video.src);
+              resolve(video.duration);
+            };
+            video.onerror = function(err) {
+              reject(err);
+            };
+            video.src = URL.createObjectURL(file);
+          });
+        }
+
+        // On file input change, add new files to array
+        fileInput.addEventListener('change', async function() {
+          if (fileInput.files && fileInput.files.length > 0) {
+            for (const file of Array.from(fileInput.files)) {
+              // Prevent duplicates by name
+              if (!selectedVideos.some(v => v.name === file.name)) {
+                try {
+                  const duration = await getVideoDuration(file);
+                  selectedVideos.push({ name: file.name, duration, file });
+                } catch (err) {
+                  console.error(`Could not get duration for ${file.name}`, err);
+                }
+              }
+            }
+            renderVideos();
           }
           // Always clear file input so user can add same file again
           fileInput.value = '';
@@ -1328,14 +1402,11 @@ export class FormRenderer {
         // Optionally: show min/max info
         if (field.min_length || field.max_length) {
           const info = document.createElement('div');
-          info.className = 'photo-field-info';
+          info.className = 'video-field-info';
           let msg = '';
-          if (field.min_length) msg += `Min: ${field.min_length} photo(s). `;
-          if (field.max_length) msg += `Max: ${field.max_length} photo(s).`;
+          if (field.min_length) msg += `Min duration: ${field.min_length} min(s). `;
+          if (field.max_length) msg += `Max duration: ${field.max_length} min(s).`;
           info.textContent = msg.trim();
-          info.style.fontSize = '12px';
-          info.style.color = '#666';
-          info.style.marginTop = '4px';
           container.appendChild(info);
         }
 

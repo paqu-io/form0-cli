@@ -351,18 +351,28 @@ function addFormEventListeners() {
       triggerFormEvent('change', fieldName);
     }
   };
+
+  const videoFieldHandler = (event) => {
+    formStateManager.updateFormState();
+    const fieldName = extractFieldNameFromChoiceEvent(event, 'video');
+    if (fieldName) {
+      triggerFormEvent('change', fieldName);
+    }
+  };
   
   // Add document event listeners and track them
   document.addEventListener('singlechoicefield-change', singleChoiceHandler);
   document.addEventListener('multichoicefield-change', multiChoiceHandler);
   document.addEventListener('booleanfield-change', booleanFieldHandler);
   document.addEventListener('photofield-change', photoFieldHandler);
+  document.addEventListener('videofield-change', videoFieldHandler);
   
   documentEventListeners.push(
     { type: 'singlechoicefield-change', handler: singleChoiceHandler },
     { type: 'multichoicefield-change', handler: multiChoiceHandler },
     { type: 'booleanfield-change', handler: booleanFieldHandler },
-    { type: 'photofield-change', handler: photoFieldHandler }
+    { type: 'photofield-change', handler: photoFieldHandler },
+    { type: 'videofield-change', handler: videoFieldHandler }
   );
 }
 

@@ -363,6 +363,16 @@ export class FormStateManager {
       case 'LabelField':
         // LabelField doesn't have user input values, so any value is compatible (though it shouldn't have values)
         return true;
+      case 'SignatureField':
+        return typeof value === 'string' && value.startsWith('data:image/png;base64,');
+      case 'PhotoField':
+      case 'VideoField':
+        try {
+          const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+          return Array.isArray(parsedValue);
+        } catch (e) {
+          return false;
+        }
       case 'TextField':
       default:
         return true;
@@ -404,8 +414,8 @@ export class FormStateManager {
           } catch (e) {
             values[key] = null;
           }
-        } else if (field.type === 'PhotoField') {
-          // For PhotoField, the value is JSON from the hidden input
+        } else if (field.type === 'PhotoField' || field.type === 'VideoField') {
+          // For PhotoField and VideoField, the value is JSON from the hidden input
           try {
             values[key] = value === '' ? null : JSON.parse(value);
           } catch (e) {
@@ -414,6 +424,7 @@ export class FormStateManager {
         } else {
           values[key] = value === '' ? null : value;
         }
+
       } else {
         values[key] = value === '' ? null : value;
       }
@@ -851,7 +862,7 @@ export class FormStateManager {
           }
         }
         
-        // For PhotoField, prioritize required validation over min/max
+        // For PhotoField and VideoField, prioritize required validation over min/max
         // Only show min/max errors if the field has some value but not enough
         if (!hasValue && isRequired) {
           // Show required error when field is empty
@@ -859,6 +870,26 @@ export class FormStateManager {
             this.showFieldError(fieldName, 'This field is required');
           }
           return; // Don't check min/max if field is empty
+        }
+      } else if (field.type === 'VideoField') {
+        // Check if VideoField has a value
+        const container = document.querySelector(`[data-name="${fieldName}"] .video-field-container`);
+        if (container) {
+          const hiddenInput = container.querySelector(`input[type="hidden"][name="${fieldName}"]`);
+          if (hiddenInput && hiddenInput.value) {
+            try {
+              const parsedValue = JSON.parse(hiddenInput.value);
+              hasValue = Array.isArray(parsedValue) && parsedValue.length > 0;
+            } catch (e) {
+              hasValue = false;
+            }
+          }
+        }
+        if (!hasValue && isRequired) {
+          if (!fieldDiv.classList.contains('error')) {
+            this.showFieldError(fieldName, 'This field is required');
+          }
+          return;
         }
       } else {
         // Check regular fields
