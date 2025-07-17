@@ -30,6 +30,30 @@ export function createApp(getCurrentSchema, getSchemaSource) {
     res.json({ locale, translations: clientTranslations });
   });
 
+  // API endpoint to get default values from schema
+  app.get('/api/default-values', (req, res) => {
+    try {
+      const schema = getCurrentSchema();
+      if (!schema) {
+        return res.status(404).json({ error: 'No schema loaded' });
+      }
+
+      // Create engine to get default values
+      const engine = createFormEngine({
+        schema: schema,
+        initialValues: {}, // Empty to get only default values
+      });
+
+      engine.eval();
+      const state = engine.getState();
+      
+      res.json({ defaultValues: state.values || {} });
+    } catch (err) {
+      console.error('Error getting default values:', err);
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   // API endpoint to run engine with values
   app.post('/api/engine', express.json(), (req, res) => {
     try {

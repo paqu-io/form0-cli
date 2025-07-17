@@ -208,6 +208,30 @@ export function printFields(elements, indent = '') {
       case 'CalculatedField':
         typeColor = colors.fieldCalculated;
         break;
+      case 'SingleChoiceField':
+        typeColor = colors.fieldChoice;
+        break;
+      case 'MultiChoiceField':
+        typeColor = colors.fieldChoice;
+        break;
+      case 'BooleanField':
+        typeColor = colors.fieldChoice;
+        break;
+      case 'DateField':
+        typeColor = colors.fieldDate;
+        break;
+      case 'TimeField':
+        typeColor = colors.fieldTime;
+        break;
+      case 'LabelField':
+        typeColor = colors.fieldLabel;
+        break;
+      case 'SignatureField':
+        typeColor = colors.fieldSignature;
+        break;
+      case 'PhotoField':
+        typeColor = colors.fieldMedia;
+        break;
       default:
         typeColor = colors.fieldDefault;
     }

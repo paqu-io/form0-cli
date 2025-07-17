@@ -5,14 +5,17 @@ import { processChoiceFieldChoices } from 'form0-core';
  * for any choices that are missing values.
  */
 export function ensureChoiceValuesForSchema(elements) {
-  elements.forEach((field) => {
+  for (const field of elements) {
     if (field.type === 'SingleChoiceField' && Array.isArray(field.choices)) {
-      // Process the choices to auto-generate missing values
+      field.choices = processChoiceFieldChoices(field.choices);
+    } else if (field.type === 'BooleanField' && Array.isArray(field.choices)) {
+      field.choices = processChoiceFieldChoices(field.choices);
+    } else if (field.type === 'MultiChoiceField' && Array.isArray(field.choices)) {
       field.choices = processChoiceFieldChoices(field.choices);
     }
 
     if (field.type === 'Section') {
       ensureChoiceValuesForSchema(field.elements || []);
     }
-  });
+  }
 } 

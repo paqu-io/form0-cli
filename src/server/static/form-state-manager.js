@@ -141,6 +141,47 @@ export class FormStateManager {
             } catch (e) {
               // Ignore invalid JSON
             }
+        } else if (field.type === 'BooleanField') {
+          // Handle BooleanField restoration (segmented control)
+          try {
+            const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+            const container = document.querySelector(`[data-name="${fieldName}"] .boolean-field-container`);
+            
+            if (container) {
+              const hiddenInput = container.querySelector(`input[name="${fieldName}"]`);
+              
+              if (hiddenInput) {
+                // Set updating flag to prevent event conflicts
+                if (container._setUpdating) container._setUpdating(true);
+                
+                // Clear all button selections first
+                const allButtons = container.querySelectorAll('.boolean-field-option');
+                allButtons.forEach(button => {
+                  button.classList.remove('selected');
+                  button.style.background = 'white';
+                  button.style.color = '#666';
+                });
+                
+                if (parsedValue.choice && parsedValue.choice.length > 0) {
+                  // Select the choice button
+                  const targetButton = container.querySelector(`.boolean-field-option[data-value="${parsedValue.choice[0].value}"]`);
+                  if (targetButton) {
+                    targetButton.classList.add('selected');
+                    targetButton.style.background = '#007bff';
+                    targetButton.style.color = 'white';
+                  }
+                }
+                
+                hiddenInput.value = JSON.stringify(parsedValue);
+                
+                // Clear updating flag
+                if (container._setUpdating) container._setUpdating(false);
+                restoredCount++;
+              }
+            }
+          } catch (e) {
+            // Ignore invalid JSON
+          }
         } else if (field.type === 'MultiChoiceField') {
           // Handle MultiChoiceField restoration (both simple and allow_other)
           try {
@@ -255,7 +296,13 @@ export class FormStateManager {
             `input[name="${fieldName}"], select[name="${fieldName}"]`
           );
           if (input && !input.readOnly) {
-            input.value = value;
+            // Only clear file input if needed
+            if (input.type === 'file') {
+              if (!value) input.value = '';
+              // Do not set file input value to anything else (browser security)
+            } else {
+              input.value = value;
+            }
             restoredCount++;
           }
         }
@@ -294,6 +341,28 @@ export class FormStateManager {
         } catch (e) {
           return false;
         }
+      case 'BooleanField':
+        // For BooleanField, value should be a JSON string with choice array (no other array)
+        try {
+          const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+          return parsedValue && typeof parsedValue === 'object' && 
+                 Array.isArray(parsedValue.choice) && Array.isArray(parsedValue.other);
+        } catch (e) {
+          return false;
+        }
+      case 'DateField':
+        // Check if value is a valid date string (YYYY-MM-DD format)
+        if (typeof value !== 'string') return false;
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        return dateRegex.test(value) && !isNaN(Date.parse(value));
+      case 'TimeField':
+        // Check if value is a valid time string (HH:MM:SS format)
+        if (typeof value !== 'string') return false;
+        const timeRegex = /^\d{2}:\d{2}(:\d{2})?$/;
+        return timeRegex.test(value);
+      case 'LabelField':
+        // LabelField doesn't have user input values, so any value is compatible (though it shouldn't have values)
+        return true;
       case 'TextField':
       default:
         return true;
@@ -323,6 +392,20 @@ export class FormStateManager {
           }
         } else if (field.type === 'MultiChoiceField') {
           // For all MultiChoiceFields, the value is JSON from the hidden input
+          try {
+            values[key] = value === '' ? null : JSON.parse(value);
+          } catch (e) {
+            values[key] = null;
+          }
+        } else if (field.type === 'BooleanField') {
+          // For BooleanField, the value is JSON from the hidden input
+          try {
+            values[key] = value === '' ? null : JSON.parse(value);
+          } catch (e) {
+            values[key] = null;
+          }
+        } else if (field.type === 'PhotoField') {
+          // For PhotoField, the value is JSON from the hidden input
           try {
             values[key] = value === '' ? null : JSON.parse(value);
           } catch (e) {
@@ -500,6 +583,47 @@ export class FormStateManager {
             }
           }
         }
+      } else if (field && field.type === 'BooleanField') {
+        // Handle BooleanField values (segmented control)
+        const container = document.querySelector(`[data-name="${fieldName}"] .boolean-field-container`);
+        
+        if (container && value) {
+          const hiddenInput = container.querySelector(`input[name="${fieldName}"]`);
+          
+          if (hiddenInput) {
+            try {
+              const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+              
+              // Set updating flag to prevent event conflicts
+              if (container._setUpdating) container._setUpdating(true);
+              
+              // Clear all button selections first
+              const allButtons = container.querySelectorAll('.boolean-field-option');
+              allButtons.forEach(button => {
+                button.classList.remove('selected');
+                button.style.background = 'white';
+                button.style.color = '#666';
+              });
+              
+              if (parsedValue.choice && parsedValue.choice.length > 0) {
+                // Select the choice button
+                const targetButton = container.querySelector(`.boolean-field-option[data-value="${parsedValue.choice[0].value}"]`);
+                if (targetButton) {
+                  targetButton.classList.add('selected');
+                  targetButton.style.background = '#007bff';
+                  targetButton.style.color = 'white';
+                }
+              }
+              
+              hiddenInput.value = JSON.stringify(parsedValue);
+              
+              // Clear updating flag
+              if (container._setUpdating) container._setUpdating(false);
+            } catch (e) {
+              // Ignore invalid JSON
+            }
+          }
+        }
       } else if (field && field.type === 'MultiChoiceField') {
         // Handle MultiChoiceField values (both simple and allow_other)
         const container = document.querySelector(`[data-name="${fieldName}"] .multi-choice-field-container`) ||
@@ -597,11 +721,23 @@ export class FormStateManager {
 
           // Always update calculated fields and readonly fields
           if (input.readOnly || (field && field.type === 'CalculatedField')) {
-            input.value = displayValue;
+            // Prevent setting value for file inputs except to clear
+            if (input.type === 'file') {
+              if (!displayValue) input.value = '';
+              // Do not set file input value to anything else (browser security)
+            } else {
+              input.value = displayValue;
+            }
           }
           // For non-readonly fields, only update if the field is empty (to avoid overwriting user input)
           else if (!input.value || input.value === '') {
-            input.value = displayValue;
+            // Prevent setting value for file inputs except to clear
+            if (input.type === 'file') {
+              if (!displayValue) input.value = '';
+              // Do not set file input value to anything else (browser security)
+            } else {
+              input.value = displayValue;
+            }
           }
         }
       }
@@ -667,6 +803,21 @@ export class FormStateManager {
             hasValue = false;
           }
         }
+      } else if (field.type === 'BooleanField') {
+        // Check if BooleanField has a value (segmented control)
+        const container = document.querySelector(`[data-name="${fieldName}"] .boolean-field-container`);
+        
+        if (container) {
+          const hiddenInput = container.querySelector(`input[name="${fieldName}"]`);
+          if (hiddenInput && hiddenInput.value) {
+            try {
+              const parsedValue = JSON.parse(hiddenInput.value);
+              hasValue = (parsedValue.choice && parsedValue.choice.length > 0);
+            } catch (e) {
+              // Ignore invalid JSON
+            }
+          }
+        }
       } else if (field.type === 'MultiChoiceField') {
         // Check if MultiChoiceField has a value (both simple and allow_other)
         const hiddenInput = document.querySelector(`input[name="${fieldName}"]`);
@@ -682,6 +833,32 @@ export class FormStateManager {
           } catch (e) {
             hasValue = false;
           }
+        }
+      } else if (field.type === 'PhotoField') {
+        // Check if PhotoField has a value
+        const container = document.querySelector(`[data-name="${fieldName}"] .photo-field-container`);
+        
+        if (container) {
+          const hiddenInput = container.querySelector(`input[type="hidden"][name="${fieldName}"]`);
+          
+          if (hiddenInput && hiddenInput.value) {
+            try {
+              const parsedValue = JSON.parse(hiddenInput.value);
+              hasValue = Array.isArray(parsedValue) && parsedValue.length > 0;
+            } catch (e) {
+              hasValue = false;
+            }
+          }
+        }
+        
+        // For PhotoField, prioritize required validation over min/max
+        // Only show min/max errors if the field has some value but not enough
+        if (!hasValue && isRequired) {
+          // Show required error when field is empty
+          if (!fieldDiv.classList.contains('error')) {
+            this.showFieldError(fieldName, 'This field is required');
+          }
+          return; // Don't check min/max if field is empty
         }
       } else {
         // Check regular fields
@@ -706,23 +883,30 @@ export class FormStateManager {
    * This method is used by operation handlers to set field values
    * @param {string} fieldDataName - The field data name to set
    * @param {any} valueToSet - The value to set
+   * @param {boolean} suppressLogging - Whether to suppress console logging (default: false)
    */
-  setFieldValue(fieldDataName, valueToSet) {
+  setFieldValue(fieldDataName, valueToSet, suppressLogging = false) {
     const field = this.formRenderer.findFieldByDataName(fieldDataName);
     
     if (!field) {
-      console.warn(`[SETVALUE] Field "${fieldDataName}" not found in form`);
+      if (!suppressLogging) {
+        console.warn(`[SETVALUE] Field "${fieldDataName}" not found in form`);
+      }
       return;
     }
 
-    console.log(`[SETVALUE] Setting field "${fieldDataName}" (${field.type}) to:`, valueToSet);
+    if (!suppressLogging) {
+      console.log(`[SETVALUE] Setting field "${fieldDataName}" (${field.type}) to:`, valueToSet);
+    }
 
     if (field.type === 'SingleChoiceField') {
-      this.setSingleChoiceFieldValue(fieldDataName, valueToSet);
+      this.setSingleChoiceFieldValue(fieldDataName, valueToSet, suppressLogging);
+    } else if (field.type === 'BooleanField') {
+      this.setBooleanFieldValue(fieldDataName, valueToSet, suppressLogging);
     } else if (field.type === 'MultiChoiceField') {
-      this.setMultiChoiceFieldValue(fieldDataName, valueToSet);
+      this.setMultiChoiceFieldValue(fieldDataName, valueToSet, suppressLogging);
     } else {
-      this.setRegularFieldValue(fieldDataName, valueToSet);
+      this.setRegularFieldValue(fieldDataName, valueToSet, suppressLogging);
     }
 
     // After setting the value, update the form state to trigger calculations
@@ -733,20 +917,25 @@ export class FormStateManager {
    * Set value for SingleChoiceField
    * @param {string} fieldDataName - Field data name
    * @param {any} valueToSet - Value to set (string or object)
+   * @param {boolean} suppressLogging - Whether to suppress console logging (default: false)
    */
-  setSingleChoiceFieldValue(fieldDataName, valueToSet) {
+  setSingleChoiceFieldValue(fieldDataName, valueToSet, suppressLogging = false) {
     const container = document.querySelector(`[data-name="${fieldDataName}"] .single-choice-field-container`) ||
                     document.querySelector(`[data-name="${fieldDataName}"] .single-choice-field-simple-container`) ||
                     document.querySelector(`[data-name="${fieldDataName}"] .single-choice-field-radio-container`);
     
     if (!container) {
-      console.warn(`[SETVALUE] SingleChoiceField container not found for "${fieldDataName}"`);
+      if (!suppressLogging) {
+        console.warn(`[SETVALUE] SingleChoiceField container not found for "${fieldDataName}"`);
+      }
       return;
     }
 
     const hiddenInput = container.querySelector(`input[name="${fieldDataName}"]`);
     if (!hiddenInput) {
-      console.warn(`[SETVALUE] Hidden input not found for SingleChoiceField "${fieldDataName}"`);
+      if (!suppressLogging) {
+        console.warn(`[SETVALUE] Hidden input not found for SingleChoiceField "${fieldDataName}"`);
+      }
       return;
     }
 
@@ -797,20 +986,25 @@ export class FormStateManager {
    * Set value for MultiChoiceField
    * @param {string} fieldDataName - Field data name
    * @param {any} valueToSet - Value to set (array of strings or object)
+   * @param {boolean} suppressLogging - Whether to suppress console logging (default: false)
    */
-  setMultiChoiceFieldValue(fieldDataName, valueToSet) {
+  setMultiChoiceFieldValue(fieldDataName, valueToSet, suppressLogging = false) {
     const container = document.querySelector(`[data-name="${fieldDataName}"] .multi-choice-field-container`) ||
                     document.querySelector(`[data-name="${fieldDataName}"] .multi-choice-field-simple-container`) ||
                     document.querySelector(`[data-name="${fieldDataName}"] .multi-choice-field-checkbox-container`);
     
     if (!container) {
-      console.warn(`[SETVALUE] MultiChoiceField container not found for "${fieldDataName}"`);
+      if (!suppressLogging) {
+        console.warn(`[SETVALUE] MultiChoiceField container not found for "${fieldDataName}"`);
+      }
       return;
     }
 
     const hiddenInput = container.querySelector(`input[name="${fieldDataName}"]`);
     if (!hiddenInput) {
-      console.warn(`[SETVALUE] Hidden input not found for MultiChoiceField "${fieldDataName}"`);
+      if (!suppressLogging) {
+        console.warn(`[SETVALUE] Hidden input not found for MultiChoiceField "${fieldDataName}"`);
+      }
       return;
     }
 
@@ -867,17 +1061,81 @@ export class FormStateManager {
    * Set value for regular fields (TextField, NumericField, etc.)
    * @param {string} fieldDataName - Field data name
    * @param {any} valueToSet - Value to set
+   * @param {boolean} suppressLogging - Whether to suppress console logging (default: false)
    */
-  setRegularFieldValue(fieldDataName, valueToSet) {
+  setRegularFieldValue(fieldDataName, valueToSet, suppressLogging = false) {
     const input = document.querySelector(`input[name="${fieldDataName}"], select[name="${fieldDataName}"]`);
     
     if (!input) {
-      console.warn(`[SETVALUE] Input not found for field "${fieldDataName}"`);
+      if (!suppressLogging) {
+        console.warn(`[SETVALUE] Input not found for field "${fieldDataName}"`);
+      }
       return;
     }
 
     // Convert the value to string for display
     const displayValue = valueToSet === null || valueToSet === undefined ? '' : String(valueToSet);
     input.value = displayValue;
+  }
+
+  /**
+   * Set value for BooleanField
+   * @param {string} fieldDataName - Field data name
+   * @param {any} valueToSet - Value to set (string or object)
+   * @param {boolean} suppressLogging - Whether to suppress console logging (default: false)
+   */
+  setBooleanFieldValue(fieldDataName, valueToSet, suppressLogging = false) {
+    const container = document.querySelector(`[data-name="${fieldDataName}"] .boolean-field-container`);
+    
+    if (!container) {
+      if (!suppressLogging) {
+        console.warn(`[SETVALUE] BooleanField container not found for "${fieldDataName}"`);
+      }
+      return;
+    }
+
+    const hiddenInput = container.querySelector(`input[name="${fieldDataName}"]`);
+    if (!hiddenInput) {
+      if (!suppressLogging) {
+        console.warn(`[SETVALUE] Hidden input not found for BooleanField "${fieldDataName}"`);
+      }
+      return;
+    }
+
+    // Convert string value to proper BooleanField format
+    let booleanValue;
+    if (typeof valueToSet === 'string') {
+      booleanValue = {
+        choice: [{ value: valueToSet, label: valueToSet }]
+      };
+    } else {
+      booleanValue = valueToSet;
+    }
+
+    // Set updating flag to prevent event conflicts
+    if (container._setUpdating) container._setUpdating(true);
+
+    // Update the hidden input
+    hiddenInput.value = JSON.stringify(booleanValue);
+
+    // Update the UI based on container type
+    const allButtons = container.querySelectorAll('.boolean-field-option');
+    allButtons.forEach(button => {
+      button.classList.remove('selected');
+      button.style.background = 'white';
+      button.style.color = '#666';
+    });
+
+    if (booleanValue.choice && booleanValue.choice.length > 0) {
+      const targetButton = container.querySelector(`.boolean-field-option[data-value="${booleanValue.choice[0].value}"]`);
+      if (targetButton) {
+        targetButton.classList.add('selected');
+        targetButton.style.background = '#007bff';
+        targetButton.style.color = 'white';
+      }
+    }
+
+    // Clear updating flag
+    if (container._setUpdating) container._setUpdating(false);
   }
 }

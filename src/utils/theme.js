@@ -27,6 +27,8 @@ export const THEMES = {
       accent4: '#F59E0B', // yellow
       accent5: '#EF4444', // red
       accent6: '#3B82F6', // blue
+      accent7: '#F97316', // orange
+      accent8: '#EC4899', // pink
     },
   },
 
@@ -55,6 +57,8 @@ export const THEMES = {
       accent4: '#D97706', // yellow
       accent5: '#DC2626', // red
       accent6: '#2563EB', // blue
+      accent7: '#EA580C', // orange
+      accent8: '#DB2777', // pink
     },
   },
 };
@@ -113,6 +117,8 @@ export const colors = {
   accent4: (text) => chalk.hex(currentTheme.colors.accent4)(text),
   accent5: (text) => chalk.hex(currentTheme.colors.accent5)(text),
   accent6: (text) => chalk.hex(currentTheme.colors.accent6)(text),
+  accent7: (text) => chalk.hex(currentTheme.colors.accent7)(text),
+  accent8: (text) => chalk.hex(currentTheme.colors.accent8)(text),
 
   // Styled combinations
   header: (text) => chalk.hex(currentTheme.colors.info).bold(text),
@@ -124,5 +130,11 @@ export const colors = {
   fieldText: (text) => chalk.hex(currentTheme.colors.accent3)(text),
   fieldNumeric: (text) => chalk.hex(currentTheme.colors.accent6)(text),
   fieldCalculated: (text) => chalk.hex(currentTheme.colors.accent4)(text),
+  fieldChoice: (text) => chalk.hex(currentTheme.colors.accent5)(text),
+  fieldDate: (text) => chalk.hex(currentTheme.colors.accent1)(text),
+  fieldTime: (text) => chalk.hex(currentTheme.colors.accent1)(text),
+  fieldLabel: (text) => chalk.hex(currentTheme.colors.accent6)(text),
+  fieldSignature: (text) => chalk.hex(currentTheme.colors.accent7)(text),
+  fieldMedia: (text) => chalk.hex(currentTheme.colors.accent8)(text),
   fieldDefault: (text) => chalk.hex(currentTheme.colors.accent1)(text),
 };
