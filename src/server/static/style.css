@@ -26,6 +26,7 @@ body {
 
 .field { 
     margin-bottom: 15px; 
+    position: relative;
 }
 
 .field label { 
@@ -198,6 +199,90 @@ body {
     color: white;
 }
 
+/* "Other" input styling for choice fields */
+.single-choice-field-other,
+.multi-choice-field-other {
+    display: none;
+    margin-top: 5px;
+}
+
+/* Show "other" inputs when they should be visible */
+.single-choice-field-other[style*="display: block"],
+.multi-choice-field-other[style*="display: block"] {
+    display: block !important;
+}
+
+/* Screen reader only labels */
+.sr-only {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+/* LabelField styling */
+.label-field-container {
+    width: 100%;
+    padding: 8px 0;
+    border: none;
+    background: transparent;
+    box-sizing: border-box;
+}
+
+.label-field-text {
+    padding: 8px 0;
+    line-height: 1.5;
+    color: #333;
+    font-size: 14px;
+    font-style: italic;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
+    border: none;
+    background: transparent;
+}
+
+/* BooleanField styling */
+.boolean-field-container {
+    width: 100%;
+}
+
+.boolean-field-segmented {
+    display: flex;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.boolean-field-option {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    background: white;
+    color: #666;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.boolean-field-option:not(:last-child) {
+    border-right: 1px solid #ccc;
+}
+
+.boolean-field-option:hover {
+    background: #f5f5f5;
+}
+
+.boolean-field-option.selected {
+    background: #007bff;
+    color: white;
+}
+
+.boolean-field-option.selected:hover {
+    background: #0056b3;
+}
+
 /* Help text for multi-select */
 .multi-choice-field-container::after,
 .multi-choice-field-simple-container::after {
@@ -249,6 +334,7 @@ body {
 .section-title { 
     font-weight: bold; 
     margin-bottom: 10px; 
+    position: relative;
 }
 
 .calculated { 
@@ -313,10 +399,237 @@ body {
     display: none; 
 }
 
+/* PhotoField and VideoField styling */
+.file-preview-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.file-preview-item {
+    position: relative;
+    display: inline-block;
+}
+
+.photo-field-thumb, .video-field-thumb {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.video-field-thumb {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4px;
+    font-size: 12px;
+    word-break: break-word;
+}
+
+.file-remove-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 20px;
+    height: 20px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    padding: 0;
+}
+
+.photo-field-info, .video-field-info {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+}
+
 .status { 
     padding: 10px; 
     margin: 10px 0; 
     border-radius: 4px; 
     background: #d4edda; 
     border: 1px solid #c3e6cb; 
+} 
+
+.description-info-icon {
+  font-size: 1em;
+  vertical-align: middle;
+  margin-left: 0.5em;
+  cursor: pointer;
+  color: #888;
+  user-select: none;
+}
+
+.description-info-icon:focus {
+  outline: 2px solid #007bff;
+}
+
+.description-subtext {
+  font-size: 0.92em;
+  color: #666;
+  margin-top: 0.2em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+
+.description-dialog {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.25);
+  align-items: center;
+  justify-content: center;
+}
+
+.description-dialog-content {
+  background: #fff;
+  border-radius: 8px;
+  max-width: 400px;
+  margin: 10vh auto;
+  padding: 1.5em 1.5em 1em 1.5em;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.18);
+  position: relative;
+  text-align: left;
+}
+
+.description-dialog-close {
+  position: absolute;
+  top: 0.7em;
+  right: 1em;
+  font-size: 1.5em;
+  color: #888;
+  cursor: pointer;
+  user-select: none;
+}
+
+.description-dialog-close:focus {
+  outline: 2px solid #007bff;
+}
+
+.description-dialog-text {
+  margin-top: 1.2em;
+  font-size: 1em;
+  color: #333;
+  white-space: pre-line;
+} 
+
+.description-dialog-header {
+  font-weight: bold;
+  font-size: 1.08em;
+  margin-bottom: 0.7em;
+  color: #222;
+}
+
+.field-label-row,
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.field-info-icon,
+.section-info-icon {
+  position: static;
+  right: unset;
+  top: unset;
+  transform: none;
+  z-index: 2;
+  margin-left: 0.5em;
+} 
+
+/* SignatureField styles */
+.signature-field-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+.signature-agreement-text {
+  font-size: 0.98em;
+  color: #444;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.signature-field-container canvas {
+  border: 1.5px solid #bbb;
+  border-radius: 4px;
+  background: #fff;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  cursor: crosshair;
+}
+.signature-clear-btn {
+  background: #f5f5f5;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 4px 14px;
+  font-size: 14px;
+  margin-bottom: 0;
+  cursor: pointer;
+  transition: background 0.2s, border 0.2s;
+}
+.signature-clear-btn:hover, .signature-clear-btn:focus {
+  background: #e9ecef;
+  border-color: #888;
+}
+.signature-field-container.error canvas {
+  border-color: #e74c3c;
+  box-shadow: 0 0 0 2px #f8d7da;
+}
+.signature-field-error-message {
+  color: #e74c3c;
+  font-size: 14px;
+  margin-top: 5px;
+} 
+
+.photo-field-container {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.photo-field-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+.photo-field-thumb {
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: #fff;
+  max-width: 80px;
+  max-height: 80px;
+  object-fit: cover;
+  margin-right: 4px;
+  margin-bottom: 4px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.photo-field-info {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
 } 

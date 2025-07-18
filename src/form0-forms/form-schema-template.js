@@ -33,6 +33,7 @@ export const defaultFormTemplate = {
             visible_conditions: null,
             read_only: false,
             read_only_conditions: null,
+            default_value: null,
             pattern: '^[a-zA-Z]+$',
             pattern_description:
               'One or more letters (uppercase or lowercase), with no spaces, numbers, or symbols',
@@ -48,6 +49,7 @@ export const defaultFormTemplate = {
             visible_conditions: null,
             read_only: false,
             read_only_conditions: null,
+            default_value: null,
             allow_other: true, //SingleChoiceField can be true or false
             choices: [
               {
@@ -78,7 +80,8 @@ export const defaultFormTemplate = {
             hidden: false,
             visible_conditions: null,
             read_only: false,
-            read_only_conditions: null,
+            read_only_conditions: null, 
+            default_value: null,
             allow_other: true, //MultiChoiceField can be true or false
             choices: [
               {
@@ -138,6 +141,7 @@ export const defaultFormTemplate = {
             visible_conditions: null,
             read_only: false,
             read_only_conditions: null,
+            default_value: null,
             min: 16,
             max: 100,
             format: 'integer', //NumericField can be 'integer' or 'float'
@@ -197,6 +201,7 @@ export const defaultFormTemplate = {
             required_conditions: null,
             read_only: false,
             read_only_conditions: null,
+            default_value: null,
             hidden: false,
             visible_conditions: null,
             pattern: null,
@@ -212,6 +217,7 @@ export const defaultFormTemplate = {
         required_conditions: null,
         read_only: true,
         read_only_conditions: null,
+        default_value: null,
         hidden: false,
         visible_conditions: {
           and: [

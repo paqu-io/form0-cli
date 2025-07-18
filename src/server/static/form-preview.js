@@ -121,7 +121,7 @@ function initializeWebSocket() {
     document.getElementById('status').textContent = t('connectedWatching');
   };
 
-  ws.onmessage = (event) => {
+  ws.onmessage = async (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'schema-update') {
       console.log(t('receivedSchemaUpdate'));
@@ -131,7 +131,7 @@ function initializeWebSocket() {
 
       currentSchema = data.schema;
       schemaSource = data.source || 'Current Schema'; // Get schema source from server
-      renderForm();
+      await renderForm();
 
       // Format timestamp as yyyy-mm-dd hh:mm:ss
       const now = new Date();
@@ -171,7 +171,7 @@ async function loadInitialSchema() {
       const data = await response.json();
       currentSchema = data.schema;
       schemaSource = data.source || 'Current Schema';
-      renderForm();
+      await renderForm();
     } else {
       document.getElementById('status').textContent = t('failedToLoadSchema');
       console.error('Failed to load schema:', response.statusText);
@@ -197,7 +197,7 @@ async function initialize() {
 // Load everything when page loads
 document.addEventListener('DOMContentLoaded', initialize);
 
-function renderForm() {
+async function renderForm() {
   if (!currentSchema) return;
 
   // Set schema in renderer and render form
@@ -210,6 +210,9 @@ function renderForm() {
   // Add event listeners to form inputs
   addFormEventListeners();
 
+  // Initialize form with default values from schema
+  await initializeDefaultValues();
+
   // Restore preserved values AFTER form is fully rendered
   formStateManager.restorePreservedValues();
 
@@ -218,6 +221,69 @@ function renderForm() {
 
   // Initial engine evaluation (this will also recalculate any calculated fields)
   formStateManager.updateFormState();
+}
+
+/**
+ * Initialize form fields with default values from schema
+ */
+async function initializeDefaultValues() {
+  if (!currentSchema || !currentSchema.form || !currentSchema.form.elements) return;
+
+  try {
+    const response = await fetch('/api/default-values');
+    if (response.ok) {
+      const data = await response.json();
+      const defaultValues = data.defaultValues || {};
+
+      // Apply default values to form inputs (suppress logging during initialization)
+      Object.entries(defaultValues).forEach(([fieldName, defaultValue]) => {
+        if (defaultValue !== null && defaultValue !== undefined) {
+          const field = formRenderer.findFieldByDataName(fieldName);
+          if (field) {
+            formStateManager.setFieldValue(fieldName, defaultValue, true); // suppressLogging = true
+          }
+        }
+      });
+    } else {
+      console.warn('Failed to load default values, using fallback');
+      // Fallback default values
+      const defaultValues = {
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john.doe@example.com',
+        age: 30,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+      Object.entries(defaultValues).forEach(([fieldName, defaultValue]) => {
+        if (defaultValue !== null && defaultValue !== undefined) {
+          const field = formRenderer.findFieldByDataName(fieldName);
+          if (field) {
+            formStateManager.setFieldValue(fieldName, defaultValue, true); // suppressLogging = true
+          }
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Error loading default values:', err);
+    // Fallback default values
+    const defaultValues = {
+      firstName: 'John',
+      lastName: 'Doe',
+      email: 'john.doe@example.com',
+      age: 30,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    };
+    Object.entries(defaultValues).forEach(([fieldName, defaultValue]) => {
+      if (defaultValue !== null && defaultValue !== undefined) {
+        const field = formRenderer.findFieldByDataName(fieldName);
+        if (field) {
+          formStateManager.setFieldValue(fieldName, defaultValue, true); // suppressLogging = true
+        }
+      }
+    });
+  }
 }
 
 // Keep track of document event listeners so we can remove them
@@ -269,14 +335,44 @@ function addFormEventListeners() {
       triggerFormEvent('change', fieldName);
     }
   };
+
+  const booleanFieldHandler = (event) => {
+    formStateManager.updateFormState();
+    const fieldName = extractFieldNameFromChoiceEvent(event, 'boolean');
+    if (fieldName) {
+      triggerFormEvent('change', fieldName);
+    }
+  };
+
+  const photoFieldHandler = (event) => {
+    formStateManager.updateFormState();
+    const fieldName = extractFieldNameFromChoiceEvent(event, 'photo');
+    if (fieldName) {
+      triggerFormEvent('change', fieldName);
+    }
+  };
+
+  const videoFieldHandler = (event) => {
+    formStateManager.updateFormState();
+    const fieldName = extractFieldNameFromChoiceEvent(event, 'video');
+    if (fieldName) {
+      triggerFormEvent('change', fieldName);
+    }
+  };
   
   // Add document event listeners and track them
   document.addEventListener('singlechoicefield-change', singleChoiceHandler);
   document.addEventListener('multichoicefield-change', multiChoiceHandler);
+  document.addEventListener('booleanfield-change', booleanFieldHandler);
+  document.addEventListener('photofield-change', photoFieldHandler);
+  document.addEventListener('videofield-change', videoFieldHandler);
   
   documentEventListeners.push(
     { type: 'singlechoicefield-change', handler: singleChoiceHandler },
-    { type: 'multichoicefield-change', handler: multiChoiceHandler }
+    { type: 'multichoicefield-change', handler: multiChoiceHandler },
+    { type: 'booleanfield-change', handler: booleanFieldHandler },
+    { type: 'photofield-change', handler: photoFieldHandler },
+    { type: 'videofield-change', handler: videoFieldHandler }
   );
 }
 
