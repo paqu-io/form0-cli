@@ -87,6 +87,7 @@ async function createFormProject(dir, showInstructions = true) {
   await fs.writeJson(`${base}/form.schema.json`, compactSchema, { spaces: 2 });
   await fs.writeFile(`${base}/test.js`, testScript);
   await fs.writeFile(`${base}/README.md`, createReadmeTemplate(dir));
+  await fs.ensureDir(`${base}/supporting-images`);
 
   // Show completion message
   const displayDir = dir === '.' ? path.basename(process.cwd()) : dir;

@@ -7,11 +7,14 @@ import { getLocale, t, getRawTranslation } from '../utils/i18n.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export function createApp(getCurrentSchema, getSchemaSource) {
+export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   const app = express();
 
   // Serve static files
   app.use(express.static(path.join(__dirname, 'static')));
+
+  // Serve supporting images from the current project directory
+  app.use('/supporting-images', express.static(path.join(projectDir, 'supporting-images')));
 
   // API endpoint to get current schema
   app.get('/api/schema', (req, res) => {
