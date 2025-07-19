@@ -1,4 +1,5 @@
 import { FormRenderer } from './form-renderer.js';
+import { resolveSupportingImagePath } from './supporting-image-utils.js';
 import { FormStateManager } from './form-state-manager.js';
 import { OperationProcessor } from './operation-processor.js';
 
@@ -126,29 +127,37 @@ function initializeWebSocket() {
     if (data.type === 'schema-update') {
       console.log(t('receivedSchemaUpdate'));
 
-      // Preserve current form values before schema update
-      formStateManager.preserveCurrentValues();
+      // Check if schema has actually changed to prevent duplicate rendering
+      const newSchema = data.schema;
+      const schemaChanged = JSON.stringify(currentSchema) !== JSON.stringify(newSchema);
+      
+      if (schemaChanged) {
+        // Preserve current form values before schema update
+        formStateManager.preserveCurrentValues();
 
-      currentSchema = data.schema;
-      schemaSource = data.source || 'Current Schema'; // Get schema source from server
-      await renderForm();
+        currentSchema = newSchema;
+        schemaSource = data.source || 'Current Schema'; // Get schema source from server
+        await renderForm();
 
-      // Format timestamp as yyyy-mm-dd hh:mm:ss
-      const now = new Date();
-      const timestamp =
-        now.getFullYear() +
-        '-' +
-        String(now.getMonth() + 1).padStart(2, '0') +
-        '-' +
-        String(now.getDate()).padStart(2, '0') +
-        ' ' +
-        String(now.getHours()).padStart(2, '0') +
-        ':' +
-        String(now.getMinutes()).padStart(2, '0') +
-        ':' +
-        String(now.getSeconds()).padStart(2, '0');
+        // Format timestamp as yyyy-mm-dd hh:mm:ss
+        const now = new Date();
+        const timestamp =
+          now.getFullYear() +
+          '-' +
+          String(now.getMonth() + 1).padStart(2, '0') +
+          '-' +
+          String(now.getDate()).padStart(2, '0') +
+          ' ' +
+          String(now.getHours()).padStart(2, '0') +
+          ':' +
+          String(now.getMinutes()).padStart(2, '0') +
+          ':' +
+          String(now.getSeconds()).padStart(2, '0');
 
-      document.getElementById('status').textContent = t('schemaUpdated', { timestamp });
+        document.getElementById('status').textContent = t('schemaUpdated', { timestamp });
+      } else {
+        console.log('Schema unchanged, skipping re-render');
+      }
     }
   };
 

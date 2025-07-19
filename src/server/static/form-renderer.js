@@ -1,3 +1,5 @@
+import { resolveSupportingImagePath } from './supporting-image-utils.js';
+
 /**
  * Handles form rendering and field creation
  */
@@ -195,6 +197,57 @@ export class FormRenderer {
       }
       labelRow.appendChild(label);
 
+      // --- Supporting image icon (dialog mode) ---
+      let supportingImageIcon = null;
+      if (field.supporting_image) {
+        const imgPath = resolveSupportingImagePath(field);
+        if (imgPath) {
+          const displayMode = field.supporting_image_display || 'default';
+          
+          if (displayMode === 'dialog') {
+            // Create info icon for dialog display
+            supportingImageIcon = document.createElement('span');
+            supportingImageIcon.className = 'supporting-image-info-icon field-info-icon';
+            supportingImageIcon.innerHTML = '🖼️';
+            supportingImageIcon.setAttribute('title', 'View supporting image');
+            supportingImageIcon.setAttribute('tabindex', '0');
+            supportingImageIcon.setAttribute('role', 'button');
+            supportingImageIcon.setAttribute('aria-label', 'View supporting image');
+            
+            // Create dialog/modal (hidden by default)
+            const dialog = document.createElement('div');
+            dialog.className = 'supporting-image-dialog';
+            dialog.style.display = 'none';
+            dialog.innerHTML = `
+              <div class="supporting-image-dialog-content">
+                <span class="supporting-image-dialog-close" tabindex="0">&times;</span>
+                <div class="supporting-image-dialog-header">${field.label || field.data_name}</div>
+                <div class="supporting-image-dialog-image">
+                  <img src="${imgPath.startsWith('http') ? imgPath : `/supporting-images/${imgPath}`}" 
+                       alt="${field.label || field.data_name}" />
+                </div>
+              </div>
+            `;
+            
+            document.body.appendChild(dialog);
+            
+            // Show/hide dialog logic
+            function showDialog() { dialog.style.display = 'block'; }
+            function hideDialog() { dialog.style.display = 'none'; }
+            supportingImageIcon.addEventListener('click', showDialog);
+            supportingImageIcon.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') showDialog(); });
+            dialog.querySelector('.supporting-image-dialog-close').addEventListener('click', hideDialog);
+            dialog.querySelector('.supporting-image-dialog-close').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') hideDialog(); });
+            dialog.addEventListener('click', (e) => { if (e.target === dialog) hideDialog(); });
+          }
+        }
+      }
+
+      // Add supporting image icon to label row (if it exists) - BEFORE description icon
+      if (supportingImageIcon) {
+        labelRow.appendChild(supportingImageIcon);
+      }
+
       // --- Description logic ---
       if (field.description && typeof field.description === 'string') {
         if (field.description_mode === 'default') {
@@ -242,6 +295,7 @@ export class FormRenderer {
         const stopIcon = this.createStopIcon(field, 'field');
         labelRow.appendChild(stopIcon);
       }
+
       fieldDiv.appendChild(labelRow);
 
       // Subtext for field (below label row)
@@ -250,6 +304,23 @@ export class FormRenderer {
         subtext.className = 'description-subtext';
         subtext.textContent = field.description;
         fieldDiv.appendChild(subtext);
+      }
+
+      // --- Supporting image rendering (default mode) ---
+      if (field.supporting_image) {
+        const imgPath = resolveSupportingImagePath(field);
+        if (imgPath) {
+          const displayMode = field.supporting_image_display || 'default';
+          
+          if (displayMode === 'default') {
+            // Default display - show image directly
+            const img = document.createElement('img');
+            img.src = imgPath.startsWith('http') ? imgPath : `/supporting-images/${imgPath}`;
+            img.alt = field.label || field.data_name;
+            img.className = 'supporting-image';
+            fieldDiv.appendChild(img);
+          }
+        }
       }
     }
 

@@ -29,10 +29,12 @@ class Form0Server {
       await this.loadSchema();
       console.log(colors.success('\n' + t('common.schemaLoaded', { path: this.schemaPath })));
 
-      // Setup Express app with schema provider and schema source
+      // Setup Express app with schema provider, schema source, and project directory
+      const projectDir = path.dirname(this.schemaPath);
       this.app = createApp(
         () => this.currentSchema,
-        () => this.getSchemaSource()
+        () => this.getSchemaSource(),
+        projectDir
       );
 
       // Find available port
