@@ -14,7 +14,7 @@ export function ensureChoiceValuesForSchema(elements) {
       field.choices = processChoiceFieldChoices(field.choices);
     }
 
-    if (field.type === 'Section') {
+    if ((field.type === 'Section' || field.type === 'RepeatableSection') && Array.isArray(field.elements)) {
       ensureChoiceValuesForSchema(field.elements || []);
     }
   }

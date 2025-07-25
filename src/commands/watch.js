@@ -161,7 +161,7 @@ class Form0Watcher {
     let count = 0;
     for (const element of elements) {
       count++;
-      if (element.type === 'Section' && element.elements) {
+      if ((element.type === 'Section' || element.type === 'RepeatableSection') && element.elements) {
         count += this.countElements(element.elements);
       }
     }
@@ -230,7 +230,7 @@ class Form0Watcher {
     let flattened = [];
     for (const element of elements) {
       flattened.push(element);
-      if (element.type === 'Section' && element.elements) {
+      if ((element.type === 'Section' || element.type === 'RepeatableSection') && element.elements) {
         flattened = flattened.concat(this.flattenElements(element.elements));
       }
     }
