@@ -42,16 +42,47 @@ export class FormRenderer {
   }
 
   /**
+   * Generate feature description for unsupported/partially supported features
+   */
+  generateFeatureDescription(element) {
+    const parts = [`"${element.type}"`];
+    
+    if (element.type === 'Section' && element.display === 'drilldown') {
+      parts.push(`(display: ${element.display})`);
+    }
+    
+    if (element.is_searchable === true) {
+      parts.push(`(is_searchable: ${element.is_searchable})`);
+    }
+    
+    return parts.join(' ');
+  }
+
+  /**
+   * Generate support level message
+   */
+  generateSupportMessage(isPartiallySupported = true) {
+    const supportLevel = isPartiallySupported ? 'partially supported' : 'not supported';
+    const docsPath = isPartiallySupported ? 'partially-supported-features' : 'unsupported-features';
+    
+    return {
+      message: `The feature ${this.generateFeatureDescription(this.currentElement)} is ${supportLevel} in form0-cli. ` +
+               `Full support available in form0-react and form0-react-native packages.`,
+      docsUrl: `docs.form0.dev/cli/${docsPath}`
+    };
+  }
+
+  /**
    * Create a warning icon for partially supported features
    */
   createWarningIcon(element, elementType = 'section') {
+    this.currentElement = element;
+    const { message, docsUrl } = this.generateSupportMessage(true);
+    
     const warningIcon = document.createElement('span');
     warningIcon.className = `warning-icon ${elementType}-warning-icon`;
     warningIcon.textContent = '⚠️';
-    warningIcon.title =
-      `The feature \"${element.type}\"${element.display === 'drilldown' ? ` (display: ${element.display})` : ''}${element.is_searchable === true ? ` (is_searchable: ${element.is_searchable})` : ''} is only partially supported in form0-cli. ` +
-      `Full support available in form0-react and form0-react-native packages.\n` +
-      `Want to learn more? Check out docs.form0.dev/cli/partially-supported-features`;
+    warningIcon.title = `${message}\nWant to learn more? Check out ${docsUrl}`;
     warningIcon.style.cursor = 'help';
     warningIcon.style.marginLeft = '8px';
     return warningIcon;
@@ -61,13 +92,13 @@ export class FormRenderer {
    * Create a stop icon for unsupported features
    */
   createStopIcon(element, elementType = 'section') {
+    this.currentElement = element;
+    const { message, docsUrl } = this.generateSupportMessage(false);
+    
     const stopIcon = document.createElement('span');
     stopIcon.className = `stop-icon ${elementType}-stop-icon`;
     stopIcon.textContent = '⛔';
-    stopIcon.title =
-      `The feature \"${element.type}\"${element.display === 'drilldown' ? ` (display: ${element.display})` : ''}${element.is_searchable === true ? ` (is_searchable: ${element.is_searchable})` : ''} is not supported in form0-cli. ` +
-      `Full support available in form0-react and form0-react-native packages.\n` +
-      `Want to learn more? Check out docs.form0.dev/cli/unsupported-features`;
+    stopIcon.title = `${message}\nWant to learn more? Check out ${docsUrl}`;
     stopIcon.style.cursor = 'help';
     stopIcon.style.marginLeft = '8px';
     return stopIcon;
