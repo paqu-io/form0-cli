@@ -57,7 +57,7 @@ export function countElements(elements) {
   let count = 0;
   for (const element of elements) {
     count++;
-    if (element.type === 'Section' && element.elements) {
+    if ((element.type === 'Section' || element.type === 'RepeatableSection') && element.elements) {
       count += countElements(element.elements);
     }
   }

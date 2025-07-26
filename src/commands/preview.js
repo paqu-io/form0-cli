@@ -12,6 +12,7 @@ function printFields(elements, indent = '') {
     let typeColor = chalk.white;
     switch (element.type) {
       case 'Section':
+      case 'RepeatableSection':
         typeColor = chalk.magenta;
         break;
       case 'TextField':
@@ -38,7 +39,7 @@ function printFields(elements, indent = '') {
       `${indent}${connector} ${typeColor(element.type)} ${chalk.bold(label)}${dataNameDisplay}${keyDisplay}`
     );
 
-    if (element.type === 'Section' && element.elements) {
+    if ((element.type === 'Section' || element.type === 'RepeatableSection') && element.elements) {
       printFields(element.elements, childIndent);
     }
   });

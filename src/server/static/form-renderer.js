@@ -11,10 +11,13 @@ export class FormRenderer {
   /**
    * Check if a section or field has partially supported features
    */
-  hasPartiallySupportedFeatures(element) {
+  isPartiallySupportedFeature(element) {
     // For sections, check if display is drilldown
     if (element.type === 'Section') {
       return element.display === 'drilldown';
+    }
+    if (element.type === 'RepeatableSection') {
+      return true; // Always partially supported for now
     }
     
     // For fields, currently no partially supported features
@@ -25,19 +28,61 @@ export class FormRenderer {
   /**
    * Check if a field is not supported at all
    */
-  isUnsupportedField(field) {
+  isUnsupportedFeature(element) {
     // Currently no unsupported fields, but this is ready for future expansion
+    if (element.type === 'SingleChoiceField') {
+      return element.is_searchable === true;
+    }
+
+    if (element.type === 'MultiChoiceField') {
+      return element.is_searchable === true;
+    }
+
     return false;
+  }
+
+  /**
+   * Generate feature description for unsupported/partially supported features
+   */
+  generateFeatureDescription(element) {
+    const parts = [`"${element.type}"`];
+    
+    if (element.type === 'Section' && element.display === 'drilldown') {
+      parts.push(`(display: ${element.display})`);
+    }
+    
+    if (element.is_searchable === true) {
+      parts.push(`(is_searchable: ${element.is_searchable})`);
+    }
+    
+    return parts.join(' ');
+  }
+
+  /**
+   * Generate support level message
+   */
+  generateSupportMessage(isPartiallySupported = true) {
+    const supportLevel = isPartiallySupported ? 'partially supported' : 'not supported';
+    const docsPath = isPartiallySupported ? 'partially-supported-features' : 'unsupported-features';
+    
+    return {
+      message: `The feature ${this.generateFeatureDescription(this.currentElement)} is ${supportLevel} in form0-cli. ` +
+               `Full support available in form0-react and form0-react-native packages.`,
+      docsUrl: `docs.form0.dev/cli/${docsPath}`
+    };
   }
 
   /**
    * Create a warning icon for partially supported features
    */
   createWarningIcon(element, elementType = 'section') {
+    this.currentElement = element;
+    const { message, docsUrl } = this.generateSupportMessage(true);
+    
     const warningIcon = document.createElement('span');
     warningIcon.className = `warning-icon ${elementType}-warning-icon`;
     warningIcon.textContent = '⚠️';
-    warningIcon.title = 'This field is partially supported in form0-cli. Full support available in form0-react and form0-react-native packages.\nWant to learn more? Check out docs.form0.dev/cli/partially-supported-features';
+    warningIcon.title = `${message}\nWant to learn more? Check out ${docsUrl}`;
     warningIcon.style.cursor = 'help';
     warningIcon.style.marginLeft = '8px';
     return warningIcon;
@@ -46,11 +91,14 @@ export class FormRenderer {
   /**
    * Create a stop icon for unsupported features
    */
-  createStopIcon(element, elementType = 'field') {
+  createStopIcon(element, elementType = 'section') {
+    this.currentElement = element;
+    const { message, docsUrl } = this.generateSupportMessage(false);
+    
     const stopIcon = document.createElement('span');
     stopIcon.className = `stop-icon ${elementType}-stop-icon`;
     stopIcon.textContent = '⛔';
-    stopIcon.title = 'This field type is not supported in form0-cli. Full support available in form0-react and form0-react-native packages.\nWant to learn more? Check out docs.form0.dev/cli/unsupported-features';
+    stopIcon.title = `${message}\nWant to learn more? Check out ${docsUrl}`;
     stopIcon.style.cursor = 'help';
     stopIcon.style.marginLeft = '8px';
     return stopIcon;
@@ -90,7 +138,7 @@ export class FormRenderer {
    */
   renderElements(elements, container) {
     elements.forEach((element) => {
-      if (element.type === 'Section') {
+      if (element.type === 'Section' || element.type === 'RepeatableSection') {
         this.renderSection(element, container);
       } else {
         this.renderField(element, container);
@@ -105,13 +153,14 @@ export class FormRenderer {
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'section';
     sectionDiv.setAttribute('data-key', section.key);
+    sectionDiv.setAttribute('data-name', section.data_name);
 
     // Section title row (label + info icon)
     const titleRow = document.createElement('div');
     titleRow.className = 'section-title-row';
     const title = document.createElement('div');
     title.className = 'section-title';
-    title.textContent = section.label || section.data_name || 'Section';
+    title.textContent = section.label || section.data_name || (section.type === 'RepeatableSection' ? 'Repeatable Section' : 'Section');
     titleRow.appendChild(title);
 
     // --- Section description logic ---
@@ -151,10 +200,17 @@ export class FormRenderer {
     }
 
     // --- Warning icon for partially supported features ---
-    if (this.hasPartiallySupportedFeatures(section)) {
+    if (this.isPartiallySupportedFeature(section)) {
       const warningIcon = this.createWarningIcon(section, 'section');
       titleRow.appendChild(warningIcon);
     }
+
+    // --- Stop icon for unsupported features ---
+    if (this.isUnsupportedFeature(section)) {
+      const stopIcon = this.createStopIcon(section, 'section');
+      titleRow.appendChild(stopIcon);
+    }
+
     sectionDiv.appendChild(titleRow);
 
     // Subtext for section (below title row)
@@ -285,13 +341,13 @@ export class FormRenderer {
       }
 
       // --- Warning icon for partially supported features ---
-      if (this.hasPartiallySupportedFeatures(field)) {
+      if (this.isPartiallySupportedFeature(field)) {
         const warningIcon = this.createWarningIcon(field, 'field');
         labelRow.appendChild(warningIcon);
       }
 
       // --- Stop icon for unsupported features ---
-      if (this.isUnsupportedField(field)) {
+      if (this.isUnsupportedFeature(field)) {
         const stopIcon = this.createStopIcon(field, 'field');
         labelRow.appendChild(stopIcon);
       }
@@ -1499,7 +1555,7 @@ export class FormRenderer {
   countFields(elements) {
     let count = 0;
     elements.forEach((element) => {
-      if (element.type === 'Section') {
+      if ((element.type === 'Section' || element.type === 'RepeatableSection') && Array.isArray(element.elements)) {
         count += this.countFields(element.elements || element.drilldown_elements || []);
       } else {
         count++;
@@ -1555,7 +1611,7 @@ export class FormRenderer {
         if (element.data_name === dataName) {
           return element;
         }
-        if (element.type === 'Section') {
+        if ((element.type === 'Section' || element.type === 'RepeatableSection') && Array.isArray(element.elements)) {
           const found = searchElements(element.elements || element.drilldown_elements || []);
           if (found) return found;
         }

@@ -197,6 +197,7 @@ export function printFields(elements, indent = '') {
     let typeColor = colors.fieldDefault;
     switch (element.type) {
       case 'Section':
+      case 'RepeatableSection':
         typeColor = colors.fieldSection;
         break;
       case 'TextField':
@@ -244,7 +245,7 @@ export function printFields(elements, indent = '') {
       `${indent}${connector} ${typeColor(element.type)} ${colors.label(label)}${dataNameDisplay}${keyDisplay}`
     );
 
-    if (element.type === 'Section' && element.elements) {
+    if ((element.type === 'Section' || element.type === 'RepeatableSection') && element.elements) {
       printFields(element.elements, childIndent);
     }
   });
