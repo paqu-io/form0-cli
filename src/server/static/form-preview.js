@@ -428,7 +428,7 @@ function addSubmitButtonEventListener() {
  * Handle form submission
  */
 async function handleFormSubmit() {
-  console.log('🚀 [FORM SUBMIT] Starting form submission...');
+  console.log('🚀 [RECORD SUBMIT] Starting form submission...');
   
   const submitBtn = document.getElementById('submit-btn');
   
@@ -481,7 +481,7 @@ async function handleFormSubmit() {
         });
       }
       
-      console.log('❌ [FORM SUBMIT] Submission blocked due to validation errors');
+      console.log('❌ [RECORD SUBMIT] Submission blocked due to validation errors');
       showGlobalError(errorMessages.join('\n'));
       return;
     }
@@ -509,14 +509,14 @@ async function handleFormSubmit() {
     showGlobalSuccess('Form submitted successfully! Check console for structured record.');
 
   } catch (error) {
-    console.error('❌ [FORM SUBMIT] Error during form submission:', error);
-    console.log('❌ [FORM SUBMIT] Submission was not successful');
+    console.error('❌ [RECORD SUBMIT] Error during form submission:', error);
+    console.log('❌ [RECORD SUBMIT] Submission was not successful');
     showGlobalError(`Submission failed: ${error.message}`);
   } finally {
     // Re-enable submit button
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Submit Form';
+      submitBtn.textContent = 'Submit Record (JSON)';
     }
   }
 }
