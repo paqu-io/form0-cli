@@ -129,7 +129,11 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
       const flattenedFields = flattenFields(schema.form?.elements || []);
       
       // Create structured record using the real form0-core function
-      const structuredRecord = createStructuredRecord(state, flattenedFields, options);
+      // Pass both flattened fields (for key mapping) and original elements (for nesting)
+      const structuredRecord = createStructuredRecord(state, flattenedFields, {
+        ...options,
+        originalElements: schema.form?.elements || []
+      });
       
       res.json({ record: structuredRecord });
     } catch (err) {
