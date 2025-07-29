@@ -421,6 +421,7 @@ body {
 .file-preview-item {
     position: relative;
     display: inline-block;
+    width: 150px; /* Wider width for better caption input visibility */
 }
 
 .photo-field-thumb, .video-field-thumb {
@@ -810,6 +811,31 @@ body {
 .alert-dialog-ok-btn:focus {
   box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
 } 
+
+/* Caption input styles for PhotoField and VideoField */
+.photo-caption-input,
+.video-caption-input {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  font-size: 12px;
+  box-sizing: border-box;
+  margin-top: 4px;
+  font-family: inherit;
+}
+
+.photo-caption-input:focus,
+.video-caption-input:focus {
+  outline: none;
+  border-color: #4a90e2;
+}
+
+.photo-caption-input::placeholder,
+.video-caption-input::placeholder {
+  color: #999;
+  font-style: italic;
+}
 
 /* Submit functionality styles */
 .submit-container {

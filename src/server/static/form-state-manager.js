@@ -364,7 +364,11 @@ export class FormStateManager {
         // LabelField doesn't have user input values, so any value is compatible (though it shouldn't have values)
         return true;
       case 'SignatureField':
-        return typeof value === 'string' && value.startsWith('data:image/png;base64,');
+        // SignatureField now stores an object with {signature_id: null, data: base64String}
+        if (typeof value === 'object' && value !== null) {
+          return value.hasOwnProperty('signature_id') && value.hasOwnProperty('data') && typeof value.data === 'string';
+        }
+        return value === null; // Allow null values
       case 'PhotoField':
       case 'VideoField':
         try {
@@ -414,8 +418,8 @@ export class FormStateManager {
           } catch (e) {
             values[key] = null;
           }
-        } else if (field.type === 'PhotoField' || field.type === 'VideoField') {
-          // For PhotoField and VideoField, the value is JSON from the hidden input
+        } else if (field.type === 'PhotoField' || field.type === 'VideoField' || field.type === 'SignatureField') {
+          // For PhotoField, VideoField, and SignatureField, the value is JSON from the hidden input
           try {
             values[key] = value === '' ? null : JSON.parse(value);
           } catch (e) {

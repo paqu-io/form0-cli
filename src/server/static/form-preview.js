@@ -374,6 +374,14 @@ function addFormEventListeners() {
       triggerFormEvent('change', fieldName);
     }
   };
+
+  const signatureFieldHandler = (event) => {
+    formStateManager.updateFormState();
+    const fieldName = extractFieldNameFromChoiceEvent(event, 'signature');
+    if (fieldName) {
+      triggerFormEvent('change', fieldName);
+    }
+  };
   
   // Add document event listeners and track them
   document.addEventListener('singlechoicefield-change', singleChoiceHandler);
@@ -381,13 +389,15 @@ function addFormEventListeners() {
   document.addEventListener('booleanfield-change', booleanFieldHandler);
   document.addEventListener('photofield-change', photoFieldHandler);
   document.addEventListener('videofield-change', videoFieldHandler);
+  document.addEventListener('signaturefield-change', signatureFieldHandler);
   
   documentEventListeners.push(
     { type: 'singlechoicefield-change', handler: singleChoiceHandler },
     { type: 'multichoicefield-change', handler: multiChoiceHandler },
     { type: 'booleanfield-change', handler: booleanFieldHandler },
     { type: 'photofield-change', handler: photoFieldHandler },
-    { type: 'videofield-change', handler: videoFieldHandler }
+    { type: 'videofield-change', handler: videoFieldHandler },
+    { type: 'signaturefield-change', handler: signatureFieldHandler }
   );
 }
 
