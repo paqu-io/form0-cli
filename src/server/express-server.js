@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import { createFormEngine } from 'form0-core';
+import { createFormEngine, createStructuredRecord, flattenFields } from 'form0-core';
 import { fileURLToPath } from 'url';
 import { getLocale, t, getRawTranslation } from '../utils/i18n.js';
 
@@ -107,6 +107,37 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
       res.json({ ...state, operations });
     } catch (err) {
       console.error('Engine evaluation error:', err);
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // API endpoint to create structured record
+  app.post('/api/create-record', express.json(), (req, res) => {
+    try {
+      const schema = getCurrentSchema();
+      if (!schema) {
+        return res.status(404).json({ error: 'No schema loaded' });
+      }
+
+      const { state, options = {} } = req.body;
+      
+      if (!state) {
+        return res.status(400).json({ error: 'Form state is required' });
+      }
+
+      // Flatten form elements to get field mappings
+      const flattenedFields = flattenFields(schema.form?.elements || []);
+      
+      // Create structured record using the real form0-core function
+      // Pass both flattened fields (for key mapping) and original elements (for nesting)
+      const structuredRecord = createStructuredRecord(state, flattenedFields, {
+        ...options,
+        originalElements: schema.form?.elements || []
+      });
+      
+      res.json({ record: structuredRecord });
+    } catch (err) {
+      console.error('Error creating structured record:', err);
       res.status(400).json({ error: err.message });
     }
   });

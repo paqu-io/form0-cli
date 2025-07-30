@@ -364,7 +364,11 @@ export class FormStateManager {
         // LabelField doesn't have user input values, so any value is compatible (though it shouldn't have values)
         return true;
       case 'SignatureField':
-        return typeof value === 'string' && value.startsWith('data:image/png;base64,');
+        // SignatureField now stores an object with {signature_id: null, data: base64String}
+        if (typeof value === 'object' && value !== null) {
+          return value.hasOwnProperty('signature_id') && value.hasOwnProperty('data') && typeof value.data === 'string';
+        }
+        return value === null; // Allow null values
       case 'PhotoField':
       case 'VideoField':
         try {
@@ -414,8 +418,8 @@ export class FormStateManager {
           } catch (e) {
             values[key] = null;
           }
-        } else if (field.type === 'PhotoField' || field.type === 'VideoField') {
-          // For PhotoField and VideoField, the value is JSON from the hidden input
+        } else if (field.type === 'PhotoField' || field.type === 'VideoField' || field.type === 'SignatureField') {
+          // For PhotoField, VideoField, and SignatureField, the value is JSON from the hidden input
           try {
             values[key] = value === '' ? null : JSON.parse(value);
           } catch (e) {
@@ -1168,5 +1172,102 @@ export class FormStateManager {
 
     // Clear updating flag
     if (container._setUpdating) container._setUpdating(false);
+  }
+
+  /**
+   * Validate all required fields in the form
+   * @returns {Array} Array of validation error objects with { fieldName, errorMessage }
+   */
+  validateAllRequiredFields() {
+    const errors = [];
+    const form = document.getElementById('main-form');
+    if (!form) return errors;
+
+    // Get all field containers
+    const fieldContainers = form.querySelectorAll('[data-name]');
+    
+    fieldContainers.forEach(fieldDiv => {
+      const fieldName = fieldDiv.getAttribute('data-name');
+      const field = this.formRenderer.findFieldByDataName(fieldName);
+      
+      if (!field) return;
+
+      // Skip validation for invisible fields
+      if (fieldDiv.classList.contains('hidden')) {
+        return;
+      }
+
+      // Check if field is required (look for existing required validation)
+      const isRequired = fieldDiv.classList.contains('error') && 
+                        fieldDiv.querySelector('.error-message')?.textContent === 'This field is required';
+      
+      if (isRequired) {
+        errors.push({
+          fieldName: fieldName,
+          errorMessage: 'This field is required'
+        });
+      }
+    });
+
+    return errors;
+  }
+
+  /**
+   * Check if there are any current validation errors in the form
+   * @returns {boolean} True if there are validation errors
+   */
+  hasValidationErrors() {
+    const form = document.getElementById('main-form');
+    if (!form) return false;
+
+    const errorElements = form.querySelectorAll('.field.error');
+    return errorElements.length > 0;
+  }
+
+  /**
+   * Get a summary of all current validation issues
+   * @returns {Object} Object with arrays of required field errors and general validation errors
+   */
+  getFormValidationSummary() {
+    const requiredFieldErrors = this.validateAllRequiredFields();
+    const hasOtherErrors = this.hasValidationErrors();
+    
+    const generalErrors = [];
+    
+    if (hasOtherErrors) {
+      const form = document.getElementById('main-form');
+      const errorElements = form.querySelectorAll('.field.error .error-message');
+      
+      errorElements.forEach(errorElement => {
+        const fieldDiv = errorElement.closest('.field');
+        const fieldName = fieldDiv?.getAttribute('data-name');
+        const errorMessage = errorElement.textContent;
+        
+        // Skip validation errors for invisible fields
+        if (fieldDiv && fieldDiv.classList.contains('hidden')) {
+          return;
+        }
+        
+        // Skip required field errors as they're already captured
+        if (errorMessage !== 'This field is required') {
+          generalErrors.push({
+            fieldName: fieldName || 'Unknown field',
+            errorMessage: errorMessage
+          });
+        }
+      });
+    }
+
+    // Filter out required field errors for invisible fields
+    const visibleRequiredFieldErrors = requiredFieldErrors.filter(error => {
+      const fieldDiv = document.querySelector(`[data-name="${error.fieldName}"]`);
+      return fieldDiv && !fieldDiv.classList.contains('hidden');
+    });
+
+    return {
+      requiredFieldErrors: visibleRequiredFieldErrors,
+      generalErrors,
+      hasErrors: visibleRequiredFieldErrors.length > 0 || generalErrors.length > 0
+    };
   }
 }

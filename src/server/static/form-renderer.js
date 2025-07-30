@@ -1307,16 +1307,23 @@ export class FormRenderer {
           blank.width = canvas.width;
           blank.height = canvas.height;
           if (canvas.toDataURL() !== blank.toDataURL()) {
-            hiddenInput.value = canvas.toDataURL('image/png');
+            const dataURL = canvas.toDataURL('image/png');
+            // Strip the "data:image/png;base64," prefix
+            const base64Data = dataURL.replace(/^data:image\/png;base64,/, '');
+            // New data structure: {signature_id: null, data: base64-without-prefix}
+            const signatureData = {
+              signature_id: null, // To be generated in frontend
+              data: base64Data
+            };
+            hiddenInput.value = JSON.stringify(signatureData);
           } else {
-            hiddenInput.value = '';
+            hiddenInput.value = JSON.stringify(null);
           }
-          // Update form state using FormStateManager, so errors are cleared/updated
-          if (window.formStateManager) {
-            window.formStateManager.setFieldValue(field.data_name, hiddenInput.value, true); // suppress logging
-            window.formStateManager.updateFormState();
-          }
-          // Fire a native input event to trigger validation and error clearing
+          
+          // Dispatch custom event like PhotoField and VideoField
+          hiddenInput.dispatchEvent(new CustomEvent('signaturefield-change', { bubbles: true }));
+          
+          // Also fire a native input event to trigger validation and error clearing
           const event = new Event('input', { bubbles: true });
           hiddenInput.dispatchEvent(event);
         }
@@ -1381,6 +1388,21 @@ export class FormRenderer {
             img.src = photo.url;
             photoContainer.appendChild(img);
 
+            // Always-visible caption input
+            const captionInput = document.createElement('input');
+            captionInput.type = 'text';
+            captionInput.className = 'photo-caption-input';
+            captionInput.placeholder = 'Add caption...';
+            captionInput.value = photo.caption || '';
+            if (field.read_only) captionInput.readOnly = true;
+            
+            captionInput.addEventListener('input', () => {
+              selectedPhotos[idx].caption = captionInput.value.trim() || null;
+              updateHiddenInput();
+            });
+            
+            photoContainer.appendChild(captionInput);
+
             if (!field.read_only) {
               const removeBtn = document.createElement('button');
               removeBtn.type = 'button';
@@ -1397,7 +1419,17 @@ export class FormRenderer {
             preview.appendChild(photoContainer);
           });
 
-          hiddenInput.value = JSON.stringify(selectedPhotos.map(({ name, url }) => ({ name, url })));
+          updateHiddenInput();
+        }
+
+        function updateHiddenInput() {
+          // New data structure: array of {photo_id: null, filename: string, caption: string|null}
+          const photoData = selectedPhotos.map(photo => ({
+            photo_id: null, // To be generated in frontend
+            filename: photo.name,
+            caption: photo.caption || null
+          }));
+          hiddenInput.value = JSON.stringify(photoData);
           hiddenInput.dispatchEvent(new CustomEvent('photofield-change', { bubbles: true }));
         }
 
@@ -1406,7 +1438,7 @@ export class FormRenderer {
             Array.from(fileInput.files).forEach(file => {
               if (!selectedPhotos.some(p => p.name === file.name)) {
                 const url = URL.createObjectURL(file);
-                selectedPhotos.push({ name: file.name, url, file });
+                selectedPhotos.push({ name: file.name, url, file, caption: null });
               }
             });
             renderPhotos();
@@ -1462,6 +1494,21 @@ export class FormRenderer {
             thumb.textContent = `${video.name} (${formatDuration(video.duration)})`;
             videoContainer.appendChild(thumb);
 
+            // Always-visible caption input
+            const captionInput = document.createElement('input');
+            captionInput.type = 'text';
+            captionInput.className = 'video-caption-input';
+            captionInput.placeholder = 'Add caption...';
+            captionInput.value = video.caption || '';
+            if (field.read_only) captionInput.readOnly = true;
+            
+            captionInput.addEventListener('input', () => {
+              selectedVideos[idx].caption = captionInput.value.trim() || null;
+              updateVideoHiddenInput();
+            });
+            
+            videoContainer.appendChild(captionInput);
+
             if (!field.read_only) {
               const removeBtn = document.createElement('button');
               removeBtn.type = 'button';
@@ -1477,8 +1524,18 @@ export class FormRenderer {
 
             preview.appendChild(videoContainer);
           });
-          // Update hidden input for validation (array of {name, duration} objects)
-          hiddenInput.value = JSON.stringify(selectedVideos.map(({ name, duration }) => ({ name, duration })));
+          updateVideoHiddenInput();
+        }
+
+        function updateVideoHiddenInput() {
+          // New data structure: array of {video_id: null, filename: string, duration: number, caption: string|null}
+          const videoData = selectedVideos.map(video => ({
+            video_id: null, // To be generated in frontend
+            filename: video.name,
+            duration: video.duration,
+            caption: video.caption || null
+          }));
+          hiddenInput.value = JSON.stringify(videoData);
           // Dispatch custom event to trigger form state update
           hiddenInput.dispatchEvent(new CustomEvent('videofield-change', { bubbles: true }));
         }
@@ -1514,7 +1571,7 @@ export class FormRenderer {
               if (!selectedVideos.some(v => v.name === file.name)) {
                 try {
                   const duration = await getVideoDuration(file);
-                  selectedVideos.push({ name: file.name, duration, file });
+                  selectedVideos.push({ name: file.name, duration, file, caption: null });
                 } catch (err) {
                   console.error(`Could not get duration for ${file.name}`, err);
                 }

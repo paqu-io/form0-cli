@@ -3,6 +3,9 @@ import { resolveSupportingImagePath } from './supporting-image-utils.js';
 import { FormStateManager } from './form-state-manager.js';
 import { OperationProcessor } from './operation-processor.js';
 
+// Submit functionality uses server-side API endpoint
+// No need for browser-side imports since we use the real form0-core functions on the server
+
 // Global variables for translations
 let currentLocale = 'en';
 let translations = {};
@@ -219,6 +222,9 @@ async function renderForm() {
   // Add event listeners to form inputs
   addFormEventListeners();
 
+  // Add submit button event listener
+  addSubmitButtonEventListener();
+
   // Initialize form with default values from schema
   await initializeDefaultValues();
 
@@ -368,6 +374,14 @@ function addFormEventListeners() {
       triggerFormEvent('change', fieldName);
     }
   };
+
+  const signatureFieldHandler = (event) => {
+    formStateManager.updateFormState();
+    const fieldName = extractFieldNameFromChoiceEvent(event, 'signature');
+    if (fieldName) {
+      triggerFormEvent('change', fieldName);
+    }
+  };
   
   // Add document event listeners and track them
   document.addEventListener('singlechoicefield-change', singleChoiceHandler);
@@ -375,13 +389,15 @@ function addFormEventListeners() {
   document.addEventListener('booleanfield-change', booleanFieldHandler);
   document.addEventListener('photofield-change', photoFieldHandler);
   document.addEventListener('videofield-change', videoFieldHandler);
+  document.addEventListener('signaturefield-change', signatureFieldHandler);
   
   documentEventListeners.push(
     { type: 'singlechoicefield-change', handler: singleChoiceHandler },
     { type: 'multichoicefield-change', handler: multiChoiceHandler },
     { type: 'booleanfield-change', handler: booleanFieldHandler },
     { type: 'photofield-change', handler: photoFieldHandler },
-    { type: 'videofield-change', handler: videoFieldHandler }
+    { type: 'videofield-change', handler: videoFieldHandler },
+    { type: 'signaturefield-change', handler: signatureFieldHandler }
   );
 }
 
@@ -403,4 +419,172 @@ function extractFieldNameFromChoiceEvent(event, fieldType) {
     console.warn('Could not extract field name from choice event:', err);
   }
   return null;
+}
+
+/**
+ * Add event listener to submit button
+ */
+function addSubmitButtonEventListener() {
+  const submitBtn = document.getElementById('submit-btn');
+  if (submitBtn) {
+    // Remove existing event listener if any
+    submitBtn.removeEventListener('click', handleFormSubmit);
+    // Add new event listener
+    submitBtn.addEventListener('click', handleFormSubmit);
+  }
+}
+
+/**
+ * Handle form submission
+ */
+async function handleFormSubmit() {
+  console.log('🚀 [RECORD SUBMIT] Starting form submission...');
+  
+  const submitBtn = document.getElementById('submit-btn');
+  
+  try {
+    // Disable submit button during processing
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting...';
+    }
+
+    // Hide any existing error messages
+    hideGlobalError();
+
+    // Update form state to ensure latest validation
+    await formStateManager.updateFormState();
+
+    // Get current form state via /api/engine endpoint
+    const values = formStateManager.getCurrentFormValues();
+    
+    const response = await fetch('/api/engine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get form state: ${response.statusText}`);
+    }
+
+    const state = await response.json();
+
+    // Check for validation errors
+    const validationSummary = formStateManager.getFormValidationSummary();
+    
+    if (validationSummary.hasErrors) {
+      const errorMessages = [];
+      
+      if (validationSummary.requiredFieldErrors.length > 0) {
+        errorMessages.push('Required fields are missing:');
+        validationSummary.requiredFieldErrors.forEach(error => {
+          errorMessages.push(`• ${error.fieldName}: ${error.errorMessage}`);
+        });
+      }
+      
+      if (validationSummary.generalErrors.length > 0) {
+        if (errorMessages.length > 0) errorMessages.push('');
+        errorMessages.push('Validation errors:');
+        validationSummary.generalErrors.forEach(error => {
+          errorMessages.push(`• ${error.fieldName}: ${error.errorMessage}`);
+        });
+      }
+      
+      console.log('❌ [RECORD SUBMIT] Submission blocked due to validation errors');
+      showGlobalError(errorMessages.join('\n'));
+      return;
+    }
+
+    // Create structured record using server-side API
+    const recordResponse = await fetch('/api/create-record', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state }),
+    });
+
+    if (!recordResponse.ok) {
+      throw new Error(`Failed to create structured record: ${recordResponse.statusText}`);
+    }
+
+    const recordResult = await recordResponse.json();
+    const structuredRecord = recordResult.record;
+
+    // Log structured record to console
+    console.log('📋 [STRUCTURED RECORD] Generated structured JSON record:');
+    //console.log(JSON.stringify(structuredRecord, null, 2));
+    console.log(structuredRecord);
+
+    // Show success message
+    showGlobalSuccess('Form submitted successfully! Check console for structured record.');
+
+  } catch (error) {
+    console.error('❌ [RECORD SUBMIT] Error during form submission:', error);
+    console.log('❌ [RECORD SUBMIT] Submission was not successful');
+    showGlobalError(`Submission failed: ${error.message}`);
+  } finally {
+    // Re-enable submit button
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Record (JSON)';
+    }
+  }
+}
+
+/**
+ * Show global error message
+ */
+function showGlobalError(message) {
+  const errorBanner = document.getElementById('global-error-banner');
+  const errorMessage = document.getElementById('global-error-message');
+  
+  if (errorBanner && errorMessage) {
+    errorMessage.textContent = message;
+    errorBanner.classList.remove('hidden');
+    
+    // Scroll to error banner
+    errorBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+/**
+ * Hide global error message
+ */
+function hideGlobalError() {
+  const errorBanner = document.getElementById('global-error-banner');
+  if (errorBanner) {
+    errorBanner.classList.add('hidden');
+  }
+}
+
+/**
+ * Show global success message
+ */
+function showGlobalSuccess(message) {
+  // For now, we'll use the error banner with success styling
+  // In the future, you might want to create a separate success banner
+  const errorBanner = document.getElementById('global-error-banner');
+  const errorMessage = document.getElementById('global-error-message');
+  
+  if (errorBanner && errorMessage) {
+    errorMessage.textContent = message;
+    errorBanner.style.background = '#d4edda';
+    errorBanner.style.borderColor = '#c3e6cb';
+    errorBanner.style.borderLeftColor = '#28a745';
+    errorMessage.style.color = '#155724';
+    errorBanner.classList.remove('hidden');
+    
+    // Auto-hide success message after 5 seconds
+    setTimeout(() => {
+      hideGlobalError();
+      // Reset to error styling
+      errorBanner.style.background = '#f8d7da';
+      errorBanner.style.borderColor = '#f5c6cb';
+      errorBanner.style.borderLeftColor = '#dc3545';
+      errorMessage.style.color = '#721c24';
+    }, 5000);
+    
+    // Scroll to success banner
+    errorBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
