@@ -10,6 +10,9 @@ import { OperationProcessor } from './operation-processor.js';
 let currentLocale = 'en';
 let translations = {};
 
+// Session-based warning deduplication (better than server-side throttling)
+const shownWarnings = new Set();
+
 // Simple translation function for browser use
 function t(key, params = {}) {
   let translation = translations[key] || key;
@@ -93,19 +96,28 @@ async function triggerFormEvent(eventType, fieldKey = null) {
     
     const result = await response.json();
     
-    // Display warnings in browser console
+    // Display warnings in browser console with session-based deduplication
     if (result.warnings && result.warnings.length > 0) {
       result.warnings.forEach(warning => {
-        console.warn(`[form0] ${warning.message}`);
-        if (warning.context) {
-          const contextInfo = formatExecutionContext(warning.context);
-          console.warn(`[form0] Context: ${contextInfo}`);
-        }
-        if (warning.suggestion) {
-          console.info(`[form0] Suggestion: ${warning.suggestion}`);
-        }
-        if (warning.fieldContext) {
-          console.info('[form0] Field context:', warning.fieldContext);
+        // Create a unique key for this warning (more stable than server-side approach)
+        const warningKey = `${warning.message}:${warning.context?.fieldName || ''}`;
+        
+        // Only show each unique warning once per browser session
+        if (!shownWarnings.has(warningKey)) {
+          console.warn(`[form0] ${warning.message}`);
+          if (warning.context) {
+            const contextInfo = formatExecutionContext(warning.context);
+            console.warn(`[form0] Context: ${contextInfo}`);
+          }
+          if (warning.suggestion) {
+            console.info(`[form0] Suggestion: ${warning.suggestion}`);
+          }
+          if (warning.fieldContext) {
+            console.info('[form0] Field context:', warning.fieldContext);
+          }
+          
+          // Mark this warning as shown for this session
+          shownWarnings.add(warningKey);
         }
       });
     }

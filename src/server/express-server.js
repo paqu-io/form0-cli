@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import { createFormEngine, createStructuredRecord, flattenFields } from 'form0-core';
+import { createFormEngine, createStructuredRecord, flattenFields, WarningSystem } from 'form0-core';
 import { fileURLToPath } from 'url';
 import { getLocale, t, getRawTranslation } from '../utils/i18n.js';
 
@@ -9,6 +9,14 @@ const __dirname = path.dirname(__filename);
 
 export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   const app = express();
+  
+  // Create a shared warning system for the entire server session
+  // Client-side handles deduplication, so server just collects all warnings
+  const sharedWarningSystem = new WarningSystem({
+    enableConsoleWarnings: false, // Disable server console - we want warnings in browser
+    enableCollection: true,
+    throttleMs: 0 // No server-side throttling - client handles deduplication
+  });
 
   // Serve static files
   app.use(express.static(path.join(__dirname, 'static')));
@@ -67,18 +75,16 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
 
       const { values = {}, eventType, fieldKey } = req.body;
 
-      // Create engine with proper helpers (including builtins)
+      // Create engine with shared warning system to enable throttling across requests
       const engine = createFormEngine({
         schema: schema,
         initialValues: values,
         helpers: {}, // builtins are included by default in createFormEngine
-        security: { mode: 'development' } // Enable development mode for better warnings
+        security: { mode: 'development' }, // Enable development mode for better warnings
+        warningSystem: sharedWarningSystem // Use shared instance for throttling
       });
 
-      // Enable warning collection for CLI integration
-      const warningSystem = engine.getWarningSystem();
-      warningSystem.setCollectionEnabled(true);
-      warningSystem.clearCollectedWarnings(); // Clear any previous warnings
+      // Note: Shared warning system already has collection enabled and handles throttling
 
       engine.eval();
       const state = engine.getState();
@@ -109,11 +115,15 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
         });
       }
 
-      // Collect warnings for browser display
-      const collectedWarnings = warningSystem.getCollectedWarnings();
+      // Collect warnings for browser display (from shared warning system)
+      const collectedWarnings = sharedWarningSystem.getCollectedWarnings();
       
       // Return state with operations and warnings (backward compatible - existing clients ignore warnings)
       res.json({ ...state, operations, warnings: collectedWarnings });
+      
+      // Clear warnings immediately after sending - the 30-second throttling prevents spam
+      // No need for setTimeout hack since throttling handles duplicate prevention
+      sharedWarningSystem.clearCollectedWarnings();
     } catch (err) {
       console.error('Engine evaluation error:', err);
       res.status(400).json({ error: err.message });
