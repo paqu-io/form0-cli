@@ -20,7 +20,7 @@ function handleSetValue(params, formStateManager) {
   }
 
   // Use the FormStateManager to set the field value
-  // (logging happens in FormStateManager.setFieldValue with more detail)
+  // Note: Server-side validation already filtered invalid operations, so this should be valid
   formStateManager.setFieldValue(fieldDataName, valueToSet);
 }
 

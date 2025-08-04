@@ -72,7 +72,13 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
         schema: schema,
         initialValues: values,
         helpers: {}, // builtins are included by default in createFormEngine
+        security: { mode: 'development' } // Enable development mode for better warnings
       });
+
+      // Enable warning collection for CLI integration
+      const warningSystem = engine.getWarningSystem();
+      warningSystem.setCollectionEnabled(true);
+      warningSystem.clearCollectedWarnings(); // Clear any previous warnings
 
       engine.eval();
       const state = engine.getState();
@@ -103,8 +109,11 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
         });
       }
 
-      // Return state with operations (backward compatible - existing clients ignore operations)
-      res.json({ ...state, operations });
+      // Collect warnings for browser display
+      const collectedWarnings = warningSystem.getCollectedWarnings();
+      
+      // Return state with operations and warnings (backward compatible - existing clients ignore warnings)
+      res.json({ ...state, operations, warnings: collectedWarnings });
     } catch (err) {
       console.error('Engine evaluation error:', err);
       res.status(400).json({ error: err.message });

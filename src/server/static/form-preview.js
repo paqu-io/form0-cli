@@ -93,6 +93,23 @@ async function triggerFormEvent(eventType, fieldKey = null) {
     
     const result = await response.json();
     
+    // Display warnings in browser console
+    if (result.warnings && result.warnings.length > 0) {
+      result.warnings.forEach(warning => {
+        console.warn(`[form0] ${warning.message}`);
+        if (warning.context) {
+          const contextInfo = formatExecutionContext(warning.context);
+          console.warn(`[form0] Context: ${contextInfo}`);
+        }
+        if (warning.suggestion) {
+          console.info(`[form0] Suggestion: ${warning.suggestion}`);
+        }
+        if (warning.fieldContext) {
+          console.info('[form0] Field context:', warning.fieldContext);
+        }
+      });
+    }
+    
     // Apply state updates (non-blocking - if this fails, continue anyway)
     try {
       formStateManager.applyFormState(result);
@@ -106,6 +123,7 @@ async function triggerFormEvent(eventType, fieldKey = null) {
       console.log(`🔴 [FORM EVENT] ${eventDesc} → Processing ${result.operations.length} operations`);
       
       // Process operations through the operation processor
+      // Note: Server-side validation already filtered invalid operations and generated warnings
       await operationProcessor.processOperations(result.operations);
     }
   } catch (err) {
@@ -587,4 +605,25 @@ function showGlobalSuccess(message) {
     // Scroll to success banner
     errorBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
+}
+
+/**
+ * Format execution context for human-readable display in browser console
+ * @param {Object} context - Execution context object
+ * @returns {string} Formatted context string
+ */
+function formatExecutionContext(context) {
+  if (context.type === 'event') {
+    if (context.fieldName) {
+      return `Event '${context.eventType}' on field '${context.fieldName}'`;
+    } else {
+      return `Event '${context.eventType}'`;
+    }
+  }
+  
+  if (context.type === 'calculation') {
+    return `CalculatedField '${context.fieldName}'`;
+  }
+  
+  return `${context.type} context`;
 }
