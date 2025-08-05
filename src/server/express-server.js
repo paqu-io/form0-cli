@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import { createFormEngine, createStructuredRecord, flattenFields, WarningSystem } from 'form0-core';
+import { createFormEngine, createStructuredRecord, flattenFields, WarningSystem, recordVersion, formVersion } from 'form0-core';
 import { fileURLToPath } from 'url';
 import { getLocale, t, getRawTranslation } from '../utils/i18n.js';
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid';
@@ -294,6 +294,24 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
       
       if (!state) {
         return res.status(400).json({ error: 'Form state is required' });
+      }
+
+      // Validate version if provided in options
+      if (options.version !== undefined) {
+        if (!recordVersion.isValid(options.version)) {
+          return res.status(400).json({ 
+            error: 'Invalid record version. Must be a positive integer (e.g., 1, 2, 3)' 
+          });
+        }
+      }
+
+      // Validate form version if present in schema
+      if (schema.form?.version !== undefined) {
+        if (!formVersion.isValid(schema.form.version)) {
+          return res.status(400).json({ 
+            error: 'Invalid form version format. Use simple format (e.g., "1", "2-dev1704123456") or semantic (e.g., "1.1.1", "1.2.0-dev1704123456")' 
+          });
+        }
       }
 
       // Flatten form elements to get field mappings
