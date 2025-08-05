@@ -895,6 +895,26 @@ export class FormStateManager {
           }
           return;
         }
+      } else if (field.type === 'SignatureField') {
+        // Check if SignatureField has a value
+        const container = document.querySelector(`[data-name="${fieldName}"] .signature-field-container`);
+        if (container) {
+          const hiddenInput = container.querySelector(`input[type="hidden"][name="${fieldName}"]`);
+          if (hiddenInput && hiddenInput.value) {
+            try {
+              const parsedValue = JSON.parse(hiddenInput.value);
+              hasValue = parsedValue && parsedValue.data && parsedValue.data.trim() !== '';
+            } catch (e) {
+              hasValue = false;
+            }
+          }
+        }
+        if (!hasValue && isRequired) {
+          if (!fieldDiv.classList.contains('error')) {
+            this.showFieldError(fieldName, 'This field is required');
+          }
+          return;
+        }
       } else {
         // Check regular fields
         const input = document.querySelector(`input[name="${fieldName}"], select[name="${fieldName}"]`);

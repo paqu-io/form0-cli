@@ -7,7 +7,7 @@ export const defaultFormTemplate = {
     last_record_updated_at: null,
     last_record_deleted_by: null,
     status: 'active', //status can be active or inactive
-    version: 1,
+    version: '1',
     events: {
       code: `
         function alertTest(event) {
