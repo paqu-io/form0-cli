@@ -410,6 +410,35 @@ body {
     display: none; 
 }
 
+/* Record header and metadata panel */
+.record-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+
+.record-header-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.record-status-pill {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background: #ccc;
+  flex: 0 0 14px;
+}
+
+.record-metadata-panel {
+  border: 1px solid #eee;
+  padding: 12px;
+  margin: 0 0 16px;
+  border-left: 4px solid #999;
+}
+
 /* PhotoField and VideoField styling */
 .file-preview-container {
     display: flex;

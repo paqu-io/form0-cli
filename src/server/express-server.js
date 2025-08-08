@@ -325,7 +325,12 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
       // Pass both flattened fields (for key mapping) and original elements (for nesting)
       const structuredRecord = createStructuredRecord(enhancedState, flattenedFields, {
         ...recordOptions,
-        originalElements: schema.form?.elements || []
+        originalElements: schema.form?.elements || [],
+        // Pass top-level fields for record transformer title/status computation
+        title_field: schema.form?.title_field || null,
+        status_field: schema.form?.status_field || null,
+        // If client provided @status in options, merge it here so transformer picks it up
+        '@status': options['@status'] || undefined
       });
       
       res.json({ record: structuredRecord });

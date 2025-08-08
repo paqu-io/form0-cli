@@ -70,6 +70,8 @@ async function loadTranslations() {
 let ws = null;
 let currentSchema = null;
 let schemaSource = 'Current Schema'; // Will be updated by server
+let currentStatusValue = null; // Selected status for metadata panel (not part of engine state)
+let createdAtTimestamp = null; // Simple client-side timestamps for preview
 
 // Initialize modular components
 const formRenderer = new FormRenderer();
@@ -255,6 +257,9 @@ async function renderForm() {
   // Add submit button event listener
   addSubmitButtonEventListener();
 
+  // Render header and metadata panel
+  renderRecordHeaderAndMetadata();
+
   // Initialize form with default values from schema
   await initializeDefaultValues();
 
@@ -266,6 +271,210 @@ async function renderForm() {
 
   // Initial engine evaluation (this will also recalculate any calculated fields)
   formStateManager.updateFormState();
+}
+// ---- Metadata rendering helpers ----
+function computeLiveTitle(stateValues) {
+  const titleField = currentSchema?.form?.title_field;
+  if (!titleField || !Array.isArray(titleField.elements)) return '';
+  const parts = [];
+  for (const ref of titleField.elements) {
+    const field = formRenderer.findFieldByDataName(ref) || formRenderer.findFieldByKey(ref);
+    if (!field) continue;
+    const value = stateValues[field.data_name];
+    if (value == null) continue;
+    if (field.type === 'SingleChoiceField') {
+      const labels = [];
+      if (value.choice && Array.isArray(value.choice) && value.choice.length > 0) {
+        const v = value.choice[0].value;
+        const found = (field.choices || []).find(c => c.value === v);
+        labels.push(found?.label || value.choice[0].label || v);
+      }
+      if (value.other && Array.isArray(value.other)) {
+        for (const o of value.other) { if (o && (o.label || o.value)) labels.push(o.label || o.value); }
+      }
+      const text = labels.filter(Boolean).join(', ');
+      if (text) parts.push(text);
+    } else if (field.type === 'MultiChoiceField') {
+      const labels = [];
+      if (value.choices && Array.isArray(value.choices)) {
+        for (const c of value.choices) {
+          const found = (field.choices || []).find(cc => cc.value === c.value);
+          labels.push(found?.label || c.label || c.value);
+        }
+      }
+      if (value.other && Array.isArray(value.other)) {
+        for (const o of value.other) { if (o && (o.label || o.value)) labels.push(o.label || o.value); }
+      }
+      const text = labels.filter(Boolean).join(', ');
+      if (text) parts.push(text);
+    } else if (field.type === 'BooleanField') {
+      let label = '';
+      if (value.choice && Array.isArray(value.choice) && value.choice.length > 0) {
+        const v = value.choice[0].value;
+        const found = (field.choices || []).find(c => c.value === v);
+        label = found?.label || value.choice[0].label || v;
+      }
+      if (label) parts.push(label);
+    } else {
+      const text = typeof value === 'object' ? null : String(value);
+      if (text && text.trim() !== '') parts.push(text);
+    }
+  }
+  return parts.join(', ');
+}
+
+function renderRecordHeaderAndMetadata() {
+  const container = document.getElementById('form-container');
+  if (!container) return;
+  // Avoid duplicates on re-render
+  if (document.getElementById('record-header')) {
+    document.getElementById('record-header')?.remove();
+  }
+  if (document.getElementById('record-metadata-panel')) {
+    document.getElementById('record-metadata-panel')?.remove();
+  }
+
+  const header = document.createElement('div');
+  header.id = 'record-header';
+  header.className = 'record-header';
+
+  const statusPill = document.createElement('span');
+  statusPill.id = 'record-header-status-pill';
+  statusPill.className = 'record-status-pill';
+
+  const titleEl = document.createElement('div');
+  titleEl.id = 'record-header-title';
+  titleEl.className = 'record-header-title';
+  titleEl.textContent = '';
+
+  header.appendChild(statusPill);
+  header.appendChild(titleEl);
+
+  const panel = document.createElement('div');
+  panel.id = 'record-metadata-panel';
+  panel.className = 'record-metadata-panel';
+  const heading = document.createElement('div');
+  heading.textContent = 'Record Metadata';
+  heading.className = 'section-title';
+  panel.appendChild(heading);
+
+  // Title (styled like TextField)
+  const titleFieldDiv = document.createElement('div');
+  titleFieldDiv.className = 'field readonly';
+  titleFieldDiv.setAttribute('data-name', '@title');
+  const titleLabelRow = document.createElement('div');
+  titleLabelRow.className = 'field-label-row';
+  const titleLabel = document.createElement('label');
+  titleLabel.id = 'record-metadata-title_label';
+  titleLabel.textContent = 'Title';
+  titleLabelRow.appendChild(titleLabel);
+  titleFieldDiv.appendChild(titleLabelRow);
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.id = 'record-metadata-title';
+  titleInput.readOnly = true; // TitleField is read_only
+  titleFieldDiv.appendChild(titleInput);
+  panel.appendChild(titleFieldDiv);
+
+  // Status (styled like SingleChoiceField simple)
+  const statusField = currentSchema?.form?.status_field;
+  const statusFieldDiv = document.createElement('div');
+  statusFieldDiv.className = 'field';
+  statusFieldDiv.setAttribute('data-name', '@status');
+  const statusLabelRow = document.createElement('div');
+  statusLabelRow.className = 'field-label-row';
+  const statusLabel = document.createElement('label');
+  statusLabel.id = 'record-metadata-status_label';
+  statusLabel.textContent = 'Status';
+  statusLabelRow.appendChild(statusLabel);
+  statusFieldDiv.appendChild(statusLabelRow);
+  const statusContainer = document.createElement('div');
+  statusContainer.className = 'single-choice-field-simple-container';
+  statusContainer.setAttribute('aria-labelledby', 'record-metadata-status_label');
+  const statusSelect = document.createElement('select');
+  statusSelect.id = 'record-metadata-status';
+  statusSelect.className = 'single-choice-field-simple-select';
+  if (statusField && Array.isArray(statusField.choices)) {
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = 'Select status...';
+    statusSelect.appendChild(empty);
+    statusField.choices.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.value;
+      opt.textContent = c.label || c.value;
+      statusSelect.appendChild(opt);
+    });
+    if (currentStatusValue == null) currentStatusValue = statusField.default_value || '';
+    statusSelect.value = currentStatusValue || '';
+  }
+  statusContainer.appendChild(statusSelect);
+  statusFieldDiv.appendChild(statusContainer);
+  panel.appendChild(statusFieldDiv);
+
+  // Created at (TextField-like, readonly)
+  const createdFieldDiv = document.createElement('div');
+  createdFieldDiv.className = 'field readonly';
+  createdFieldDiv.setAttribute('data-name', '@created_at');
+  const createdLabelRow = document.createElement('div');
+  createdLabelRow.className = 'field-label-row';
+  const createdLabel = document.createElement('label');
+  createdLabel.id = 'record-metadata-created-at_label';
+  createdLabel.textContent = 'created_at';
+  createdLabelRow.appendChild(createdLabel);
+  createdFieldDiv.appendChild(createdLabelRow);
+  const createdInput = document.createElement('input');
+  createdInput.type = 'text';
+  createdInput.id = 'record-metadata-created-at';
+  createdInput.readOnly = true;
+  createdFieldDiv.appendChild(createdInput);
+  panel.appendChild(createdFieldDiv);
+
+  // Updated at (TextField-like, readonly)
+  const updatedFieldDiv = document.createElement('div');
+  updatedFieldDiv.className = 'field readonly';
+  updatedFieldDiv.setAttribute('data-name', '@updated_at');
+  const updatedLabelRow = document.createElement('div');
+  updatedLabelRow.className = 'field-label-row';
+  const updatedLabel = document.createElement('label');
+  updatedLabel.id = 'record-metadata-updated-at_label';
+  updatedLabel.textContent = 'updated_at';
+  updatedLabelRow.appendChild(updatedLabel);
+  updatedFieldDiv.appendChild(updatedLabelRow);
+  const updatedInput = document.createElement('input');
+  updatedInput.type = 'text';
+  updatedInput.id = 'record-metadata-updated-at';
+  updatedInput.readOnly = true;
+  updatedFieldDiv.appendChild(updatedInput);
+  panel.appendChild(updatedFieldDiv);
+
+  // Insert header below the form title (h2), then panel below header
+  const formTitleEl = container.querySelector('h2');
+  if (formTitleEl) {
+    formTitleEl.insertAdjacentElement('afterend', header);
+    header.insertAdjacentElement('afterend', panel);
+  } else {
+    // Fallback: append at top if no h2 found
+    container.prepend(panel);
+    container.prepend(header);
+  }
+
+  // Wire status change
+  statusSelect.addEventListener('change', () => {
+    currentStatusValue = statusSelect.value || '';
+    updateHeaderStatusPill();
+  });
+
+  // Initial header update
+  updateHeaderStatusPill();
+}
+
+function updateHeaderStatusPill() {
+  const pill = document.getElementById('record-header-status-pill');
+  const statusField = currentSchema?.form?.status_field;
+  if (!pill || !statusField) return;
+  const choice = (statusField.choices || []).find(c => c.value === currentStatusValue);
+  pill.style.background = choice?.color || '#ccc';
 }
 
 /**
@@ -429,6 +638,31 @@ function addFormEventListeners() {
     { type: 'videofield-change', handler: videoFieldHandler },
     { type: 'signaturefield-change', handler: signatureFieldHandler }
   );
+
+  // Hook into engine state application to refresh header/metadata title
+  const originalApply = formStateManager.applyFormState.bind(formStateManager);
+  formStateManager.applyFormState = function(state) {
+    try {
+      // Update live title
+      const title = computeLiveTitle(state.values || {});
+      const headerTitle = document.getElementById('record-header-title');
+      const metaTitle = document.getElementById('record-metadata-title');
+      if (headerTitle) headerTitle.textContent = title || '';
+      if (metaTitle) metaTitle.value = title || '';
+      // Update created/updated timestamps for preview
+      const createdInput = document.getElementById('record-metadata-created-at');
+      const updatedInput = document.getElementById('record-metadata-updated-at');
+      const now = new Date().toISOString();
+      if (!createdAtTimestamp) createdAtTimestamp = now;
+      if (createdInput) createdInput.value = createdAtTimestamp;
+      if (updatedInput) updatedInput.value = now;
+      // Update status pill color
+      updateHeaderStatusPill();
+    } catch (e) {
+      console.warn('Failed updating metadata preview:', e);
+    }
+    return originalApply(state);
+  };
 }
 
 /**
@@ -530,7 +764,7 @@ async function handleFormSubmit() {
     const recordResponse = await fetch('/api/create-record', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state }),
+      body: JSON.stringify({ state, options: { '@status': currentStatusValue } }),
     });
 
     if (!recordResponse.ok) {

@@ -1678,4 +1678,21 @@ export class FormRenderer {
 
     return this.currentSchema ? searchElements(this.currentSchema.form.elements || []) : null;
   }
+
+  /**
+   * Find field definition by key
+   */
+  findFieldByKey(key) {
+    function search(elements) {
+      for (const el of elements || []) {
+        if (el.key === key) return el;
+        if ((el.type === 'Section' || el.type === 'RepeatableSection') && Array.isArray(el.elements)) {
+          const found = search(el.elements || el.drilldown_elements || []);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+    return this.currentSchema ? search(this.currentSchema.form.elements || []) : null;
+  }
 }
