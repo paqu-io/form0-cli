@@ -524,11 +524,11 @@ export const defaultFormTemplate = {
         visible: false,
         visible_conditions: {
           and: [
-            { field_id: 'ea3a1', operator: 'equal_to', value: 'yes' },
+            { field_id: 'can_vote', operator: 'equal_to', value: 'yes' },
             {
               or: [
-                { field_id: 'ccbb56', operator: 'greater_than', value: 20 },
-                { field_id: 'ef661', operator: 'equal_to', value: 'Bob' },
+                { field_id: 'age', operator: 'greater_than', value: 20 },
+                { field_id: 'first_name', operator: 'equal_to', value: 'Bob' },
               ],
             },
           ],
