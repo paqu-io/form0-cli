@@ -59,8 +59,8 @@ export const defaultFormTemplate = {
       read_only: true, //TitleField is always read_only = true
       read_only_conditions: null,
       elements: [ //Elements can be an array of elements or a single element. Elements should be field keys but field data_name can be used as fallback. Elements, when rendered, will be concatenated with each other with a comma and displayed at the top of the record as a title.
-        'ef661',
-        '0180f' //If a key/data_name refers to a SingleChoiceField, MultiChoiceField or BooleanField, we should always show the choice label.
+        'first_name',
+        'city' //If a key/data_name refers to a SingleChoiceField, MultiChoiceField or BooleanField, we should always show the choice label.
       ],
     },
     bounding_box: [
@@ -110,7 +110,6 @@ export const defaultFormTemplate = {
     elements: [
       {
         type: 'Section',
-        key: 'abcd1',
         data_name: 'personal_info',
         label: 'Personal Info',
         display: 'inline', //Section can be 'inline' or 'drilldown'
@@ -121,7 +120,6 @@ export const defaultFormTemplate = {
         elements: [
           {
             type: 'TextField',
-            key: 'ef661',
             data_name: 'first_name',
             label: 'First Name',
             display: 'default', //TextField can only be 'default'
@@ -143,7 +141,6 @@ export const defaultFormTemplate = {
           },
           {
             type: 'SingleChoiceField',
-            key: '0180f',
             data_name: 'city',
             label: 'City',
             display: 'default', //SingleChoiceField can be 'default' or 'radio'
@@ -183,7 +180,6 @@ export const defaultFormTemplate = {
           },
           {
             type: 'MultiChoiceField',
-            key: '0332f',
             data_name: 'colors',
             label: 'Please select your favorite colors',
             display: 'default', //MultiChoiceField can be 'default' or 'checkbox'
@@ -223,7 +219,6 @@ export const defaultFormTemplate = {
           },
           {
             type: 'CalculatedField',
-            key: 'ea322',
             data_name: 'city_calc',
             label: 'city_calc',
             display: {
@@ -245,7 +240,6 @@ export const defaultFormTemplate = {
           },
           {
             type: 'CalculatedField',
-            key: 'aa123',
             data_name: 'colors_calc',
             label: 'colors_calc',
             display: {
@@ -264,7 +258,6 @@ export const defaultFormTemplate = {
           },
           {
             type: 'NumericField',
-            key: 'ccbb56',
             data_name: 'age',
             label: 'Age',
             display: 'default', //NumericField can only be 'default'
@@ -288,7 +281,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'CalculatedField',
-        key: 'ea3a1',
         data_name: 'can_vote',
         label: 'Eligible',
         display: {
@@ -307,7 +299,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'CalculatedField',
-        key: 'e4567',
         data_name: 'calc_test',
         label: 'calc_test',
         display: {
@@ -326,7 +317,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'CalculatedField',
-        key: 'ee123',
         data_name: 'calc_test_new',
         label: 'calc_test_new',
         display: {
@@ -345,7 +335,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'DateField',
-        key: 'ff551',
         data_name: 'field_visit_date',
         label: 'Field visit date',
         display: 'default', //DateField can only be 'default'
@@ -361,7 +350,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'TimeField',
-        key: 'a34a1',
         data_name: 'field_visit_time',
         label: 'Field visit time',
         display: 'default', //TimeField can only be 'default'
@@ -377,7 +365,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'BooleanField',
-        key: '1990f',
         data_name: 'gender',
         label: 'Gender',
         display: 'default', //BooleanField can only be 'default'
@@ -411,7 +398,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'LabelField',
-        key: '1985ff',
         data_name: 'photo_consent',
         label: 'Please be aware that photographs may be taken at this Community Engagement event. By submitting this form, you consent to the use of any photos in which you appear in reports related to the Housing Improvement under PDUNM project and in Build Change marketing materials. You also acknowledge that the information you provide on this form will only be used for the purposes of this project.',
         display: 'default', //LabelField can only be 'default'
@@ -428,7 +414,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'CalculatedField',
-        key: '1955ff',
         data_name: 'calc_test_new_bis',
         label: 'calc_test_new_bis',
         description: null, //description can be null or a string
@@ -447,7 +432,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'SignatureField',
-        key: '1993ff',
         data_name: 'signature',
         label: 'Please add your signature below',
         display: 'default', //SignatureField can only be 'default'
@@ -464,7 +448,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'PhotoField',
-        key: '1991ff',
         data_name: 'house_photo',
         label: 'Take a photo of the house',
         display: 'default', //PhotoField can only be 'default'
@@ -482,7 +465,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'VideoField',
-        key: '1989ff',
         data_name: 'house_video',
         label: 'Take a video of the house',
         display: 'default', //PhotoField can only be 'default'
@@ -500,7 +482,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'Section',
-        key: 'e4568',
         data_name: 'section_drill',
         label: 'Drilldown section test',
         display: 'drilldown', //Section can be 'inline' or 'drilldown'
@@ -511,7 +492,6 @@ export const defaultFormTemplate = {
         elements: [
           {
             type: 'TextField',
-            key: '43aa1',
             data_name: 'comments',
             label: 'Comments',
             display: 'default', //TextField can only be 'default'
@@ -534,7 +514,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'TextField',
-        key: '11332',
         data_name: 'who_voted',
         label: 'Who voted?',
         display: 'default', //TextField can only be 'default'
@@ -565,7 +544,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'SingleChoiceField',
-        key: '11487',
         data_name: 'fruit',
         label: 'Fruit',
         display: 'default',
@@ -601,7 +579,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'MultiChoiceField',
-        key: '19998',
         data_name: 'food',
         label: 'Please select your favorite food!',
         display: 'default',
@@ -641,7 +618,6 @@ export const defaultFormTemplate = {
       },
       {
         type: 'RepeatableSection',
-        key: 'zxwk1',
         data_name: 'evaluation_tests',
         label: 'Evaluation tests',
         display: 'drilldown', //Section can be only 'drilldown'
@@ -654,7 +630,6 @@ export const defaultFormTemplate = {
         elements: [
           {
             type: 'TextField',
-            key: '8877c',
             data_name: 'email',
             label: 'Email',
             display: 'default', //TextField can only be 'default'
@@ -676,7 +651,6 @@ export const defaultFormTemplate = {
           },
           {
             type: 'CalculatedField',
-            key: '4ff44',
             data_name: 'age_division',
             label: 'Age divided by 2',
             display: {
@@ -695,7 +669,6 @@ export const defaultFormTemplate = {
           },
           {
             type: "Section",
-            key: "546aa",
             data_name: "non_structural_assessment",
             label: "Non-structural assessment",
             display: "inline",
@@ -706,7 +679,6 @@ export const defaultFormTemplate = {
             elements: [
               {
                 type: "RepeatableSection",
-                key: "9944a",
                 data_name: "water_sanitation",
                 label: "Water & Sanitation",
                 display: "drilldown",
@@ -719,7 +691,6 @@ export const defaultFormTemplate = {
                 elements: [
                   {
                     type: "Section",
-                    key: "1234c",
                     data_name: "first_phase",
                     label: "First phase",
                     display: "inline",
@@ -730,7 +701,6 @@ export const defaultFormTemplate = {
                     elements: [
                       {
                         type: "TextField",
-                        key: "8877e",
                         data_name: "email_test_bis",
                         label: "Email Bis",
                         display: "default",
@@ -751,7 +721,6 @@ export const defaultFormTemplate = {
                       },
                       {
                         type: 'NumericField',
-                        key: '451e3',
                         data_name: 'random_number',
                         label: 'Random number',
                         display: 'default', //NumericField can only be 'default'
@@ -774,8 +743,7 @@ export const defaultFormTemplate = {
                     ],
                   }
                 ],
-              },
-              
+              },    
             ],
           },
         ],
