@@ -14,7 +14,10 @@ export function ensureKeysForSchema(elements) {
         if (!field.key) field.key = generateKey(field.data_name);
         dataNameToKey[field.data_name] = field.key;
       }
-      if ((field.type === 'Section' || field.type === 'RepeatableSection') && Array.isArray(field.elements)) {
+      if (
+        (field.type === 'Section' || field.type === 'RepeatableSection') &&
+        Array.isArray(field.elements)
+      ) {
         collectKeys(field.elements);
       }
     });
@@ -52,10 +55,15 @@ export function ensureKeysForSchema(elements) {
   function normalizeFields(fields) {
     fields.forEach((field) => {
       // Normalize all known condition types
-      ['visible_conditions', 'requirement_conditions', 'read_only_conditions'].forEach((condKey) => {
-        if (field[condKey]) normalizeConditionRefs(field[condKey]);
-      });
-      if ((field.type === 'Section' || field.type === 'RepeatableSection') && Array.isArray(field.elements)) {
+      ['visible_conditions', 'requirement_conditions', 'read_only_conditions'].forEach(
+        (condKey) => {
+          if (field[condKey]) normalizeConditionRefs(field[condKey]);
+        }
+      );
+      if (
+        (field.type === 'Section' || field.type === 'RepeatableSection') &&
+        Array.isArray(field.elements)
+      ) {
         normalizeFields(field.elements);
       }
     });

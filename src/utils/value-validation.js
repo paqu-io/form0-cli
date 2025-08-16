@@ -18,7 +18,10 @@ export function getValidDataNames(schema) {
       if (element.data_name) {
         dataNames.push(element.data_name);
       }
-      if ((element.type === 'Section' || element.type === 'RepeatableSection') && element.elements) {
+      if (
+        (element.type === 'Section' || element.type === 'RepeatableSection') &&
+        element.elements
+      ) {
         extractDataNames(element.elements);
       }
     }

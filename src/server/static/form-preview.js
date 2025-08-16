@@ -84,26 +84,26 @@ const operationProcessor = new OperationProcessor(formStateManager);
 async function triggerFormEvent(eventType, fieldKey = null) {
   try {
     const values = formStateManager.getCurrentFormValues();
-    
+
     const response = await fetch('/api/engine', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ values, eventType, fieldKey }),
     });
-    
+
     if (!response.ok) {
       console.warn('Failed to trigger form event:', response.statusText);
       return;
     }
-    
+
     const result = await response.json();
-    
+
     // Display warnings in browser console with session-based deduplication
     if (result.warnings && result.warnings.length > 0) {
-      result.warnings.forEach(warning => {
+      result.warnings.forEach((warning) => {
         // Create a unique key for this warning (more stable than server-side approach)
         const warningKey = `${warning.message}:${warning.context?.fieldName || ''}`;
-        
+
         // Only show each unique warning once per browser session
         if (!shownWarnings.has(warningKey)) {
           console.warn(`[form0] ${warning.message}`);
@@ -117,25 +117,27 @@ async function triggerFormEvent(eventType, fieldKey = null) {
           if (warning.fieldContext) {
             console.info('[form0] Field context:', warning.fieldContext);
           }
-          
+
           // Mark this warning as shown for this session
           shownWarnings.add(warningKey);
         }
       });
     }
-    
+
     // Apply state updates (non-blocking - if this fails, continue anyway)
     try {
       formStateManager.applyFormState(result);
     } catch (err) {
       console.warn('Failed to apply state after event:', err);
     }
-    
+
     // Process event operations using the operation processor
     if (result.operations && result.operations.length > 0) {
       const eventDesc = fieldKey ? `${eventType}:${fieldKey}` : eventType;
-      console.log(`🔴 [FORM EVENT] ${eventDesc} → Processing ${result.operations.length} operations`);
-      
+      console.log(
+        `🔴 [FORM EVENT] ${eventDesc} → Processing ${result.operations.length} operations`
+      );
+
       // Process operations through the operation processor
       // Note: Server-side validation already filtered invalid operations and generated warnings
       await operationProcessor.processOperations(result.operations);
@@ -165,7 +167,7 @@ function initializeWebSocket() {
       // Check if schema has actually changed to prevent duplicate rendering
       const newSchema = data.schema;
       const schemaChanged = JSON.stringify(currentSchema) !== JSON.stringify(newSchema);
-      
+
       if (schemaChanged) {
         // Preserve current form values before schema update
         formStateManager.preserveCurrentValues();
@@ -286,11 +288,13 @@ function computeLiveTitle(stateValues) {
       const labels = [];
       if (value.choice && Array.isArray(value.choice) && value.choice.length > 0) {
         const v = value.choice[0].value;
-        const found = (field.choices || []).find(c => c.value === v);
+        const found = (field.choices || []).find((c) => c.value === v);
         labels.push(found?.label || value.choice[0].label || v);
       }
       if (value.other && Array.isArray(value.other)) {
-        for (const o of value.other) { if (o && (o.label || o.value)) labels.push(o.label || o.value); }
+        for (const o of value.other) {
+          if (o && (o.label || o.value)) labels.push(o.label || o.value);
+        }
       }
       const text = labels.filter(Boolean).join(', ');
       if (text) parts.push(text);
@@ -298,12 +302,14 @@ function computeLiveTitle(stateValues) {
       const labels = [];
       if (value.choices && Array.isArray(value.choices)) {
         for (const c of value.choices) {
-          const found = (field.choices || []).find(cc => cc.value === c.value);
+          const found = (field.choices || []).find((cc) => cc.value === c.value);
           labels.push(found?.label || c.label || c.value);
         }
       }
       if (value.other && Array.isArray(value.other)) {
-        for (const o of value.other) { if (o && (o.label || o.value)) labels.push(o.label || o.value); }
+        for (const o of value.other) {
+          if (o && (o.label || o.value)) labels.push(o.label || o.value);
+        }
       }
       const text = labels.filter(Boolean).join(', ');
       if (text) parts.push(text);
@@ -311,7 +317,7 @@ function computeLiveTitle(stateValues) {
       let label = '';
       if (value.choice && Array.isArray(value.choice) && value.choice.length > 0) {
         const v = value.choice[0].value;
-        const found = (field.choices || []).find(c => c.value === v);
+        const found = (field.choices || []).find((c) => c.value === v);
         label = found?.label || value.choice[0].label || v;
       }
       if (label) parts.push(label);
@@ -399,7 +405,7 @@ function renderRecordHeaderAndMetadata() {
     empty.value = '';
     empty.textContent = 'Select status...';
     statusSelect.appendChild(empty);
-    statusField.choices.forEach(c => {
+    statusField.choices.forEach((c) => {
       const opt = document.createElement('option');
       opt.value = c.value;
       opt.textContent = c.label || c.value;
@@ -473,7 +479,7 @@ function updateHeaderStatusPill() {
   const pill = document.getElementById('record-header-status-pill');
   const statusField = currentSchema?.form?.status_field;
   if (!pill || !statusField) return;
-  const choice = (statusField.choices || []).find(c => c.value === currentStatusValue);
+  const choice = (statusField.choices || []).find((c) => c.value === currentStatusValue);
   pill.style.background = choice?.color || '#ccc';
 }
 
@@ -549,7 +555,7 @@ function addFormEventListeners() {
     document.removeEventListener(type, handler);
   });
   documentEventListeners = [];
-  
+
   // Add event listeners to all form inputs, but exclude choice fields (they have custom handlers)
   const inputs = document.querySelectorAll('#main-form input, #main-form select');
   inputs.forEach((input) => {
@@ -557,7 +563,7 @@ function addFormEventListeners() {
     if (input.closest('[class*="choice-field"]')) {
       return;
     }
-    
+
     input.addEventListener('input', () => {
       formStateManager.updateFormState();
       // Trigger change event for this specific field
@@ -565,14 +571,14 @@ function addFormEventListeners() {
         triggerFormEvent('change', input.name);
       }
     });
-    
+
     input.addEventListener('change', () => {
       formStateManager.updateFormState();
       // Note: We don't trigger form events on 'change' (blur) to avoid duplicates
       // and to prepare for potential future blur/focus event handling
     });
   });
-  
+
   // Create handlers and keep track of them
   const singleChoiceHandler = (event) => {
     formStateManager.updateFormState();
@@ -581,7 +587,7 @@ function addFormEventListeners() {
       triggerFormEvent('change', fieldName);
     }
   };
-  
+
   const multiChoiceHandler = (event) => {
     formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'multi');
@@ -621,7 +627,7 @@ function addFormEventListeners() {
       triggerFormEvent('change', fieldName);
     }
   };
-  
+
   // Add document event listeners and track them
   document.addEventListener('singlechoicefield-change', singleChoiceHandler);
   document.addEventListener('multichoicefield-change', multiChoiceHandler);
@@ -629,7 +635,7 @@ function addFormEventListeners() {
   document.addEventListener('photofield-change', photoFieldHandler);
   document.addEventListener('videofield-change', videoFieldHandler);
   document.addEventListener('signaturefield-change', signatureFieldHandler);
-  
+
   documentEventListeners.push(
     { type: 'singlechoicefield-change', handler: singleChoiceHandler },
     { type: 'multichoicefield-change', handler: multiChoiceHandler },
@@ -641,7 +647,7 @@ function addFormEventListeners() {
 
   // Hook into engine state application to refresh header/metadata title
   const originalApply = formStateManager.applyFormState.bind(formStateManager);
-  formStateManager.applyFormState = function(state) {
+  formStateManager.applyFormState = function (state) {
     try {
       // Update live title
       const title = computeLiveTitle(state.values || {});
@@ -703,9 +709,9 @@ function addSubmitButtonEventListener() {
  */
 async function handleFormSubmit() {
   console.log('🚀 [RECORD SUBMIT] Starting form submission...');
-  
+
   const submitBtn = document.getElementById('submit-btn');
-  
+
   try {
     // Disable submit button during processing
     if (submitBtn) {
@@ -721,7 +727,7 @@ async function handleFormSubmit() {
 
     // Get current form state via /api/engine endpoint
     const values = formStateManager.getCurrentFormValues();
-    
+
     const response = await fetch('/api/engine', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -736,25 +742,25 @@ async function handleFormSubmit() {
 
     // Check for validation errors
     const validationSummary = formStateManager.getFormValidationSummary();
-    
+
     if (validationSummary.hasErrors) {
       const errorMessages = [];
-      
+
       if (validationSummary.requiredFieldErrors.length > 0) {
         errorMessages.push('Required fields are missing:');
-        validationSummary.requiredFieldErrors.forEach(error => {
+        validationSummary.requiredFieldErrors.forEach((error) => {
           errorMessages.push(`• ${error.fieldName}: ${error.errorMessage}`);
         });
       }
-      
+
       if (validationSummary.generalErrors.length > 0) {
         if (errorMessages.length > 0) errorMessages.push('');
         errorMessages.push('Validation errors:');
-        validationSummary.generalErrors.forEach(error => {
+        validationSummary.generalErrors.forEach((error) => {
           errorMessages.push(`• ${error.fieldName}: ${error.errorMessage}`);
         });
       }
-      
+
       console.log('❌ [RECORD SUBMIT] Submission blocked due to validation errors');
       showGlobalError(errorMessages.join('\n'));
       return;
@@ -781,7 +787,6 @@ async function handleFormSubmit() {
 
     // Show success message
     showGlobalSuccess('Form submitted successfully! Check console for structured record.');
-
   } catch (error) {
     console.error('❌ [RECORD SUBMIT] Error during form submission:', error);
     console.log('❌ [RECORD SUBMIT] Submission was not successful');
@@ -801,11 +806,11 @@ async function handleFormSubmit() {
 function showGlobalError(message) {
   const errorBanner = document.getElementById('global-error-banner');
   const errorMessage = document.getElementById('global-error-message');
-  
+
   if (errorBanner && errorMessage) {
     errorMessage.textContent = message;
     errorBanner.classList.remove('hidden');
-    
+
     // Scroll to error banner
     errorBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
@@ -829,7 +834,7 @@ function showGlobalSuccess(message) {
   // In the future, you might want to create a separate success banner
   const errorBanner = document.getElementById('global-error-banner');
   const errorMessage = document.getElementById('global-error-message');
-  
+
   if (errorBanner && errorMessage) {
     errorMessage.textContent = message;
     errorBanner.style.background = '#d4edda';
@@ -837,7 +842,7 @@ function showGlobalSuccess(message) {
     errorBanner.style.borderLeftColor = '#28a745';
     errorMessage.style.color = '#155724';
     errorBanner.classList.remove('hidden');
-    
+
     // Auto-hide success message after 5 seconds
     setTimeout(() => {
       hideGlobalError();
@@ -847,7 +852,7 @@ function showGlobalSuccess(message) {
       errorBanner.style.borderLeftColor = '#dc3545';
       errorMessage.style.color = '#721c24';
     }, 5000);
-    
+
     // Scroll to success banner
     errorBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
@@ -866,10 +871,10 @@ function formatExecutionContext(context) {
       return `Event '${context.eventType}'`;
     }
   }
-  
+
   if (context.type === 'calculation') {
     return `CalculatedField '${context.fieldName}'`;
   }
-  
+
   return `${context.type} context`;
 }

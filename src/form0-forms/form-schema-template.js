@@ -33,17 +33,17 @@ export const defaultFormTemplate = {
         {
           label: 'Enrolled',
           value: 'enrolled',
-          color: '#87D30F'
+          color: '#87D30F',
         },
         {
           label: 'Not Enrolled',
           value: 'not_enrolled',
-          color: '#FF0000'
+          color: '#FF0000',
         },
         {
           label: 'Pending',
           value: 'pending',
-          color: '#FFA500'
+          color: '#FFA500',
         },
       ],
     },
@@ -58,17 +58,13 @@ export const defaultFormTemplate = {
       visible_conditions: null,
       read_only: true, //TitleField is always read_only = true
       read_only_conditions: null,
-      elements: [ //Elements can be an array of elements or a single element. Elements should be field keys but field data_name can be used as fallback. Elements, when rendered, will be concatenated with each other with a comma and displayed at the top of the record as a title.
+      elements: [
+        //Elements can be an array of elements or a single element. Elements should be field keys but field data_name can be used as fallback. Elements, when rendered, will be concatenated with each other with a comma and displayed at the top of the record as a title.
         'first_name',
-        'city' //If a key/data_name refers to a SingleChoiceField, MultiChoiceField or BooleanField, we should always show the choice label.
+        'city', //If a key/data_name refers to a SingleChoiceField, MultiChoiceField or BooleanField, we should always show the choice label.
       ],
     },
-    bounding_box: [
-      0,
-      0,
-      0,
-      0
-    ], //Bounding box containing all the form's records. Format is [min_lat, min_long, max_lat, max_long]. Available in reform.
+    bounding_box: [0, 0, 0, 0], //Bounding box containing all the form's records. Format is [min_lat, min_long, max_lat, max_long]. Available in reform.
     location_enabled: true, //location_enabled can be true or false
     location_required: true, //location_required can be true or false
     image: null, //The URL to the original image which was uploaded as this app's icon. Available in reform.
@@ -105,7 +101,7 @@ export const defaultFormTemplate = {
         }
 
         ON('change', 'colors', colorsF);
-      `
+      `,
     },
     elements: [
       {
@@ -399,7 +395,8 @@ export const defaultFormTemplate = {
       {
         type: 'LabelField',
         data_name: 'photo_consent',
-        label: 'Please be aware that photographs may be taken at this Community Engagement event. By submitting this form, you consent to the use of any photos in which you appear in reports related to the Housing Improvement under PDUNM project and in Build Change marketing materials. You also acknowledge that the information you provide on this form will only be used for the purposes of this project.',
+        label:
+          'Please be aware that photographs may be taken at this Community Engagement event. By submitting this form, you consent to the use of any photos in which you appear in reports related to the Housing Improvement under PDUNM project and in Build Change marketing materials. You also acknowledge that the information you provide on this form will only be used for the purposes of this project.',
         display: 'default', //LabelField can only be 'default'
         description: null, //description can be null or a string
         description_mode: null, //description_mode can be null, 'default' or 'subtext'
@@ -496,7 +493,7 @@ export const defaultFormTemplate = {
             label: 'Comments',
             display: 'default', //TextField can only be 'default'
             description: null, //description can be null or a string
-            description_mode: null, //description_mode can be null, 'default' or 'subtext' 
+            description_mode: null, //description_mode can be null, 'default' or 'subtext'
             required: false,
             required_conditions: null,
             visible: true,
@@ -565,16 +562,16 @@ export const defaultFormTemplate = {
         choices: [
           {
             label: 'Mela',
-            value: 'mela'
+            value: 'mela',
           },
           {
             label: 'Banana',
-            value: 'banana'
+            value: 'banana',
           },
           {
             label: 'Fragola',
-            value: 'fragola'
-          }
+            value: 'fragola',
+          },
         ],
       },
       {
@@ -600,20 +597,20 @@ export const defaultFormTemplate = {
         choices: [
           {
             label: 'Pasta',
-            value: 'pasta'
+            value: 'pasta',
           },
           {
             label: 'Pizza',
-            value: 'pizza'
+            value: 'pizza',
           },
           {
             label: 'Focaccia',
-            value: 'focaccia'
+            value: 'focaccia',
           },
           {
             label: 'Salumi',
-            value: 'salumi'
-          }
+            value: 'salumi',
+          },
         ],
       },
       {
@@ -643,8 +640,7 @@ export const defaultFormTemplate = {
             read_only_conditions: null,
             default_value: null,
             pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
-            pattern_description:
-              'Valid email address format (e.g., user@example.com)',
+            pattern_description: 'Valid email address format (e.g., user@example.com)',
             supporting_image: false, //supporting_image can be true or false
             supporting_image_path: null, //supporting_image_path can be null or a string
             supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
@@ -668,42 +664,42 @@ export const defaultFormTemplate = {
             supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
           },
           {
-            type: "Section",
-            data_name: "non_structural_assessment",
-            label: "Non-structural assessment",
-            display: "inline",
-            description: "This is a test34",
-            description_mode: "default",
+            type: 'Section',
+            data_name: 'non_structural_assessment',
+            label: 'Non-structural assessment',
+            display: 'inline',
+            description: 'This is a test34',
+            description_mode: 'default',
             visible: true,
             visible_conditions: null,
             elements: [
               {
-                type: "RepeatableSection",
-                data_name: "water_sanitation",
-                label: "Water & Sanitation",
-                display: "drilldown",
-                description: "This is a NESTED repeatable section for evaluation tests",
-                description_mode: "default",
+                type: 'RepeatableSection',
+                data_name: 'water_sanitation',
+                label: 'Water & Sanitation',
+                display: 'drilldown',
+                description: 'This is a NESTED repeatable section for evaluation tests',
+                description_mode: 'default',
                 visible: true,
                 visible_conditions: null,
                 location_enabled: true, //location_enabled can be true or false
                 location_required: true, //location_required can be true or false
                 elements: [
                   {
-                    type: "Section",
-                    data_name: "first_phase",
-                    label: "First phase",
-                    display: "inline",
-                    description: "This is a test88",
-                    description_mode: "default",
+                    type: 'Section',
+                    data_name: 'first_phase',
+                    label: 'First phase',
+                    display: 'inline',
+                    description: 'This is a test88',
+                    description_mode: 'default',
                     visible: true,
                     visible_conditions: null,
                     elements: [
                       {
-                        type: "TextField",
-                        data_name: "email_test_bis",
-                        label: "Email Bis",
-                        display: "default",
+                        type: 'TextField',
+                        data_name: 'email_test_bis',
+                        label: 'Email Bis',
+                        display: 'default',
                         description: null,
                         description_mode: null,
                         required: true,
@@ -712,9 +708,9 @@ export const defaultFormTemplate = {
                         visible_conditions: null,
                         read_only: false,
                         read_only_conditions: null,
-                        default_value: "stefano@form0.dev",
-                        pattern: "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$",
-                        pattern_description: "Valid email address format (e.g., user@example.com)",
+                        default_value: 'stefano@form0.dev',
+                        pattern: '^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$',
+                        pattern_description: 'Valid email address format (e.g., user@example.com)',
                         supporting_image: false,
                         supporting_image_path: null,
                         supporting_image_display: null,
@@ -741,9 +737,9 @@ export const defaultFormTemplate = {
                         supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
                       },
                     ],
-                  }
+                  },
                 ],
-              },    
+              },
             ],
           },
         ],

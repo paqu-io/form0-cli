@@ -14,12 +14,12 @@ export class OperationProcessor {
    */
   registerDefaultHandlers() {
     // Import and register field operation handlers
-    import('./operation-handlers/field-operations.js').then(module => {
+    import('./operation-handlers/field-operations.js').then((module) => {
       this.registerHandlers('FIELD_OPERATION', module.fieldOperationHandlers);
     });
-    
+
     // Import and register UI operation handlers
-    import('./operation-handlers/ui-operations.js').then(module => {
+    import('./operation-handlers/ui-operations.js').then((module) => {
       this.registerHandlers('UI_OPERATION', module.uiOperationHandlers);
     });
   }
@@ -33,7 +33,7 @@ export class OperationProcessor {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, new Map());
     }
-    
+
     const typeHandlers = this.handlers.get(type);
     Object.entries(handlers).forEach(([operation, handler]) => {
       typeHandlers.set(operation, handler);
@@ -63,7 +63,7 @@ export class OperationProcessor {
   async processOperation(operation) {
     try {
       const { type, operation: operationName, params } = operation;
-      
+
       // Get handler for this operation type
       const typeHandlers = this.handlers.get(type);
       if (!typeHandlers) {
@@ -80,7 +80,7 @@ export class OperationProcessor {
 
       // Execute the handler
       await handler(params, this.formStateManager);
-      
+
       console.log(`🏁 [OPERATION] Processed ${type}.${operationName}`);
     } catch (error) {
       console.error(`🏁 [OPERATION] Error processing operation:`, error);
@@ -98,7 +98,7 @@ export class OperationProcessor {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, new Map());
     }
-    
+
     this.handlers.get(type).set(operation, handler);
   }
-} 
+}

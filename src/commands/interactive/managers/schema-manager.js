@@ -89,10 +89,10 @@ export class SchemaManager {
    */
   async loadSchema(schemaPath) {
     const data = await fs.readJson(schemaPath);
-    
+
     // Process SingleChoiceField choices before validation
     ensureChoiceValuesForSchema(data.form.elements || []);
-    
+
     validateSchema(data.form);
     this.currentSchema = data;
     this.currentSchemaPath = schemaPath;
@@ -121,7 +121,7 @@ export class SchemaManager {
     try {
       // Always reload from file before validating to ensure we're validating the current file state
       await this.reloadSchema();
-      
+
       validateSchema(this.currentSchema.form);
       console.log(colors.success(t('common.schemaIsValid')));
       return true;
@@ -160,7 +160,9 @@ export class SchemaManager {
       }
 
       console.log(
-        colors.accent1(t('interactive.initializingInCurrent', { dir: path.basename(process.cwd()) }))
+        colors.accent1(
+          t('interactive.initializingInCurrent', { dir: path.basename(process.cwd()) })
+        )
       );
     } else {
       console.log(colors.accent1(t('interactive.initializingIn', { dir })));

@@ -48,10 +48,10 @@ function printFields(elements, indent = '') {
 export async function previewCommand(file) {
   try {
     const data = await fs.readJson(file);
-    
+
     // Process SingleChoiceField choices before preview
     ensureChoiceValuesForSchema(data.form.elements || []);
-    
+
     const form = data.form;
 
     console.log(

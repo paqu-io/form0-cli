@@ -93,10 +93,10 @@ class Form0Server {
 
   async loadSchema() {
     const data = await fs.readJson(this.schemaPath);
-    
+
     // Process SingleChoiceField choices before validation
     ensureChoiceValuesForSchema(data.form.elements || []);
-    
+
     validateSchema(data.form);
     this.currentSchema = data;
   }

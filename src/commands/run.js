@@ -10,10 +10,10 @@ import { t } from '../utils/i18n.js';
 export async function runCommand(schemaPath, options) {
   try {
     const data = await fs.readJson(schemaPath);
-    
+
     // Process SingleChoiceField choices before engine creation
     ensureChoiceValuesForSchema(data.form.elements || []);
-    
+
     const valuesInput = options.values;
     let initialValues = {};
 

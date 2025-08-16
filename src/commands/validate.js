@@ -6,13 +6,13 @@ import { t } from '../utils/i18n.js';
 export async function validateCommand(file) {
   try {
     const data = await fs.readJson(file);
-    
+
     // Process SingleChoiceField choices before validation
     ensureChoiceValuesForSchema(data.form.elements || []);
-    
+
     // Validate form schema with form0-core
     validateSchema(data.form);
-    
+
     console.log(t('common.schemaIsValid'));
   } catch (err) {
     console.error(t('commands.validate.validationFailed', { message: err.message }));

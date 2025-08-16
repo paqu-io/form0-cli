@@ -13,7 +13,7 @@
  */
 function handleSetValue(params, formStateManager) {
   const { fieldDataName, valueToSet } = params;
-  
+
   if (!fieldDataName) {
     console.error('[SETVALUE] Missing fieldDataName parameter');
     return;
@@ -28,9 +28,9 @@ function handleSetValue(params, formStateManager) {
  * Export field operation handlers
  */
 export const fieldOperationHandlers = {
-  SETVALUE: handleSetValue
+  SETVALUE: handleSetValue,
   // Future handlers will be added here:
   // SETHIDDEN: handleSetHidden,
   // SETREADONLY: handleSetReadOnly,
   // etc.
-}; 
+};
