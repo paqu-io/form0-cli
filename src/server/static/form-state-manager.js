@@ -1014,8 +1014,9 @@ export class FormStateManager {
    * @param {string} fieldDataName - The field data name to set
    * @param {any} valueToSet - The value to set
    * @param {boolean} suppressLogging - Whether to suppress console logging (default: false)
+   * @param {boolean} skipStateUpdate - Whether to skip the async state update (default: false)
    */
-  setFieldValue(fieldDataName, valueToSet, suppressLogging = false) {
+  setFieldValue(fieldDataName, valueToSet, suppressLogging = false, skipStateUpdate = false) {
     const field = this.formRenderer.findFieldByDataName(fieldDataName);
 
     if (!field) {
@@ -1039,8 +1040,10 @@ export class FormStateManager {
       this.setRegularFieldValue(fieldDataName, valueToSet, suppressLogging);
     }
 
-    // After setting the value, update the form state to trigger calculations
-    this.updateFormState();
+    // Only trigger async state update if not suppressed
+    if (!skipStateUpdate) {
+      this.updateFormState();
+    }
   }
 
   /**
@@ -1160,6 +1163,17 @@ export class FormStateManager {
       choiceValue = valueToSet;
     }
 
+    // Apply DOM updates synchronously first
+    this.applySyncMultiChoiceDOM(container, hiddenInput, choiceValue);
+  }
+
+  /**
+   * Apply synchronous DOM updates for MultiChoiceField
+   * @param {Element} container - The field container element
+   * @param {Element} hiddenInput - The hidden input element
+   * @param {Object} choiceValue - The choice value object
+   */
+  applySyncMultiChoiceDOM(container, hiddenInput, choiceValue) {
     // Set updating flag to prevent event conflicts
     if (container._setUpdating) container._setUpdating(true);
 
@@ -1183,17 +1197,22 @@ export class FormStateManager {
         });
       }
     } else {
-      // Handle dropdown
+      // Handle dropdown - clear all selections first for consistency
       const select =
         container.querySelector('.multi-choice-field-select') ||
         container.querySelector('.multi-choice-field-simple-select');
 
-      if (select && choiceValue.choices && choiceValue.choices.length > 0) {
+      if (select) {
+        // Always clear all selections first to ensure empty arrays clear the UI
         Array.from(select.options).forEach((option) => (option.selected = false));
-        choiceValue.choices.forEach((choice) => {
-          const option = select.querySelector(`option[value="${choice.value}"]`);
-          if (option) option.selected = true;
-        });
+        
+        // Then apply new selections if any
+        if (choiceValue.choices && choiceValue.choices.length > 0) {
+          choiceValue.choices.forEach((choice) => {
+            const option = select.querySelector(`option[value="${choice.value}"]`);
+            if (option) option.selected = true;
+          });
+        }
       }
     }
 

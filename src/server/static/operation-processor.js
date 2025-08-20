@@ -50,17 +50,22 @@ export class OperationProcessor {
       return;
     }
 
+    // First pass: Apply all DOM updates synchronously (skip async state updates)
     for (const operation of operations) {
-      await this.processOperation(operation);
+      await this.processOperation(operation, true); // skipStateUpdate = true
     }
+
+    // Second pass: Single async state update after all DOM operations complete
+    this.formStateManager.updateFormState();
   }
 
   /**
    * Process a single operation
    * @param {Object} operation - Operation object with type, operation, and params
+   * @param {boolean} skipStateUpdate - Whether to skip async state updates (default: false)
    * @returns {Promise<void>}
    */
-  async processOperation(operation) {
+  async processOperation(operation, skipStateUpdate = false) {
     try {
       const { type, operation: operationName, params } = operation;
 
@@ -78,8 +83,12 @@ export class OperationProcessor {
         return;
       }
 
-      // Execute the handler
-      await handler(params, this.formStateManager);
+      // Execute the handler, pass skipStateUpdate flag for SETVALUE operations
+      if (operationName === 'SETVALUE' && skipStateUpdate) {
+        await handler(params, this.formStateManager, skipStateUpdate);
+      } else {
+        await handler(params, this.formStateManager);
+      }
 
       console.log(`🏁 [OPERATION] Processed ${type}.${operationName}`);
     } catch (error) {

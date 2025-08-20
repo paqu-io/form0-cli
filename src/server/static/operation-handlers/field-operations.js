@@ -10,8 +10,9 @@
  * @param {string} params.fieldDataName - The field data name to set
  * @param {any} params.valueToSet - The value to set
  * @param {FormStateManager} formStateManager - Form state manager instance
+ * @param {boolean} skipStateUpdate - Whether to skip async state update (default: false)
  */
-function handleSetValue(params, formStateManager) {
+function handleSetValue(params, formStateManager, skipStateUpdate = false) {
   const { fieldDataName, valueToSet } = params;
 
   if (!fieldDataName) {
@@ -21,7 +22,7 @@ function handleSetValue(params, formStateManager) {
 
   // Use the FormStateManager to set the field value
   // Note: Server-side validation already filtered invalid operations, so this should be valid
-  formStateManager.setFieldValue(fieldDataName, valueToSet);
+  formStateManager.setFieldValue(fieldDataName, valueToSet, false, skipStateUpdate);
 }
 
 /**
