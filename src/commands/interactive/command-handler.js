@@ -8,19 +8,20 @@ import { t } from '../../utils/i18n.js';
  * Handles command processing for interactive shell
  */
 export class CommandHandler {
-  constructor(schemaManager, engineRunner, fileWatcher, serverManager, readline) {
+  constructor(schemaManager, engineRunner, fileWatcher, serverManager, readline, shell = null) {
     this.schemaManager = schemaManager;
     this.engineRunner = engineRunner;
     this.fileWatcher = fileWatcher;
     this.serverManager = serverManager;
     this.readline = readline;
+    this.shell = shell; // Reference to shell for readline coordination
   }
 
   /**
    * Check if command is allowed in server mode
    */
   isCommandAllowedInServerMode(command, args) {
-    const allowedCommands = ['serve', 'status', 's', 'preview', 'p', 'validate', 'v', 'help', 'h'];
+    const allowedCommands = ['serve', 'status', 's', 'preview', 'p', 'validate', 'v', 'help', 'h', 'connector', 'conn', 'c'];
 
     if (!allowedCommands.includes(command.toLowerCase())) {
       return { allowed: false, reason: 'command_blocked' };
@@ -50,6 +51,7 @@ export class CommandHandler {
       console.log(colors.textSecondary(t('interactive.serverMode.preview')));
       console.log(colors.textSecondary(t('interactive.serverMode.validate')));
       console.log(colors.textSecondary(t('interactive.serverMode.help')));
+      console.log(colors.textSecondary(t('interactive.serverMode.connectorCommands')));
     } else if (reason === 'serve_action_blocked') {
       console.log(colors.warning(t('interactive.serverMode.serveActionBlocked', { action })));
       console.log(colors.textSecondary(t('interactive.serverMode.useServeStop')));
@@ -149,6 +151,12 @@ export class CommandHandler {
           await localeCommand(args[0]);
           break;
 
+        case 'connector':
+        case 'conn':
+        case 'c':
+          await this.handleConnectorCommand(args);
+          break;
+
         case 'exit':
         case 'quit':
         case 'q':
@@ -162,6 +170,16 @@ export class CommandHandler {
     } catch (err) {
       console.log(colors.error(t('interactive.error', { message: err.message })));
     }
+  }
+
+  /**
+   * Handle connector commands
+   */
+  async handleConnectorCommand(args) {
+    const { ConnectorManager } = await import('./managers/connector-manager.js');
+    // Pass the shell reference to the connector manager for readline coordination
+    const connectorManager = new ConnectorManager(this.shell);
+    await connectorManager.handleCommand(args);
   }
 
   /**

@@ -36,12 +36,14 @@ export class ShellCore {
 
     // Initialize managers
     this.serverManager = new ServerManager(this.schemaManager, this.fileWatcher, this.rl);
+    // Pass shell reference to command handler for readline coordination
     this.commandHandler = new CommandHandler(
       this.schemaManager,
       this.engineRunner,
       this.fileWatcher,
       this.serverManager,
-      this.rl
+      this.rl,
+      this // Pass shell reference for readline coordination
     );
 
     // Set circular dependency for file watcher to access server manager

@@ -785,6 +785,43 @@ async function handleFormSubmit() {
     //console.log(JSON.stringify(structuredRecord, null, 2));
     console.log(structuredRecord);
 
+    // Submit to database/connectors via /api/submit-record
+    try {
+      console.log('💾 [DATABASE SUBMIT] Submitting to configured connectors...');
+      
+      const submitResponse = await fetch('/api/submit-record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ record: structuredRecord }),
+      });
+
+      if (submitResponse.ok) {
+        const submitResult = await submitResponse.json();
+        
+        if (submitResult.success) {
+          console.log(`✅ [DATABASE SUBMIT] ${submitResult.message}`);
+          
+          // Log individual connector results if available
+          if (submitResult.connectorResults && submitResult.connectorResults.length > 0) {
+            submitResult.connectorResults.forEach(result => {
+              const status = result.success ? '✅' : '❌';
+              const details = result.success 
+                ? (result.message || 'Success')
+                : (result.error || 'Unknown error');
+              console.log(`   ${status} ${result.connector}: ${details}`);
+            });
+          }
+        } else {
+          console.warn(`⚠️ [DATABASE SUBMIT] ${submitResult.message}`);
+        }
+      } else {
+        const errorResult = await submitResponse.json().catch(() => ({ error: 'Unknown error' }));
+        console.warn(`⚠️ [DATABASE SUBMIT] Failed: ${errorResult.error}`);
+      }
+    } catch (submitError) {
+      console.warn(`⚠️ [DATABASE SUBMIT] Error: ${submitError.message}`);
+    }
+
     // Show success message
     showGlobalSuccess('Form submitted successfully! Check console for structured record.');
   } catch (error) {

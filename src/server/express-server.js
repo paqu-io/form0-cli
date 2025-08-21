@@ -11,6 +11,7 @@ import {
 import { fileURLToPath } from 'url';
 import { getLocale, t, getRawTranslation } from '../utils/i18n.js';
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid';
+import { connectorManager } from '../utils/connector-manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -177,6 +178,31 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
     enableCollection: true,
     throttleMs: 0, // No server-side throttling - client handles deduplication
   });
+
+  // Initialize connector manager with configuration
+  async function initializeConnectors() {
+    try {
+      await connectorManager.loadConnectorConfig();
+      
+      // Auto-load connectors marked for auto-loading
+      const config = connectorManager.config;
+      for (const [connectorName, connectorConfig] of Object.entries(config)) {
+        if (connectorConfig.enabled && connectorConfig.autoLoad) {
+          try {
+            console.log(`Auto-loading connector: ${connectorName}`);
+            await connectorManager.loadConnector(connectorName);
+          } catch (error) {
+            console.warn(`Failed to auto-load connector '${connectorName}':`, error.message);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to initialize connector manager:', error.message);
+    }
+  }
+
+  // Initialize connectors when the app is created
+  initializeConnectors();
 
   // Serve static files
   app.use(express.static(path.join(__dirname, 'static')));
@@ -346,6 +372,115 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
     } catch (err) {
       console.error('Error creating structured record:', err);
       res.status(400).json({ error: err.message });
+    }
+  });
+
+  // API endpoint to submit record to connectors
+  app.post('/api/submit-record', express.json(), async (req, res) => {
+    try {
+      const { record } = req.body;
+
+      if (!record) {
+        return res.status(400).json({ 
+          error: 'Record is required',
+          connectorResults: []
+        });
+      }
+
+      // Check if any connectors are loaded
+      const loadedConnectors = connectorManager.getLoadedConnectors();
+      
+      if (loadedConnectors.length === 0) {
+        return res.json({
+          success: true,
+          message: 'Record processed successfully (no connectors configured)',
+          connectorResults: [],
+          record: record
+        });
+      }
+
+      // Submit to all loaded connectors
+      const connectorResults = await connectorManager.submitToConnectors(record);
+
+      // Determine overall success based on connector results
+      const hasSuccessfulConnector = connectorResults.some(result => result.success);
+      const hasFailedConnector = connectorResults.some(result => !result.success);
+
+      let overallMessage = '';
+      if (connectorResults.length === 0) {
+        overallMessage = 'Record processed successfully (no connectors configured)';
+      } else if (hasSuccessfulConnector && !hasFailedConnector) {
+        overallMessage = `Record submitted successfully to ${connectorResults.length} connector(s)`;
+      } else if (hasSuccessfulConnector && hasFailedConnector) {
+        const successCount = connectorResults.filter(r => r.success).length;
+        const failCount = connectorResults.filter(r => !r.success).length;
+        overallMessage = `Partial success: ${successCount} connector(s) succeeded, ${failCount} failed`;
+      } else {
+        overallMessage = 'All connector submissions failed';
+      }
+
+      // Log submission results
+      console.log(`📝 [FORM SUBMISSION] ${overallMessage}`);
+      connectorResults.forEach(result => {
+        const status = result.success ? '✅' : '❌';
+        const details = result.success 
+          ? (result.message || 'Success')
+          : (result.error || 'Unknown error');
+        console.log(`   ${status} ${result.connector}: ${details}`);
+      });
+
+      res.json({
+        success: hasSuccessfulConnector || connectorResults.length === 0,
+        message: overallMessage,
+        connectorResults: connectorResults,
+        record: record
+      });
+
+    } catch (err) {
+      console.error('Error submitting record to connectors:', err);
+      res.status(500).json({ 
+        error: err.message,
+        connectorResults: []
+      });
+    }
+  });
+
+  // API endpoint to get connector status
+  app.get('/api/connectors/status', async (req, res) => {
+    try {
+      const loadedConnectors = connectorManager.getLoadedConnectors();
+      const healthChecks = await connectorManager.healthCheckAll();
+      const metadata = connectorManager.getAllConnectorMetadata();
+
+      res.json({
+        connectors: loadedConnectors,
+        health: healthChecks,
+        metadata: metadata
+      });
+    } catch (err) {
+      console.error('Error getting connector status:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // API endpoint to test connector connection
+  app.post('/api/connectors/test', express.json(), async (req, res) => {
+    try {
+      const { connectorName, config = {} } = req.body;
+
+      if (!connectorName) {
+        return res.status(400).json({ error: 'Connector name is required' });
+      }
+
+      const testResult = await connectorManager.testConnector(connectorName, config);
+
+      res.json({
+        connector: connectorName,
+        ...testResult
+      });
+    } catch (err) {
+      console.error('Error testing connector:', err);
+      res.status(500).json({ error: err.message });
     }
   });
 

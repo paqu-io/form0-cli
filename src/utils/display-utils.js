@@ -50,6 +50,13 @@ export function showHelp() {
   console.log(colors.text(t('help.serveStopCommand')));
   console.log(colors.text(t('help.serveStatusCommand')));
   console.log();
+  console.log(colors.accent1(t('help.dataConnectivity')));
+  console.log(colors.text(t('help.connectorCommand')));
+  console.log(colors.text(t('help.connectorListCommand')));
+  console.log(colors.text(t('help.connectorStatusCommand')));
+  console.log(colors.text(t('help.connectorLoadCommand')));
+  console.log(colors.text(t('help.connectorTestCommand')));
+  console.log();
   console.log(colors.accent1(t('help.sessionManagement')));
   console.log(colors.text(t('help.statusCommand')));
   console.log(colors.text(t('help.themeCommand')));

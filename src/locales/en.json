@@ -74,6 +74,101 @@
       "noWebSocketServer": "⚠️ No WebSocket server available for broadcasting."
     }
   },
+  "connectors": {
+    "unknownSubcommand": "❌ Unknown connector subcommand: {subcommand}",
+    "help": {
+      "title": "🔌 Connector Management Commands:",
+      "management": "  Management:",
+      "listCommand": "    connector list, conn ls      List configured connectors",
+      "statusCommand": "    connector status [name]      Show connector status",
+      "loadCommand": "    connector load <name>        Load a connector",
+      "unloadCommand": "    connector unload <name>      Unload a connector",
+      "development": "  Development:",
+      "testCommand": "    connector test <name>        Test connector connection",
+      "reloadCommand": "    connector reload <name>      Reload a connector (dev)",
+      "configCommand": "    connector config             Show configuration",
+      "configureCommand": "    connector configure <name>   Configure a connector interactively",
+      "cliOnly": "  CLI Only:",
+      "installCommand": "    connector install <name>     Install a connector package",
+      "exampleList": "    connector list",
+      "exampleLoad": "    connector load form0-connector-pg",
+      "exampleTest": "    connector test form0-connector-pg",
+      "exampleConfigure": "    connector configure form0-connector-pg"
+    },
+    "list": {
+      "title": "🔌 Configured Connectors:",
+      "noConnectorsConfigured": "  No connectors configured.",
+      "useConfigFile": "  Add connectors to .form0-cli/config.json in your home directory.",
+      "configured": "  Configured Connectors:",
+      "status": "Status",
+      "config": "Config",
+      "installation": "Installation",
+      "autoLoad": "Auto-loads on server start",
+      "loadedOnly": "  Loaded (not in config):",
+      "failed": "❌ Failed to list connectors: {message}"
+    },
+    "status": {
+      "titleAll": "🔌 Connector Status:",
+      "titleSpecific": "🔌 Connector Status: {name}",
+      "notLoaded": "❌ Connector '{name}' is not loaded.",
+      "noneLoaded": "  No connectors loaded.",
+      "loadedFrom": "  Loaded from:",
+      "sourceType": "  Source type:",
+      "loadedAt": "  Loaded at:",
+      "healthChecking": "  Running health check...",
+      "healthy": "Healthy",
+      "unhealthy": "Unhealthy",
+      "failed": "❌ Failed to get connector status: {message}"
+    },
+    "load": {
+      "nameRequired": "❌ Connector name is required.",
+      "loading": "🔄 Loading connector: {name}",
+      "success": "✅ Successfully loaded connector: {name}",
+      "healthCheckPassed": "Health check passed",
+      "healthCheckFailed": "Health check failed",
+      "failed": "❌ Failed to load connector '{name}': {message}"
+    },
+    "unload": {
+      "nameRequired": "❌ Connector name is required.",
+      "notLoaded": "⚠️ Connector '{name}' is not loaded.",
+      "unloading": "🔄 Unloading connector: {name}",
+      "success": "✅ Successfully unloaded connector: {name}",
+      "partialSuccess": "⚠️ Connector '{name}' unloaded but cleanup may have failed.",
+      "failed": "❌ Failed to unload connector '{name}': {message}"
+    },
+    "test": {
+      "nameRequired": "❌ Connector name is required.",
+      "testing": "🧪 Testing connector: {name}",
+      "success": "Connection test passed for '{name}'",
+      "failed": "Connection test failed for '{name}'",
+      "error": "❌ Error testing connector '{name}': {message}"
+    },
+    "reload": {
+      "nameRequired": "❌ Connector name is required.",
+      "reloading": "🔄 Reloading connector: {name}",
+      "success": "✅ Successfully reloaded connector: {name}",
+      "healthCheckPassed": "Health check passed",
+      "healthCheckFailed": "Health check failed",
+      "failed": "❌ Connector '{name}' failed to reload.",
+      "error": "❌ Error reloading connector '{name}': {message}"
+    },
+    "config": {
+      "title": "⚙️ Connector Configuration:",
+      "noConfiguration": "  No connector configuration found.",
+      "configLocation": "  Configuration file: ~/.form0-cli/config.json",
+      "exampleConfig": "  Example configuration:",
+      "current": "  Current Configuration:",
+      "failed": "❌ Failed to load connector configuration: {message}"
+    },
+    "configure": {
+      "nameRequired": "❌ Connector name is required.",
+      "failed": "❌ Failed to configure connector '{name}': {message}"
+    },
+    "validation": {
+      "notInstalled": "❌ Connector '{name}' is not installed.",
+      "installSuggestion": "💡 To install this connector, run:"
+    }
+  },
   "interactive": {
     "welcome": "🚀 Welcome to form0 interactive environment",
     "typeHelp": "Type \"help\" for available commands or \"exit\" to quit",
@@ -113,6 +208,7 @@
       "preview": "   • preview          - Preview current schema",
       "validate": "   • validate         - Validate current schema",
       "help": "   • help             - Show help",
+      "connectorCommands": "   • connector        - Manage connectors",
       "serveActionBlocked": "⚠️ \"serve {action}\" is not available while server is running.",
       "useServeStop": "   Use \"serve stop\" to stop the server or \"serve status\" to check status."
     },
@@ -164,6 +260,12 @@
     "serveOptions": "      options: --port <port>, --host <host>",
     "serveStopCommand": "    serve stop           Stop development server",
     "serveStatusCommand": "    serve status         Show server status",
+    "dataConnectivity": "  Data Connectivity:",
+    "connectorCommand": "    connector, conn, c   Manage data connectors",
+    "connectorListCommand": "    connector list       List configured connectors",
+    "connectorStatusCommand": "    connector status     Show connector health",
+    "connectorLoadCommand": "    connector load       Load a connector",
+    "connectorTestCommand": "    connector test       Test connector connection",
     "sessionManagement": "  Session Management:",
     "statusCommand": "    status, s            Show session status",
     "themeCommand": "    theme [name]         View or change theme (dark, light)",
