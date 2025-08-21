@@ -832,7 +832,7 @@ async function handleFormSubmit() {
     // Re-enable submit button
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Submit Record (JSON)';
+      submitBtn.textContent = 'Submit Record';
     }
   }
 }
