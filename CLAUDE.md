@@ -61,6 +61,18 @@ form0-cli's architecture follows a modular command pattern with an interactive s
 - **Theme system**: Dynamic terminal color schemes
 - **i18n**: Multi-language support with auto-detection
 
+### Connector System
+The CLI includes a connector system that allows form submissions to be persisted to external data stores beyond just console output:
+
+- **Connector Management** (`src/commands/connector.js`) - CLI command for installing and configuring connectors
+- **ConnectorManager** (`src/commands/interactive/managers/connector-manager.js`) - Manages connector lifecycle in interactive mode
+- **Connector Configuration** - Stores connector configs in `~/.form0-cli/connectors/` directory
+- **Supported Connectors**:
+  - **form0-connector-pg**: PostgreSQL database connector for storing form records
+  - Future connectors planned: Google Sheets (form0-connector-gsheet), etc.
+
+When a connector is configured and active, form submissions are automatically sent to the configured data store in addition to displaying the JSON output in the browser console.
+
 ### Form Schema Workflow
 1. **Initialize**: `form0 init [dir]` creates sample schema and test files
 2. **Load**: Schema files are loaded and validated using form0-core
@@ -82,6 +94,7 @@ The interactive shell supports these commands:
 - Schema: `init`, `load`, `preview`, `validate`, `reload`
 - Engine: `run`, `watch`, `values`, `fields`
 - Server: `serve`, `stop-serve`
+- Connector: `connector` - Install and configure data persistence connectors
 - Session: `status`, `clear`, `help`, `exit`
 
 ### Development Server Features
