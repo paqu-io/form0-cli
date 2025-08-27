@@ -9,22 +9,23 @@ import { t } from '../utils/i18n.js';
 // Dedent function to remove common leading whitespace
 function dedent(str) {
   if (typeof str !== 'string') return str;
-  
+
   // Normalize line endings to \n for processing
   const normalized = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  
+
   const lines = normalized.split('\n');
-  const nonEmptyLines = lines.filter(line => line.trim().length > 0);
-  
+  const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
+
   if (nonEmptyLines.length === 0) return str;
-  
+
   // Find minimum indentation
-  const minIndent = Math.min(...nonEmptyLines.map(line => 
-    line.match(/^\s*/)[0].length
-  ));
-  
+  const minIndent = Math.min(...nonEmptyLines.map((line) => line.match(/^\s*/)[0].length));
+
   // Remove the minimum indentation from all lines
-  return lines.map(line => line.slice(minIndent)).join('\n').trim();
+  return lines
+    .map((line) => line.slice(minIndent))
+    .join('\n')
+    .trim();
 }
 
 // Recursively process schema to dedent code strings
@@ -32,11 +33,11 @@ function dedentCodeInSchema(obj) {
   if (typeof obj === 'string') {
     return obj;
   }
-  
+
   if (Array.isArray(obj)) {
-    return obj.map(item => dedentCodeInSchema(item));
+    return obj.map((item) => dedentCodeInSchema(item));
   }
-  
+
   if (obj && typeof obj === 'object') {
     const result = {};
     for (const [key, value] of Object.entries(obj)) {
@@ -50,7 +51,7 @@ function dedentCodeInSchema(obj) {
     }
     return result;
   }
-  
+
   return obj;
 }
 

@@ -110,6 +110,9 @@ export const colors = {
   textSecondary: (text) => chalk.hex(currentTheme.colors.textSecondary)(text),
   textMuted: (text) => chalk.hex(currentTheme.colors.textMuted)(text),
 
+  // Code formatting (for example configurations, etc.)
+  code: (text) => chalk.hex(currentTheme.colors.accent2).dim(text),
+
   // Accent colors for different UI elements
   accent1: (text) => chalk.hex(currentTheme.colors.accent1)(text),
   accent2: (text) => chalk.hex(currentTheme.colors.accent2)(text),

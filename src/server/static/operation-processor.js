@@ -14,12 +14,12 @@ export class OperationProcessor {
    */
   registerDefaultHandlers() {
     // Import and register field operation handlers
-    import('./operation-handlers/field-operations.js').then(module => {
+    import('./operation-handlers/field-operations.js').then((module) => {
       this.registerHandlers('FIELD_OPERATION', module.fieldOperationHandlers);
     });
-    
+
     // Import and register UI operation handlers
-    import('./operation-handlers/ui-operations.js').then(module => {
+    import('./operation-handlers/ui-operations.js').then((module) => {
       this.registerHandlers('UI_OPERATION', module.uiOperationHandlers);
     });
   }
@@ -33,7 +33,7 @@ export class OperationProcessor {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, new Map());
     }
-    
+
     const typeHandlers = this.handlers.get(type);
     Object.entries(handlers).forEach(([operation, handler]) => {
       typeHandlers.set(operation, handler);
@@ -50,20 +50,25 @@ export class OperationProcessor {
       return;
     }
 
+    // First pass: Apply all DOM updates synchronously (skip async state updates)
     for (const operation of operations) {
-      await this.processOperation(operation);
+      await this.processOperation(operation, true); // skipStateUpdate = true
     }
+
+    // Second pass: Single async state update after all DOM operations complete
+    this.formStateManager.updateFormState();
   }
 
   /**
    * Process a single operation
    * @param {Object} operation - Operation object with type, operation, and params
+   * @param {boolean} skipStateUpdate - Whether to skip async state updates (default: false)
    * @returns {Promise<void>}
    */
-  async processOperation(operation) {
+  async processOperation(operation, skipStateUpdate = false) {
     try {
       const { type, operation: operationName, params } = operation;
-      
+
       // Get handler for this operation type
       const typeHandlers = this.handlers.get(type);
       if (!typeHandlers) {
@@ -78,9 +83,13 @@ export class OperationProcessor {
         return;
       }
 
-      // Execute the handler
-      await handler(params, this.formStateManager);
-      
+      // Execute the handler, pass skipStateUpdate flag for SETVALUE operations
+      if (operationName === 'SETVALUE' && skipStateUpdate) {
+        await handler(params, this.formStateManager, skipStateUpdate);
+      } else {
+        await handler(params, this.formStateManager);
+      }
+
       console.log(`🏁 [OPERATION] Processed ${type}.${operationName}`);
     } catch (error) {
       console.error(`🏁 [OPERATION] Error processing operation:`, error);
@@ -98,7 +107,7 @@ export class OperationProcessor {
     if (!this.handlers.has(type)) {
       this.handlers.set(type, new Map());
     }
-    
+
     this.handlers.get(type).set(operation, handler);
   }
-} 
+}

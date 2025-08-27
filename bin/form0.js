@@ -10,6 +10,7 @@ import { serveCommand } from '../src/commands/serve.js';
 import { interactiveCommand } from '../src/commands/interactive.js';
 import { themeCommand } from '../src/commands/theme.js';
 import { localeCommand } from '../src/commands/locale.js';
+import { connectorCommand } from '../src/commands/connector.js';
 import { loadConfig } from '../src/utils/config.js';
 
 const program = new Command();
@@ -95,6 +96,14 @@ if (process.argv.length === 2) {
     .argument('[name]', 'Locale option (auto, en, es, fr, it)')
     .description('View or change the current locale/language')
     .action(localeCommand);
+
+  // Connector command
+  program
+    .command('connector')
+    .argument('[action]', 'Action to perform (install, configure, test, status, remove, list)')
+    .argument('[name]', 'Connector name (e.g., form0-connector-pg)')
+    .description('Manage form connectors for data storage and integration')
+    .action(connectorCommand);
 
   program.parse();
 }

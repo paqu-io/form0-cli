@@ -34,13 +34,13 @@ function showNextAlert() {
 
   isShowingAlert = true;
   const { title, message } = alertQueue.shift();
-  
+
   // Get shared overlay
   const overlay = getAlertDialogOverlay();
-  
+
   // Clear any existing content
   overlay.innerHTML = '';
-  
+
   // Create alert dialog content
   const dialogContent = document.createElement('div');
   dialogContent.className = 'alert-dialog-content';
@@ -52,42 +52,42 @@ function showNextAlert() {
       <button class="alert-dialog-ok-btn" tabindex="0">OK</button>
     </div>
   `;
-  
+
   // Add content to overlay
   overlay.appendChild(dialogContent);
   overlay.style.display = 'flex';
-  
+
   // Focus management
   const okBtn = dialogContent.querySelector('.alert-dialog-ok-btn');
   const closeBtn = dialogContent.querySelector('.alert-dialog-close');
-  
+
   // Focus the OK button initially
   okBtn.focus();
-  
+
   // Event handlers
   function hideDialog() {
     overlay.style.display = 'none';
     overlay.innerHTML = '';
     showNextAlert(); // Show next alert in queue
   }
-  
+
   // Close button
   closeBtn.addEventListener('click', hideDialog);
   closeBtn.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') hideDialog();
   });
-  
+
   // OK button
   okBtn.addEventListener('click', hideDialog);
   okBtn.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') hideDialog();
   });
-  
+
   // Click outside to close
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) hideDialog();
   });
-  
+
   // Escape key to close
   document.addEventListener('keydown', function escapeHandler(e) {
     if (e.key === 'Escape') {
@@ -107,12 +107,12 @@ function showNextAlert() {
  */
 function handleAlert(params, formStateManager) {
   const { title, message } = params;
-  
+
   console.log(`[ALERT] ${title}: ${message}`);
-  
+
   // Add to queue
   alertQueue.push({ title, message });
-  
+
   // Show alert if none is currently showing
   if (!isShowingAlert) {
     showNextAlert();
@@ -123,9 +123,9 @@ function handleAlert(params, formStateManager) {
  * Export UI operation handlers
  */
 export const uiOperationHandlers = {
-  ALERT: handleAlert
+  ALERT: handleAlert,
   // Future handlers will be added here:
   // CONFIRM: handleConfirm,
   // NOTIFY: handleNotify,
   // etc.
-}; 
+};

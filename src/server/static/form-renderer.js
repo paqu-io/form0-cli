@@ -19,7 +19,7 @@ export class FormRenderer {
     if (element.type === 'RepeatableSection') {
       return true; // Always partially supported for now
     }
-    
+
     // For fields, currently no partially supported features
     // This is ready for future expansion
     return false;
@@ -46,15 +46,15 @@ export class FormRenderer {
    */
   generateFeatureDescription(element) {
     const parts = [`"${element.type}"`];
-    
+
     if (element.type === 'Section' && element.display === 'drilldown') {
       parts.push(`(display: ${element.display})`);
     }
-    
+
     if (element.is_searchable === true) {
       parts.push(`(is_searchable: ${element.is_searchable})`);
     }
-    
+
     return parts.join(' ');
   }
 
@@ -64,11 +64,12 @@ export class FormRenderer {
   generateSupportMessage(isPartiallySupported = true) {
     const supportLevel = isPartiallySupported ? 'partially supported' : 'not supported';
     const docsPath = isPartiallySupported ? 'partially-supported-features' : 'unsupported-features';
-    
+
     return {
-      message: `The feature ${this.generateFeatureDescription(this.currentElement)} is ${supportLevel} in form0-cli. ` +
-               `Full support available in form0-react and form0-react-native packages.`,
-      docsUrl: `docs.form0.dev/cli/${docsPath}`
+      message:
+        `The feature ${this.generateFeatureDescription(this.currentElement)} is ${supportLevel} in form0-cli. ` +
+        `Full support available in form0-react and form0-react-native packages.`,
+      docsUrl: `docs.form0.dev/cli/${docsPath}`,
     };
   }
 
@@ -78,7 +79,7 @@ export class FormRenderer {
   createWarningIcon(element, elementType = 'section') {
     this.currentElement = element;
     const { message, docsUrl } = this.generateSupportMessage(true);
-    
+
     const warningIcon = document.createElement('span');
     warningIcon.className = `warning-icon ${elementType}-warning-icon`;
     warningIcon.textContent = '⚠️';
@@ -94,7 +95,7 @@ export class FormRenderer {
   createStopIcon(element, elementType = 'section') {
     this.currentElement = element;
     const { message, docsUrl } = this.generateSupportMessage(false);
-    
+
     const stopIcon = document.createElement('span');
     stopIcon.className = `stop-icon ${elementType}-stop-icon`;
     stopIcon.textContent = '⛔';
@@ -160,7 +161,10 @@ export class FormRenderer {
     titleRow.className = 'section-title-row';
     const title = document.createElement('div');
     title.className = 'section-title';
-    title.textContent = section.label || section.data_name || (section.type === 'RepeatableSection' ? 'Repeatable Section' : 'Section');
+    title.textContent =
+      section.label ||
+      section.data_name ||
+      (section.type === 'RepeatableSection' ? 'Repeatable Section' : 'Section');
     titleRow.appendChild(title);
 
     // --- Section description logic ---
@@ -189,13 +193,23 @@ export class FormRenderer {
         document.body.appendChild(dialog);
 
         // Show/hide dialog logic
-        function showDialog() { dialog.style.display = 'block'; }
-        function hideDialog() { dialog.style.display = 'none'; }
+        function showDialog() {
+          dialog.style.display = 'block';
+        }
+        function hideDialog() {
+          dialog.style.display = 'none';
+        }
         infoIcon.addEventListener('click', showDialog);
-        infoIcon.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') showDialog(); });
+        infoIcon.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') showDialog();
+        });
         dialog.querySelector('.description-dialog-close').addEventListener('click', hideDialog);
-        dialog.querySelector('.description-dialog-close').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') hideDialog(); });
-        dialog.addEventListener('click', (e) => { if (e.target === dialog) hideDialog(); });
+        dialog.querySelector('.description-dialog-close').addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') hideDialog();
+        });
+        dialog.addEventListener('click', (e) => {
+          if (e.target === dialog) hideDialog();
+        });
       }
     }
 
@@ -247,7 +261,13 @@ export class FormRenderer {
       label.textContent = field.label || field.data_name;
       if (field.required) label.textContent += ' *';
       // Only set for attribute for simple fields that have a direct input with matching id
-      const simpleFieldTypes = ['TextField', 'NumericField', 'CalculatedField', 'DateField', 'TimeField'];
+      const simpleFieldTypes = [
+        'TextField',
+        'NumericField',
+        'CalculatedField',
+        'DateField',
+        'TimeField',
+      ];
       if (simpleFieldTypes.includes(field.type)) {
         label.htmlFor = field.data_name;
       }
@@ -259,7 +279,7 @@ export class FormRenderer {
         const imgPath = resolveSupportingImagePath(field);
         if (imgPath) {
           const displayMode = field.supporting_image_display || 'default';
-          
+
           if (displayMode === 'dialog') {
             // Create info icon for dialog display
             supportingImageIcon = document.createElement('span');
@@ -269,7 +289,7 @@ export class FormRenderer {
             supportingImageIcon.setAttribute('tabindex', '0');
             supportingImageIcon.setAttribute('role', 'button');
             supportingImageIcon.setAttribute('aria-label', 'View supporting image');
-            
+
             // Create dialog/modal (hidden by default)
             const dialog = document.createElement('div');
             dialog.className = 'supporting-image-dialog';
@@ -284,17 +304,31 @@ export class FormRenderer {
                 </div>
               </div>
             `;
-            
+
             document.body.appendChild(dialog);
-            
+
             // Show/hide dialog logic
-            function showDialog() { dialog.style.display = 'block'; }
-            function hideDialog() { dialog.style.display = 'none'; }
+            function showDialog() {
+              dialog.style.display = 'block';
+            }
+            function hideDialog() {
+              dialog.style.display = 'none';
+            }
             supportingImageIcon.addEventListener('click', showDialog);
-            supportingImageIcon.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') showDialog(); });
-            dialog.querySelector('.supporting-image-dialog-close').addEventListener('click', hideDialog);
-            dialog.querySelector('.supporting-image-dialog-close').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') hideDialog(); });
-            dialog.addEventListener('click', (e) => { if (e.target === dialog) hideDialog(); });
+            supportingImageIcon.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') showDialog();
+            });
+            dialog
+              .querySelector('.supporting-image-dialog-close')
+              .addEventListener('click', hideDialog);
+            dialog
+              .querySelector('.supporting-image-dialog-close')
+              .addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') hideDialog();
+              });
+            dialog.addEventListener('click', (e) => {
+              if (e.target === dialog) hideDialog();
+            });
           }
         }
       }
@@ -330,13 +364,23 @@ export class FormRenderer {
           document.body.appendChild(dialog);
 
           // Show/hide dialog logic
-          function showDialog() { dialog.style.display = 'block'; }
-          function hideDialog() { dialog.style.display = 'none'; }
+          function showDialog() {
+            dialog.style.display = 'block';
+          }
+          function hideDialog() {
+            dialog.style.display = 'none';
+          }
           infoIcon.addEventListener('click', showDialog);
-          infoIcon.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') showDialog(); });
+          infoIcon.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') showDialog();
+          });
           dialog.querySelector('.description-dialog-close').addEventListener('click', hideDialog);
-          dialog.querySelector('.description-dialog-close').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') hideDialog(); });
-          dialog.addEventListener('click', (e) => { if (e.target === dialog) hideDialog(); });
+          dialog.querySelector('.description-dialog-close').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') hideDialog();
+          });
+          dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) hideDialog();
+          });
         }
       }
 
@@ -367,7 +411,7 @@ export class FormRenderer {
         const imgPath = resolveSupportingImagePath(field);
         if (imgPath) {
           const displayMode = field.supporting_image_display || 'default';
-          
+
           if (displayMode === 'default') {
             // Default display - show image directly
             const img = document.createElement('img');
@@ -381,7 +425,7 @@ export class FormRenderer {
     }
 
     const input = this.createFieldInput(field);
-    
+
     // Only set name attribute if input is a form element (not a container)
     if (input.tagName && input.tagName.toLowerCase() !== 'div') {
       input.name = field.data_name;
@@ -395,7 +439,7 @@ export class FormRenderer {
           // Handle radio button readonly
           const radios = input.querySelectorAll('input[type="radio"]');
           const otherInput = input.querySelector('.single-choice-field-other');
-          radios.forEach(radio => radio.disabled = true);
+          radios.forEach((radio) => (radio.disabled = true));
           if (otherInput) otherInput.readOnly = true;
         } else if (field.allow_other) {
           // Handle allow_other SingleChoiceField readonly
@@ -414,7 +458,7 @@ export class FormRenderer {
           // Handle checkbox readonly
           const checkboxes = input.querySelectorAll('input[type="checkbox"]');
           const otherInput = input.querySelector('.multi-single-choice-field-other');
-          checkboxes.forEach(checkbox => checkbox.disabled = true);
+          checkboxes.forEach((checkbox) => (checkbox.disabled = true));
           if (otherInput) otherInput.readOnly = true;
         } else if (field.allow_other) {
           // Handle allow_other MultiChoiceField readonly
@@ -430,7 +474,7 @@ export class FormRenderer {
       } else if (field.type === 'BooleanField') {
         // Handle BooleanField readonly (segmented control)
         const buttons = input.querySelectorAll('.boolean-field-option');
-        buttons.forEach(button => button.disabled = true);
+        buttons.forEach((button) => (button.disabled = true));
       } else {
         input.readOnly = true;
       }
@@ -474,30 +518,30 @@ export class FormRenderer {
       case 'SingleChoiceField':
         // Check display type - default to 'default' if not specified
         const choiceDisplay = field.display || 'default';
-        
+
         if (choiceDisplay === 'radio') {
           // Render as radio buttons
           const container = document.createElement('div');
           container.className = 'single-choice-field-radio-container';
           container.setAttribute('aria-labelledby', field.data_name + '_label');
-          
+
           // Create hidden input for the actual field value
           const hiddenInput = document.createElement('input');
           hiddenInput.type = 'hidden';
           hiddenInput.id = field.data_name + '_hidden';
           hiddenInput.name = field.data_name;
-          
+
           // Flag to prevent recursive updates
           let isUpdating = false;
-          
+
           // Function to update hidden value
           function updateHiddenValue() {
             if (isUpdating) return;
-            
+
             const selectedRadio = container.querySelector('input[type="radio"]:checked');
             let choiceValue = '';
             let otherValue = '';
-            
+
             if (selectedRadio) {
               if (selectedRadio.value === '__other__') {
                 const otherInput = container.querySelector('.single-choice-field-other');
@@ -506,95 +550,97 @@ export class FormRenderer {
                 choiceValue = selectedRadio.value;
               }
             }
-            
+
             const value = {
               choice: choiceValue ? [{ value: choiceValue }] : [],
-              other: otherValue ? [{ label: otherValue }] : []
+              other: otherValue ? [{ label: otherValue }] : [],
             };
-            
+
             hiddenInput.value = JSON.stringify(value);
-            
+
             // Dispatch custom event to trigger form state update
             const changeEvent = new CustomEvent('singlechoicefield-change', {
               bubbles: true,
-              detail: { fieldName: field.data_name, value: value }
+              detail: { fieldName: field.data_name, value: value },
             });
             hiddenInput.dispatchEvent(changeEvent);
           }
-          
+
           // Add regular choices as radio buttons
           (field.choices || []).forEach((choice) => {
             const radioDiv = document.createElement('div');
             radioDiv.className = 'single-choice-field-radio-option';
-            
+
             const radio = document.createElement('input');
             radio.type = 'radio';
             radio.name = field.data_name + '_radio';
             radio.value = choice.value;
             radio.id = field.data_name + '_' + choice.value;
-            
+
             const label = document.createElement('label');
             label.htmlFor = radio.id;
             label.textContent = choice.label || choice.value;
-            
+
             radio.addEventListener('change', updateHiddenValue);
-            
+
             radioDiv.appendChild(radio);
             radioDiv.appendChild(label);
             container.appendChild(radioDiv);
           });
-          
+
           // Add "Other" option if allowed
           if (field.allow_other) {
             const otherDiv = document.createElement('div');
             otherDiv.className = 'single-choice-field-radio-option';
-            
+
             const otherRadio = document.createElement('input');
             otherRadio.type = 'radio';
             otherRadio.name = field.data_name + '_radio';
             otherRadio.value = '__other__';
             otherRadio.id = field.data_name + '_other_radio';
-            
+
             const otherLabel = document.createElement('label');
             otherLabel.htmlFor = otherRadio.id;
             otherLabel.textContent = 'Other (specify)';
-            
+
             const otherInput = document.createElement('input');
             otherInput.type = 'text';
             otherInput.id = field.data_name + '_other_input';
             otherInput.name = field.data_name + '_other';
             otherInput.className = 'single-choice-field-other';
             otherInput.placeholder = 'Please specify...';
-            
-            otherRadio.addEventListener('change', function() {
+
+            otherRadio.addEventListener('change', function () {
               if (this.checked) {
                 otherInput.style.display = 'block';
                 otherInput.focus();
               }
               updateHiddenValue();
             });
-            
+
             // Hide other input when other radio options are selected
-            container.addEventListener('change', function(e) {
+            container.addEventListener('change', function (e) {
               if (e.target.type === 'radio' && e.target.value !== '__other__') {
                 otherInput.style.display = 'none';
                 otherInput.value = '';
               }
             });
-            
+
             otherInput.addEventListener('input', updateHiddenValue);
-            
+
             otherDiv.appendChild(otherRadio);
             otherDiv.appendChild(otherLabel);
             otherDiv.appendChild(otherInput);
             container.appendChild(otherDiv);
           }
-          
+
           // Store the update flag and function on the container for external access
           container._isUpdating = () => isUpdating;
-          container._setUpdating = (value) => { isUpdating = value; };
+          container._setUpdating = (value) => {
+            isUpdating = value;
+          };
           container._updateHiddenValue = updateHiddenValue;
-          
+
           container.appendChild(hiddenInput);
           input = container;
         } else {
@@ -604,18 +650,18 @@ export class FormRenderer {
             const container = document.createElement('div');
             container.className = 'single-choice-field-container';
             container.setAttribute('aria-labelledby', field.data_name + '_label');
-            
+
             const select = document.createElement('select');
             select.id = field.data_name + '_select';
             select.name = field.data_name + '_choice';
             select.className = 'single-choice-field-select';
-            
+
             // Add default empty option
             const emptyOption = document.createElement('option');
             emptyOption.value = '';
             emptyOption.textContent = 'Select an option...';
             select.appendChild(emptyOption);
-            
+
             // Add regular choices
             (field.choices || []).forEach((choice) => {
               const option = document.createElement('option');
@@ -623,13 +669,13 @@ export class FormRenderer {
               option.textContent = choice.label || choice.value;
               select.appendChild(option);
             });
-            
+
             // Add "Other" option
             const otherOption = document.createElement('option');
             otherOption.value = '__other__';
             otherOption.textContent = 'Other (specify)';
             select.appendChild(otherOption);
-            
+
             // Create text input for "other" value
             const otherInput = document.createElement('input');
             otherInput.type = 'text';
@@ -638,47 +684,47 @@ export class FormRenderer {
             otherInput.className = 'single-choice-field-other';
             otherInput.placeholder = 'Please specify...';
             otherInput.style.display = 'none';
-            
+
             // Create label for other input (screen reader only)
             const otherInputLabel = document.createElement('label');
             otherInputLabel.htmlFor = otherInput.id;
             otherInputLabel.textContent = 'Specify other option';
             otherInputLabel.className = 'sr-only';
-            
+
             // Create hidden input for the actual field value
             const hiddenInput = document.createElement('input');
             hiddenInput.type = 'hidden';
             hiddenInput.name = field.data_name;
-            
+
             // Flag to prevent recursive updates
             let isUpdating = false;
-            
+
             // Function to update hidden value
             function updateHiddenValue() {
               if (isUpdating) return;
-              
+
               const choiceValue = select.value === '__other__' ? '' : select.value;
               const otherValue = select.value === '__other__' ? otherInput.value.trim() : '';
-              
+
               const value = {
                 choice: choiceValue ? [{ value: choiceValue }] : [],
-                other: otherValue ? [{ label: otherValue }] : []
+                other: otherValue ? [{ label: otherValue }] : [],
               };
-              
+
               hiddenInput.value = JSON.stringify(value);
-              
+
               // Dispatch custom event to trigger form state update
               const changeEvent = new CustomEvent('singlechoicefield-change', {
                 bubbles: true,
-                detail: { fieldName: field.data_name, value: value }
+                detail: { fieldName: field.data_name, value: value },
               });
               hiddenInput.dispatchEvent(changeEvent);
             }
-            
+
             // Add event listener for select change
-            select.addEventListener('change', function() {
+            select.addEventListener('change', function () {
               if (isUpdating) return;
-              
+
               if (this.value === '__other__') {
                 otherInput.style.display = 'block';
                 otherInput.focus();
@@ -688,73 +734,75 @@ export class FormRenderer {
               }
               updateHiddenValue();
             });
-            
+
             // Add event listener for other input
             otherInput.addEventListener('input', updateHiddenValue);
-            
+
             // Store the update flag and function on the container for external access
             container._isUpdating = () => isUpdating;
-            container._setUpdating = (value) => { isUpdating = value; };
+            container._setUpdating = (value) => {
+              isUpdating = value;
+            };
             container._updateHiddenValue = updateHiddenValue;
-            
+
             container.appendChild(select);
             container.appendChild(otherInputLabel);
             container.appendChild(otherInput);
             container.appendChild(hiddenInput);
-            
+
             input = container;
           } else {
             // Simple select for non-allow_other fields
             const container = document.createElement('div');
             container.className = 'single-choice-field-simple-container';
             container.setAttribute('aria-labelledby', field.data_name + '_label');
-            
+
             const select = document.createElement('select');
             select.id = field.data_name + '_simple_select';
             select.className = 'single-choice-field-simple-select';
-            
+
             // Add default empty option
             const emptyOption = document.createElement('option');
             emptyOption.value = '';
             emptyOption.textContent = 'Select an option...';
             select.appendChild(emptyOption);
-            
+
             (field.choices || []).forEach((choice) => {
               const option = document.createElement('option');
               option.value = choice.value;
               option.textContent = choice.label || choice.value;
               select.appendChild(option);
             });
-            
+
             // Create hidden input for the actual field value
             const hiddenInput = document.createElement('input');
             hiddenInput.type = 'hidden';
             hiddenInput.id = field.data_name + '_hidden';
             hiddenInput.name = field.data_name;
-            
+
             // Function to update hidden value for simple choice field
             function updateSimpleHiddenValue() {
               const choiceValue = select.value;
               const value = {
                 choice: choiceValue ? [{ value: choiceValue }] : [],
-                other: []
+                other: [],
               };
               hiddenInput.value = JSON.stringify(value);
-              
+
               // Dispatch custom event to trigger form state update
               const changeEvent = new CustomEvent('singlechoicefield-change', {
                 bubbles: true,
-                detail: { fieldName: field.data_name, value: value }
+                detail: { fieldName: field.data_name, value: value },
               });
               hiddenInput.dispatchEvent(changeEvent);
             }
-            
+
             // Add event listener for select change
             select.addEventListener('change', updateSimpleHiddenValue);
-            
+
             container.appendChild(select);
             container.appendChild(hiddenInput);
-            
+
             input = container;
           }
         }
@@ -763,113 +811,113 @@ export class FormRenderer {
       case 'MultiChoiceField':
         // Check display type - default to 'default' if not specified
         const multiChoiceDisplay = field.display || 'default';
-        
+
         if (multiChoiceDisplay === 'checkbox') {
           // Render as checkboxes
           const container = document.createElement('div');
           container.className = 'multi-choice-field-checkbox-container';
           container.setAttribute('aria-labelledby', field.data_name + '_label');
-          
+
           // Create hidden input for the actual field value
           const hiddenInput = document.createElement('input');
           hiddenInput.type = 'hidden';
           hiddenInput.id = field.data_name + '_hidden';
           hiddenInput.name = field.data_name;
-          
+
           // Initialize with correct structure
           hiddenInput.value = JSON.stringify({
             choices: [],
-            other: []
+            other: [],
           });
-          
+
           // Flag to prevent recursive updates
           let isUpdating = false;
-          
+
           // Function to update hidden value
           function updateHiddenValue() {
             if (isUpdating) return;
-            
+
             const checkedBoxes = container.querySelectorAll('input[type="checkbox"]:checked');
-            const hasOther = Array.from(checkedBoxes).some(cb => cb.value === '__other__');
-            
+            const hasOther = Array.from(checkedBoxes).some((cb) => cb.value === '__other__');
+
             // Get regular choices (excluding "other")
             const choiceValues = Array.from(checkedBoxes)
-              .filter(cb => cb.value !== '__other__')
-              .map(cb => ({ value: cb.value }));
-            
+              .filter((cb) => cb.value !== '__other__')
+              .map((cb) => ({ value: cb.value }));
+
             // Get other value if selected
             let otherValue = '';
             if (hasOther) {
               const otherInput = container.querySelector('.multi-choice-field-other');
               otherValue = otherInput ? otherInput.value.trim() : '';
             }
-            
+
             const value = {
               choices: choiceValues,
-              other: otherValue ? [{ label: otherValue }] : []
+              other: otherValue ? [{ label: otherValue }] : [],
             };
-            
+
             hiddenInput.value = JSON.stringify(value);
-            
+
             // Dispatch custom event to trigger form state update
             const changeEvent = new CustomEvent('multichoicefield-change', {
               bubbles: true,
-              detail: { fieldName: field.data_name, value: value }
+              detail: { fieldName: field.data_name, value: value },
             });
             hiddenInput.dispatchEvent(changeEvent);
           }
-          
+
           // Add regular choices as checkboxes
           (field.choices || []).forEach((choice) => {
             const checkboxDiv = document.createElement('div');
             checkboxDiv.className = 'multi-choice-field-checkbox-option';
-            
+
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.name = field.data_name + '_checkbox';
             checkbox.value = choice.value;
             checkbox.id = field.data_name + '_' + choice.value;
-            
+
             const label = document.createElement('label');
             label.htmlFor = checkbox.id;
             label.textContent = choice.label || choice.value;
-            
+
             checkbox.addEventListener('change', updateHiddenValue);
-            
+
             checkboxDiv.appendChild(checkbox);
             checkboxDiv.appendChild(label);
             container.appendChild(checkboxDiv);
           });
-          
+
           // Add "Other" option if allowed
           if (field.allow_other) {
             const otherDiv = document.createElement('div');
             otherDiv.className = 'multi-choice-field-checkbox-option';
-            
+
             const otherCheckbox = document.createElement('input');
             otherCheckbox.type = 'checkbox';
             otherCheckbox.name = field.data_name + '_checkbox';
             otherCheckbox.value = '__other__';
             otherCheckbox.id = field.data_name + '_other_checkbox';
-            
+
             const otherLabel = document.createElement('label');
             otherLabel.htmlFor = otherCheckbox.id;
             otherLabel.textContent = 'Other (specify)';
-            
+
             const otherInput = document.createElement('input');
             otherInput.type = 'text';
             otherInput.id = field.data_name + '_other_input';
             otherInput.name = field.data_name + '_other';
             otherInput.className = 'multi-choice-field-other';
             otherInput.placeholder = 'Please specify...';
-            
+
             // Create label for other input (screen reader only)
             const otherInputLabel = document.createElement('label');
             otherInputLabel.htmlFor = otherInput.id;
             otherInputLabel.textContent = 'Specify other option';
             otherInputLabel.className = 'sr-only';
-            
-            otherCheckbox.addEventListener('change', function() {
+
+            otherCheckbox.addEventListener('change', function () {
               if (this.checked) {
                 otherInput.style.display = 'block';
                 otherInput.focus();
@@ -879,21 +927,23 @@ export class FormRenderer {
               }
               updateHiddenValue();
             });
-            
+
             otherInput.addEventListener('input', updateHiddenValue);
-            
+
             otherDiv.appendChild(otherCheckbox);
             otherDiv.appendChild(otherLabel);
             otherDiv.appendChild(otherInputLabel);
             otherDiv.appendChild(otherInput);
             container.appendChild(otherDiv);
           }
-          
+
           // Store the update flag and function on the container for external access
           container._isUpdating = () => isUpdating;
-          container._setUpdating = (value) => { isUpdating = value; };
+          container._setUpdating = (value) => {
+            isUpdating = value;
+          };
           container._updateHiddenValue = updateHiddenValue;
-          
+
           container.appendChild(hiddenInput);
           input = container;
         } else {
@@ -903,14 +953,14 @@ export class FormRenderer {
             const container = document.createElement('div');
             container.className = 'multi-choice-field-container';
             container.setAttribute('aria-labelledby', field.data_name + '_label');
-            
+
             const select = document.createElement('select');
             select.id = field.data_name + '_select';
             select.name = field.data_name + '_choices';
             select.className = 'multi-choice-field-select';
             select.multiple = true;
             select.size = Math.min(field.choices ? field.choices.length + 1 : 6, 8); // Show up to 8 options
-            
+
             // Add regular choices
             (field.choices || []).forEach((choice) => {
               const option = document.createElement('option');
@@ -918,13 +968,13 @@ export class FormRenderer {
               option.textContent = choice.label || choice.value;
               select.appendChild(option);
             });
-            
+
             // Add "Other" option
             const otherOption = document.createElement('option');
             otherOption.value = '__other__';
             otherOption.textContent = 'Other (specify)';
             select.appendChild(otherOption);
-            
+
             // Create text input for "other" value
             const otherInput = document.createElement('input');
             otherInput.type = 'text';
@@ -933,65 +983,65 @@ export class FormRenderer {
             otherInput.className = 'multi-choice-field-other';
             otherInput.placeholder = 'Please specify...';
             otherInput.style.display = 'none';
-            
+
             // Create label for other input (screen reader only)
             const otherInputLabel = document.createElement('label');
             otherInputLabel.htmlFor = otherInput.id;
             otherInputLabel.textContent = 'Specify other option';
             otherInputLabel.className = 'sr-only';
-            
+
             // Create hidden input for the actual field value
             const hiddenInput = document.createElement('input');
             hiddenInput.type = 'hidden';
             hiddenInput.id = field.data_name + '_hidden';
             hiddenInput.name = field.data_name;
-            
+
             // Initialize with correct structure
             hiddenInput.value = JSON.stringify({
               choices: [],
-              other: []
+              other: [],
             });
-            
+
             // Flag to prevent recursive updates
             let isUpdating = false;
-            
+
             // Function to update hidden value
             function updateHiddenValue() {
               if (isUpdating) return;
-              
+
               const selectedOptions = Array.from(select.selectedOptions);
-              const hasOther = selectedOptions.some(option => option.value === '__other__');
-              
+              const hasOther = selectedOptions.some((option) => option.value === '__other__');
+
               // Get regular choices (excluding "other")
               const choiceValues = selectedOptions
-                .filter(option => option.value !== '__other__')
-                .map(option => ({ value: option.value }));
-              
+                .filter((option) => option.value !== '__other__')
+                .map((option) => ({ value: option.value }));
+
               // Get other value if selected - only include if there's text (same as SingleChoiceField)
               const otherValue = hasOther ? otherInput.value.trim() : '';
-              
+
               const value = {
                 choices: choiceValues,
-                other: otherValue ? [{ label: otherValue }] : []
+                other: otherValue ? [{ label: otherValue }] : [],
               };
-              
+
               hiddenInput.value = JSON.stringify(value);
-              
+
               // Dispatch custom event to trigger form state update
               const changeEvent = new CustomEvent('multichoicefield-change', {
                 bubbles: true,
-                detail: { fieldName: field.data_name, value: value }
+                detail: { fieldName: field.data_name, value: value },
               });
               hiddenInput.dispatchEvent(changeEvent);
             }
-            
+
             // Add event listener for select change
-            select.addEventListener('change', function() {
+            select.addEventListener('change', function () {
               if (isUpdating) return;
-              
+
               const selectedOptions = Array.from(this.selectedOptions);
-              const hasOther = selectedOptions.some(option => option.value === '__other__');
-              
+              const hasOther = selectedOptions.some((option) => option.value === '__other__');
+
               if (hasOther) {
                 otherInput.style.display = 'block';
                 otherInput.focus();
@@ -1001,77 +1051,79 @@ export class FormRenderer {
               }
               updateHiddenValue();
             });
-            
+
             // Add event listener for other input
             otherInput.addEventListener('input', updateHiddenValue);
-            
+
             // Store the update flag and function on the container for external access
             container._isUpdating = () => isUpdating;
-            container._setUpdating = (value) => { isUpdating = value; };
+            container._setUpdating = (value) => {
+              isUpdating = value;
+            };
             container._updateHiddenValue = updateHiddenValue;
-            
+
             container.appendChild(select);
             container.appendChild(otherInputLabel);
             container.appendChild(otherInput);
             container.appendChild(hiddenInput);
-            
+
             input = container;
           } else {
             // Simple multi-select for non-allow_other fields
             const container = document.createElement('div');
             container.className = 'multi-choice-field-simple-container';
             container.setAttribute('aria-labelledby', field.data_name + '_label');
-            
+
             const select = document.createElement('select');
             select.id = field.data_name + '_simple_select';
             select.className = 'multi-choice-field-simple-select';
             select.multiple = true;
             select.size = Math.min(field.choices ? field.choices.length : 6, 8); // Show up to 8 options
-            
+
             (field.choices || []).forEach((choice) => {
               const option = document.createElement('option');
               option.value = choice.value;
               option.textContent = choice.label || choice.value;
               select.appendChild(option);
             });
-            
+
             // Create hidden input for the actual field value
             const hiddenInput = document.createElement('input');
             hiddenInput.type = 'hidden';
             hiddenInput.id = field.data_name + '_hidden';
             hiddenInput.name = field.data_name;
-            
+
             // Initialize with correct structure
             hiddenInput.value = JSON.stringify({
               choices: [],
-              other: []
+              other: [],
             });
-            
+
             // Function to update hidden value for simple multi choice field
             function updateSimpleHiddenValue() {
               const selectedOptions = Array.from(select.selectedOptions);
-              const choiceValues = selectedOptions.map(option => ({ value: option.value }));
-              
+              const choiceValues = selectedOptions.map((option) => ({ value: option.value }));
+
               const value = {
                 choices: choiceValues,
-                other: []
+                other: [],
               };
               hiddenInput.value = JSON.stringify(value);
-              
+
               // Dispatch custom event to trigger form state update
               const changeEvent = new CustomEvent('multichoicefield-change', {
                 bubbles: true,
-                detail: { fieldName: field.data_name, value: value }
+                detail: { fieldName: field.data_name, value: value },
               });
               hiddenInput.dispatchEvent(changeEvent);
             }
-            
+
             // Add event listener for select change
             select.addEventListener('change', updateSimpleHiddenValue);
-            
+
             container.appendChild(select);
             container.appendChild(hiddenInput);
-            
+
             input = container;
           }
         }
@@ -1101,45 +1153,45 @@ export class FormRenderer {
         const container = document.createElement('div');
         container.className = 'boolean-field-container';
         container.setAttribute('aria-labelledby', field.data_name + '_label');
-        
+
         // Create hidden input for the actual field value
         const hiddenInput = document.createElement('input');
         hiddenInput.type = 'hidden';
         hiddenInput.name = field.data_name;
-        
+
         // Flag to prevent recursive updates
         let isUpdating = false;
-        
+
         // Function to update hidden value
         function updateHiddenValue() {
           if (isUpdating) return;
-          
+
           const selectedButton = container.querySelector('.boolean-field-option.selected');
           let choiceValue = '';
-          
+
           if (selectedButton) {
             choiceValue = selectedButton.dataset.value;
           }
-          
+
           const value = {
             choice: choiceValue ? [{ value: choiceValue }] : [],
-            other: []
+            other: [],
           };
-          
+
           hiddenInput.value = JSON.stringify(value);
-          
+
           // Dispatch custom event to trigger form state update
           const changeEvent = new CustomEvent('booleanfield-change', {
             bubbles: true,
-            detail: { fieldName: field.data_name, value: value }
+            detail: { fieldName: field.data_name, value: value },
           });
           hiddenInput.dispatchEvent(changeEvent);
         }
-        
+
         // Create segmented control container
         const segmentedContainer = document.createElement('div');
         segmentedContainer.className = 'boolean-field-segmented';
-        
+
         // Add choice buttons
         (field.choices || []).forEach((choice, index) => {
           const button = document.createElement('button');
@@ -1147,48 +1199,50 @@ export class FormRenderer {
           button.className = 'boolean-field-option';
           button.dataset.value = choice.value;
           button.textContent = choice.label || choice.value;
-          
+
           // Add hover effect
-          button.addEventListener('mouseenter', function() {
+          button.addEventListener('mouseenter', function () {
             if (!this.classList.contains('selected')) {
               this.style.background = '#f5f5f5';
             }
           });
-          
-          button.addEventListener('mouseleave', function() {
+
+          button.addEventListener('mouseleave', function () {
             if (!this.classList.contains('selected')) {
               this.style.background = 'white';
             }
           });
-          
+
           // Add click handler
-          button.addEventListener('click', function() {
+          button.addEventListener('click', function () {
             // Remove selected class from all buttons
-            container.querySelectorAll('.boolean-field-option').forEach(btn => {
+            container.querySelectorAll('.boolean-field-option').forEach((btn) => {
               btn.classList.remove('selected');
               btn.style.background = 'white';
               btn.style.color = '#666';
             });
-            
+
             // Add selected class to clicked button
             this.classList.add('selected');
             this.style.background = '#007bff';
             this.style.color = 'white';
-            
+
             updateHiddenValue();
           });
-          
+
           segmentedContainer.appendChild(button);
         });
-        
+
         // Store the update flag and function on the container for external access
         container._isUpdating = () => isUpdating;
-        container._setUpdating = (value) => { isUpdating = value; };
+        container._setUpdating = (value) => {
+          isUpdating = value;
+        };
         container._updateHiddenValue = updateHiddenValue;
-        
+
         container.appendChild(segmentedContainer);
         container.appendChild(hiddenInput);
-        
+
         input = container;
         break;
 
@@ -1198,16 +1252,16 @@ export class FormRenderer {
         labelContainer.className = 'label-field-container';
         labelContainer.id = field.data_name;
         labelContainer.setAttribute('aria-labelledby', field.data_name + '_label');
-        
+
         // Create the label text element with proper newline handling
         const labelText = document.createElement('div');
         labelText.className = 'label-field-text';
-        
+
         // Handle newlines in the label text
         if (field.label) {
           labelText.textContent = field.label;
         }
-        
+
         labelContainer.appendChild(labelText);
         input = labelContainer;
         break;
@@ -1253,7 +1307,8 @@ export class FormRenderer {
 
         // Drawing logic (vanilla JS, modular for future swap)
         let drawing = false;
-        let lastX = 0, lastY = 0;
+        let lastX = 0,
+          lastY = 0;
         const ctx = canvas.getContext('2d');
         ctx.lineWidth = 2;
         ctx.lineCap = 'round';
@@ -1264,13 +1319,13 @@ export class FormRenderer {
             const rect = canvas.getBoundingClientRect();
             return {
               x: e.touches[0].clientX - rect.left,
-              y: e.touches[0].clientY - rect.top
+              y: e.touches[0].clientY - rect.top,
             };
           } else {
             const rect = canvas.getBoundingClientRect();
             return {
               x: e.clientX - rect.left,
-              y: e.clientY - rect.top
+              y: e.clientY - rect.top,
             };
           }
         }
@@ -1313,16 +1368,16 @@ export class FormRenderer {
             // New data structure: {signature_id: null, data: base64-without-prefix}
             const signatureData = {
               signature_id: null, // To be generated in frontend
-              data: base64Data
+              data: base64Data,
             };
             hiddenInput.value = JSON.stringify(signatureData);
           } else {
             hiddenInput.value = JSON.stringify(null);
           }
-          
+
           // Dispatch custom event like PhotoField and VideoField
           hiddenInput.dispatchEvent(new CustomEvent('signaturefield-change', { bubbles: true }));
-          
+
           // Also fire a native input event to trigger validation and error clearing
           const event = new Event('input', { bubbles: true });
           hiddenInput.dispatchEvent(event);
@@ -1381,7 +1436,7 @@ export class FormRenderer {
           selectedPhotos.forEach((photo, idx) => {
             const photoContainer = document.createElement('div');
             photoContainer.className = 'file-preview-item';
-            
+
             const img = document.createElement('img');
             img.className = 'photo-field-thumb';
             img.alt = photo.name;
@@ -1395,12 +1450,12 @@ export class FormRenderer {
             captionInput.placeholder = 'Add caption...';
             captionInput.value = photo.caption || '';
             if (field.read_only) captionInput.readOnly = true;
-            
+
             captionInput.addEventListener('input', () => {
               selectedPhotos[idx].caption = captionInput.value.trim() || null;
               updateHiddenInput();
             });
-            
+
             photoContainer.appendChild(captionInput);
 
             if (!field.read_only) {
@@ -1415,7 +1470,7 @@ export class FormRenderer {
               };
               photoContainer.appendChild(removeBtn);
             }
-            
+
             preview.appendChild(photoContainer);
           });
 
@@ -1424,19 +1479,19 @@ export class FormRenderer {
 
         function updateHiddenInput() {
           // New data structure: array of {photo_id: null, filename: string, caption: string|null}
-          const photoData = selectedPhotos.map(photo => ({
+          const photoData = selectedPhotos.map((photo) => ({
             photo_id: null, // To be generated in frontend
             filename: photo.name,
-            caption: photo.caption || null
+            caption: photo.caption || null,
           }));
           hiddenInput.value = JSON.stringify(photoData);
           hiddenInput.dispatchEvent(new CustomEvent('photofield-change', { bubbles: true }));
         }
 
-        fileInput.addEventListener('change', function() {
+        fileInput.addEventListener('change', function () {
           if (fileInput.files && fileInput.files.length > 0) {
-            Array.from(fileInput.files).forEach(file => {
-              if (!selectedPhotos.some(p => p.name === file.name)) {
+            Array.from(fileInput.files).forEach((file) => {
+              if (!selectedPhotos.some((p) => p.name === file.name)) {
                 const url = URL.createObjectURL(file);
                 selectedPhotos.push({ name: file.name, url, file, caption: null });
               }
@@ -1501,12 +1556,12 @@ export class FormRenderer {
             captionInput.placeholder = 'Add caption...';
             captionInput.value = video.caption || '';
             if (field.read_only) captionInput.readOnly = true;
-            
+
             captionInput.addEventListener('input', () => {
               selectedVideos[idx].caption = captionInput.value.trim() || null;
               updateVideoHiddenInput();
             });
-            
+
             videoContainer.appendChild(captionInput);
 
             if (!field.read_only) {
@@ -1529,11 +1584,11 @@ export class FormRenderer {
 
         function updateVideoHiddenInput() {
           // New data structure: array of {video_id: null, filename: string, duration: number, caption: string|null}
-          const videoData = selectedVideos.map(video => ({
+          const videoData = selectedVideos.map((video) => ({
             video_id: null, // To be generated in frontend
             filename: video.name,
             duration: video.duration,
-            caption: video.caption || null
+            caption: video.caption || null,
           }));
           hiddenInput.value = JSON.stringify(videoData);
           // Dispatch custom event to trigger form state update
@@ -1552,11 +1607,11 @@ export class FormRenderer {
           return new Promise((resolve, reject) => {
             const video = document.createElement('video');
             video.preload = 'metadata';
-            video.onloadedmetadata = function() {
+            video.onloadedmetadata = function () {
               window.URL.revokeObjectURL(video.src);
               resolve(video.duration);
             };
-            video.onerror = function(err) {
+            video.onerror = function (err) {
               reject(err);
             };
             video.src = URL.createObjectURL(file);
@@ -1564,11 +1619,11 @@ export class FormRenderer {
         }
 
         // On file input change, add new files to array
-        fileInput.addEventListener('change', async function() {
+        fileInput.addEventListener('change', async function () {
           if (fileInput.files && fileInput.files.length > 0) {
             for (const file of Array.from(fileInput.files)) {
               // Prevent duplicates by name
-              if (!selectedVideos.some(v => v.name === file.name)) {
+              if (!selectedVideos.some((v) => v.name === file.name)) {
                 try {
                   const duration = await getVideoDuration(file);
                   selectedVideos.push({ name: file.name, duration, file, caption: null });
@@ -1612,7 +1667,10 @@ export class FormRenderer {
   countFields(elements) {
     let count = 0;
     elements.forEach((element) => {
-      if ((element.type === 'Section' || element.type === 'RepeatableSection') && Array.isArray(element.elements)) {
+      if (
+        (element.type === 'Section' || element.type === 'RepeatableSection') &&
+        Array.isArray(element.elements)
+      ) {
         count += this.countFields(element.elements || element.drilldown_elements || []);
       } else {
         count++;
@@ -1626,21 +1684,21 @@ export class FormRenderer {
    */
   getAutocompleteValue(dataName) {
     const autocompleteMap = {
-      'email': 'email',
-      'phone': 'tel',
-      'name': 'name',
-      'first_name': 'given-name',
-      'last_name': 'family-name',
-      'address': 'street-address',
-      'city': 'address-level2',
-      'state': 'address-level1',
-      'zip': 'postal-code',
-      'country': 'country',
-      'company': 'organization',
-      'job_title': 'organization-title',
-      'url': 'url',
-      'password': 'current-password',
-      'username': 'username'
+      email: 'email',
+      phone: 'tel',
+      name: 'name',
+      first_name: 'given-name',
+      last_name: 'family-name',
+      address: 'street-address',
+      city: 'address-level2',
+      state: 'address-level1',
+      zip: 'postal-code',
+      country: 'country',
+      company: 'organization',
+      job_title: 'organization-title',
+      url: 'url',
+      password: 'current-password',
+      username: 'username',
     };
 
     // Check for exact matches first
@@ -1668,7 +1726,10 @@ export class FormRenderer {
         if (element.data_name === dataName) {
           return element;
         }
-        if ((element.type === 'Section' || element.type === 'RepeatableSection') && Array.isArray(element.elements)) {
+        if (
+          (element.type === 'Section' || element.type === 'RepeatableSection') &&
+          Array.isArray(element.elements)
+        ) {
           const found = searchElements(element.elements || element.drilldown_elements || []);
           if (found) return found;
         }
@@ -1677,5 +1738,25 @@ export class FormRenderer {
     }
 
     return this.currentSchema ? searchElements(this.currentSchema.form.elements || []) : null;
+  }
+
+  /**
+   * Find field definition by key
+   */
+  findFieldByKey(key) {
+    function search(elements) {
+      for (const el of elements || []) {
+        if (el.key === key) return el;
+        if (
+          (el.type === 'Section' || el.type === 'RepeatableSection') &&
+          Array.isArray(el.elements)
+        ) {
+          const found = search(el.elements || el.drilldown_elements || []);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+    return this.currentSchema ? search(this.currentSchema.form.elements || []) : null;
   }
 }
