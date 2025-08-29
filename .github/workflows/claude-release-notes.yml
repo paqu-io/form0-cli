@@ -1,0 +1,208 @@
+name: Generate Release Notes
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version and commits
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          PREV_TAG=$(git describe --tags --abbrev=0 $TAG^ 2>/dev/null || echo "")
+          
+          echo "CURRENT_TAG=$TAG" >> $GITHUB_ENV
+          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_ENV
+          
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="$TAG"
+          else
+            RANGE="$PREV_TAG..$TAG"
+          fi
+          
+          echo "COMMIT_RANGE=$RANGE" >> $GITHUB_ENV
+
+      - name: Create issue for Claude
+        id: create-issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.CLAUDE_RELEASE_ACCESS_TOKEN }}  # ← Use CLAUDE_RELEASE_ACCESS_TOKEN instead of GITHUB_TOKEN
+          script: |
+            const { execSync } = require('child_process');
+            
+            // Get commit data
+            const range = process.env.COMMIT_RANGE;
+            const currentTag = process.env.CURRENT_TAG;
+            const prevTag = process.env.PREV_TAG || 'initial commit';
+            
+            let commits = [];
+            let filesChanged = [];
+            let truncatedDiff = ''; // Declare outside try block
+            
+            try {
+              const commitOutput = execSync(`git log ${range} --pretty=format:"- %s (%h) by %an" --reverse`).toString().trim();
+              commits = commitOutput.split('\n').filter(line => line.trim());
+              
+              const filesOutput = execSync(`git diff --name-only ${range} 2>/dev/null || echo ""`).toString().trim();
+              filesChanged = filesOutput.split('\n').filter(line => line.trim()).slice(0, 15);
+              
+              // Get actual diff content for better context
+              const diffOutput = execSync(`git diff ${range} --unified=3 2>/dev/null || echo ""`).toString().trim();
+              
+              // Truncate diff if too long (to avoid hitting GitHub issue size limits)
+              const maxDiffLength = 8000; // GitHub issues have ~65k char limit, leave room for other content
+              truncatedDiff = diffOutput.length > maxDiffLength 
+                ? diffOutput.substring(0, maxDiffLength) + '\n\n... (diff truncated for brevity) ...'
+                : diffOutput;
+                
+              console.log(`Diff length: ${diffOutput.length} characters`);
+            } catch (error) {
+              console.log('Error getting git data:', error.message);
+              commits = ['- Release preparation'];
+              filesChanged = [];
+              truncatedDiff = 'Unable to generate diff - please check commits manually';
+            }
+            
+            const issueBody = `@claude Please generate professional release notes for version **${currentTag}**.
+
+            ## Release Information
+            - **Previous version:** ${prevTag}
+            - **New version:** ${currentTag}
+            - **Repository:** ${context.repo.owner}/${context.repo.repo}
+            - **Total commits:** ${commits.length}
+
+            ## Commit History
+            \`\`\`
+            ${commits.join('\n')}
+            \`\`\`
+
+            ${filesChanged.length > 0 ? `## Files Changed
+            \`\`\`
+            ${filesChanged.join('\n')}
+            \`\`\`` : ''}
+
+            ## Actual Code Changes
+            **IMPORTANT: Base your descriptions on the actual changes shown below, not assumptions.**
+            
+            \`\`\`diff
+            ${truncatedDiff || 'No diff available - check individual commits'}
+            \`\`\`
+
+            ## Instructions for Release Notes
+            **CRITICAL: Only describe what actually changed based on the diff above. Do not invent or assume details.**
+            
+            1. **Review the actual diff content** before writing descriptions
+            2. **Transform technical commit messages into user-friendly descriptions** 
+            3. **Base descriptions on ACTUAL changes shown in the diff**, not commit message assumptions
+            4. **If a change is minor (like adding a single line), describe it as minor**
+            5. **Don't elaborate beyond what the diff actually shows**
+            6. **Group related changes logically**
+            7. **Use these emoji categories in this order:**
+               - 💥 **Breaking Changes** - Changes that might break existing usage (always list first if present)
+               - 🚀 **New Features** - New functionality users can access
+               - 🐛 **Bug Fixes** - Issues that have been resolved
+               - ⚡ **Performance** - Speed and efficiency improvements
+               - 📚 **Documentation** - Updated guides, docs, examples
+               - 🔧 **Maintenance** - Dependencies, internal improvements, version bumps
+
+            8. **Item format template:**
+               Each change should follow this exact format:
+               - **Short Title**: Brief description ([commit](link))
+               
+               **Examples:**
+               - **User Authentication**: Added OAuth2 support for Google and GitHub login ([abc1234](https://github.com/user/repo/commit/abc1234))
+               - **Database Schema**: Fixed migration issue causing duplicate entries ([def5678](https://github.com/user/repo/commit/def5678))
+               - **API Performance**: Improved response times by 40% through query optimization ([ghi9012](https://github.com/user/repo/commit/ghi9012))
+               - **Dependencies**: Updated React from v17 to v18 ([jkl3456](https://github.com/user/repo/commit/jkl3456))
+
+            9. **Formatting consistency rules:**
+               - Use past tense for all descriptions (e.g., Added feature X, Fixed issue with Y)
+               - No periods at the end of bullet points
+               - Start each item with a capital letter
+               - Keep descriptions 1-2 lines maximum
+               - Use active voice where possible (e.g., Improved performance not Performance was improved)
+               - Bold title should be 2-4 words max, descriptive but concise
+
+            10. **Include commit links** in format: ([abc1234](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/FULL_HASH))
+            11. **Start with "## What's Changed"**
+            12. **Breaking changes formatting:**
+                - Always list breaking changes first with 💥 emoji
+                - Use bold text for the breaking change description
+                - Include migration notes if the diff shows how to adapt
+
+            13. **Keep descriptions accurate and concise**
+            14. **For small changes, use simple language like Minor documentation update rather than elaborate descriptions**
+            15. **Technical terms:** Use user-friendly language but keep key technical terms in backticks when needed
+            16. **Please DO NOT add a summary at the end of the release notes.**
+            
+            Please generate the release notes in your response. Thanks! 🚀`;
+
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🤖 Generate Release Notes for ${currentTag}`,
+              body: issueBody,
+              labels: ['release-notes', 'claude-task']
+            });
+
+            console.log(`✅ Created issue for Claude: ${issue.html_url}`);
+            core.setOutput('issue-url', issue.html_url);
+            core.setOutput('issue-number', issue.number);
+
+      - name: Create draft release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}  # Can use GITHUB_TOKEN for release creation
+          script: |
+            const tag = process.env.CURRENT_TAG;
+            const prevTag = process.env.PREV_TAG || 'initial';
+            const isPrerelease = tag.includes('-');
+            const issueUrl = '${{ steps.create-issue.outputs.issue-url }}';
+            
+            const placeholderBody = `## 🤖 AI-Generated Release Notes
+
+            **Status:** ⏳ Claude should automatically respond in the issue below.
+
+            **Instructions:**
+            1. ✅ Claude will respond in this issue: ${issueUrl}
+            2. ✅ Copy Claude's response from the issue
+            3. ✅ Edit this release and paste the response in the body
+            4. ✅ Review/edit as needed
+            5. ✅ Click "Publish release" when ready
+            6. ✅ Your publish workflow will automatically run
+
+            ---
+
+            ### Quick Summary
+            Release **${tag}** with ${process.env.COMMIT_RANGE.includes('..') ? 'updates since ' + prevTag : 'initial features'}.
+
+            **Full Changelog:** https://github.com/${context.repo.owner}/${context.repo.repo}/compare/${prevTag}...${tag}
+
+            ---
+            
+            *🔄 Replace this placeholder text with Claude's response from the issue above.*`;
+
+            const { data: release } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: `${tag}`,
+              body: placeholderBody,
+              draft: true,
+              prerelease: isPrerelease
+            });
+
+            console.log(`✅ Created draft release: ${release.html_url}`);
+            console.log(`📝 Claude should respond automatically in: ${issueUrl}`);
