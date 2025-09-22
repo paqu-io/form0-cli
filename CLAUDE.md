@@ -138,7 +138,7 @@ Use the MCP Memory server as an ENGINEERING KNOWLEDGE LOG (not source code).
 - After we converge on a choice, finish a spike/fix, capture a trade-off, or log a blocking TODO/open question.
 - De-dupe first (search by scope + similar text). If superseded, add a new DECISION and mark the older via OUTCOME [deprecated] with a ref.
 
-### What to store (one-line facts)
+### What to store (one-line facts, examples)
 - **DECISION**: [DECISION] [scope:form0-cli] [date:2025-01-22] Use Commander.js for CLI argument parsing over custom implementation [refs:package.json]
 - **CONSTRAINT**: [CONSTRAINT] [scope:form0-cli] [date:2025-01-22] Development server runs on port 3030 by default [refs:src/server/express-server.js]
 - **APPROACH**: [APPROACH] [scope:form0-cli] [date:2025-01-22] Interactive mode auto-detects when no CLI arguments provided [refs:bin/form0.js]
