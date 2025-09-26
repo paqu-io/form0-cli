@@ -335,7 +335,7 @@ export class FormRenderer {
   }
 
   getInitialInstanceCount(section) {
-    if (!section) return 1;
+    if (!section) return 0;
     const { initial_instances, min_instances } = section;
     if (Number.isInteger(initial_instances) && initial_instances > 0) {
       return initial_instances;
@@ -343,7 +343,7 @@ export class FormRenderer {
     if (Number.isInteger(min_instances) && min_instances > 0) {
       return min_instances;
     }
-    return 1;
+    return 0;
   }
 
   extractFieldDefault(field) {
@@ -377,10 +377,34 @@ export class FormRenderer {
   getRepeatableInstances(section, contextPath = []) {
     const parentContainer = this.getRepeatableStateContainer(contextPath);
     const preferredKey = this.getPreferredKey(section);
-    if (!parentContainer[preferredKey] || parentContainer[preferredKey].length === 0) {
-      parentContainer[preferredKey] = [this.createEmptyRepeatableInstance(section)];
+    if (!parentContainer[preferredKey]) {
+      parentContainer[preferredKey] = [];
+      const initialCount = this.getInitialInstanceCount(section);
+      for (let i = 0; i < initialCount; i++) {
+        parentContainer[preferredKey].push(this.createEmptyRepeatableInstance(section));
+      }
     }
     return parentContainer[preferredKey];
+  }
+
+  getExistingRepeatableContainer(contextPath = []) {
+    let container = this.activeRepeatableState;
+
+    for (const segment of contextPath) {
+      const list = container?.[segment.key];
+      if (!Array.isArray(list) || list.length <= segment.index) {
+        return null;
+      }
+
+      const instance = list[segment.index];
+      if (!instance) {
+        return null;
+      }
+
+      container = instance.repeatable || (instance.repeatable = {});
+    }
+
+    return container;
   }
 
   getRepeatableSectionIdentifier(contextPath, section) {
@@ -575,6 +599,10 @@ export class FormRenderer {
       (section.type === 'RepeatableSection' ? 'Repeatable Section' : 'Section');
     titleRow.appendChild(title);
 
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'repeatable-section-actions';
+    titleRow.appendChild(actionsContainer);
+
     if (section.description && typeof section.description === 'string') {
       if (section.description_mode === 'default') {
         const infoIcon = document.createElement('span');
@@ -583,7 +611,7 @@ export class FormRenderer {
         infoIcon.title = 'Show description';
         infoIcon.style.cursor = 'pointer';
         infoIcon.tabIndex = 0;
-        titleRow.appendChild(infoIcon);
+        actionsContainer.appendChild(infoIcon);
 
         const dialog = document.createElement('div');
         dialog.className = 'description-dialog';
@@ -619,6 +647,16 @@ export class FormRenderer {
       }
     }
 
+    if (this.isPartiallySupportedFeature(section)) {
+      const warningIcon = this.createWarningIcon(section, 'section');
+      actionsContainer.appendChild(warningIcon);
+    }
+
+    if (this.isUnsupportedFeature(section)) {
+      const stopIcon = this.createStopIcon(section, 'section');
+      actionsContainer.appendChild(stopIcon);
+    }
+
     sectionDiv.appendChild(titleRow);
 
     if (section.description && section.description_mode === 'subtext') {
@@ -633,7 +671,7 @@ export class FormRenderer {
     sectionDiv.appendChild(instancesContainer);
 
     const instances = this.getRepeatableInstances(section, contextPath);
-    const canRemove = instances.length > 1;
+    const canRemove = instances.length > 0;
     instances.forEach((instance, index) => {
       this.renderRepeatableInstance(section, instancesContainer, contextPath, index, instance, canRemove);
     });
@@ -648,7 +686,7 @@ export class FormRenderer {
     addButton.addEventListener('click', () => {
       this.addRepeatableInstance(section, contextPath);
     });
-    sectionDiv.appendChild(addButton);
+    actionsContainer.appendChild(addButton);
 
     container.appendChild(sectionDiv);
   }
@@ -708,17 +746,27 @@ export class FormRenderer {
 
   removeRepeatableInstance(section, contextPath = [], index = 0) {
     const snapshotInstances = this.captureRepeatableSnapshot(section, contextPath);
-    const instances = this.getRepeatableInstances(section, contextPath);
-    if (instances.length <= 1) {
+    const parentContainer = this.getExistingRepeatableContainer(contextPath) || this.activeRepeatableState;
+    const preferredKey = this.getPreferredKey(section);
+    const instances = Array.isArray(parentContainer[preferredKey]) ? parentContainer[preferredKey] : [];
+
+    if (instances.length === 0) {
+      return;
+    }
+    if (index < 0 || index >= instances.length) {
       return;
     }
     this.mergeSnapshotIntoInstances(instances, snapshotInstances);
     instances.splice(index, 1);
+    if (instances.length === 0) {
+      delete parentContainer[preferredKey];
+    }
     if (Array.isArray(snapshotInstances)) {
       snapshotInstances.splice(index, 1);
     }
     this.rebuildRepeatableSection(section, contextPath, snapshotInstances);
-    this.dispatchRepeatableChange('remove', section, contextPath, Math.min(index, instances.length - 1), {
+    const nextIndex = instances.length === 0 ? 0 : Math.min(index, instances.length - 1);
+    this.dispatchRepeatableChange('remove', section, contextPath, nextIndex, {
       removedIndex: index,
       totalInstances: instances.length,
     });
@@ -737,7 +785,7 @@ export class FormRenderer {
     instancesContainer.innerHTML = '';
 
     const instances = this.getRepeatableInstances(section, contextPath);
-    const canRemove = instances.length > 1;
+    const canRemove = instances.length > 0;
     instances.forEach((instance, index) => {
       this.renderRepeatableInstance(section, instancesContainer, contextPath, index, instance, canRemove);
     });
@@ -766,7 +814,8 @@ export class FormRenderer {
 
       const stateArray = parentContainer[key];
       const previousLength = stateArray.length;
-      while (stateArray.length < instances.length) stateArray.push(this.createEmptyRepeatableInstance());
+      while (stateArray.length < instances.length)
+        stateArray.push(this.createEmptyRepeatableInstance(dummySection));
       while (stateArray.length > instances.length) stateArray.pop();
 
       instances.forEach((instance, index) => {
