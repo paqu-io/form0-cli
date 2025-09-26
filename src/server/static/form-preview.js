@@ -76,6 +76,7 @@ let createdAtTimestamp = null; // Simple client-side timestamps for preview
 // Initialize modular components
 const formRenderer = new FormRenderer();
 const formStateManager = new FormStateManager(formRenderer);
+formRenderer.setStateManager(formStateManager);
 const operationProcessor = new OperationProcessor(formStateManager);
 
 /**
@@ -83,12 +84,12 @@ const operationProcessor = new OperationProcessor(formStateManager);
  */
 async function triggerFormEvent(eventType, fieldKey = null) {
   try {
-    const values = formStateManager.getCurrentFormValues();
+    const { values, repeatable } = formStateManager.getCurrentFormState();
 
     const response = await fetch('/api/engine', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values, eventType, fieldKey }),
+      body: JSON.stringify({ values, repeatable, eventType, fieldKey }),
     });
 
     if (!response.ok) {
@@ -548,6 +549,8 @@ async function initializeDefaultValues() {
 
 // Keep track of document event listeners so we can remove them
 let documentEventListeners = [];
+let formInputHandler = null;
+let formChangeHandler = null;
 
 function addFormEventListeners() {
   // Remove old document event listeners first
@@ -556,28 +559,43 @@ function addFormEventListeners() {
   });
   documentEventListeners = [];
 
-  // Add event listeners to all form inputs, but exclude choice fields (they have custom handlers)
-  const inputs = document.querySelectorAll('#main-form input, #main-form select');
-  inputs.forEach((input) => {
-    // Skip all choice field elements - they use custom event handlers
-    if (input.closest('[class*="choice-field"]')) {
-      return;
+  const form = document.getElementById('main-form');
+  if (form) {
+    if (formInputHandler) {
+      form.removeEventListener('input', formInputHandler, true);
     }
-
-    input.addEventListener('input', () => {
-      formStateManager.updateFormState();
-      // Trigger change event for this specific field
-      if (input.name) {
-        triggerFormEvent('change', input.name);
+    formInputHandler = (event) => {
+      const target = event.target;
+      if (!target || !(target instanceof Element)) {
+        return;
       }
-    });
-
-    input.addEventListener('change', () => {
+      if (target.closest('[class*="choice-field"]')) {
+        return;
+      }
+      const fieldName = target.getAttribute('name');
+      if (!fieldName) {
+        return;
+      }
       formStateManager.updateFormState();
-      // Note: We don't trigger form events on 'change' (blur) to avoid duplicates
-      // and to prepare for potential future blur/focus event handling
-    });
-  });
+      triggerFormEvent('change', fieldName);
+    };
+    form.addEventListener('input', formInputHandler, true);
+
+    if (formChangeHandler) {
+      form.removeEventListener('change', formChangeHandler, true);
+    }
+    formChangeHandler = (event) => {
+      const target = event.target;
+      if (!target || !(target instanceof Element)) {
+        return;
+      }
+      if (target.closest('[class*="choice-field"]')) {
+        return;
+      }
+      formStateManager.updateFormState();
+    };
+    form.addEventListener('change', formChangeHandler, true);
+  }
 
   // Create handlers and keep track of them
   const singleChoiceHandler = (event) => {
@@ -628,6 +646,34 @@ function addFormEventListeners() {
     }
   };
 
+  const repeatableChangeHandler = (event) => {
+    const detail = event.detail || {};
+
+    // Focus first interactive field when a new instance is added
+    if (detail.changeType === 'add' && Array.isArray(detail.instancePath)) {
+      try {
+        const contextKey = formRenderer.formatContextPath
+          ? formRenderer.formatContextPath(detail.instancePath)
+          : null;
+        if (contextKey) {
+          const container = document.querySelector(
+            `[data-repeatable-context="${contextKey}"]`
+          );
+          if (container) {
+            const focusTarget = container.querySelector('input, select, textarea');
+            if (focusTarget && typeof focusTarget.focus === 'function') {
+              focusTarget.focus();
+            }
+          }
+        }
+      } catch (focusError) {
+        console.warn('Failed to focus new repeatable instance:', focusError);
+      }
+    }
+
+    formStateManager.updateFormState();
+  };
+
   // Add document event listeners and track them
   document.addEventListener('singlechoicefield-change', singleChoiceHandler);
   document.addEventListener('multichoicefield-change', multiChoiceHandler);
@@ -635,6 +681,7 @@ function addFormEventListeners() {
   document.addEventListener('photofield-change', photoFieldHandler);
   document.addEventListener('videofield-change', videoFieldHandler);
   document.addEventListener('signaturefield-change', signatureFieldHandler);
+  document.addEventListener('form0:repeatable-change', repeatableChangeHandler);
 
   documentEventListeners.push(
     { type: 'singlechoicefield-change', handler: singleChoiceHandler },
@@ -642,7 +689,8 @@ function addFormEventListeners() {
     { type: 'booleanfield-change', handler: booleanFieldHandler },
     { type: 'photofield-change', handler: photoFieldHandler },
     { type: 'videofield-change', handler: videoFieldHandler },
-    { type: 'signaturefield-change', handler: signatureFieldHandler }
+    { type: 'signaturefield-change', handler: signatureFieldHandler },
+    { type: 'form0:repeatable-change', handler: repeatableChangeHandler }
   );
 
   // Hook into engine state application to refresh header/metadata title
@@ -726,12 +774,12 @@ async function handleFormSubmit() {
     await formStateManager.updateFormState();
 
     // Get current form state via /api/engine endpoint
-    const values = formStateManager.getCurrentFormValues();
+    const { values, repeatable } = formStateManager.getCurrentFormState();
 
     const response = await fetch('/api/engine', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values }),
+      body: JSON.stringify({ values, repeatable }),
     });
 
     if (!response.ok) {

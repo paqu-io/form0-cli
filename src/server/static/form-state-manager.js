@@ -428,71 +428,577 @@ export class FormStateManager {
   /**
    * Get current form values with proper type conversion
    */
+  getCurrentFormState() {
+    const registry =
+      typeof this.formRenderer.getFieldInstanceRegistry === 'function'
+        ? this.formRenderer.getFieldInstanceRegistry()
+        : null;
+
+    const rootState = {
+      values: {},
+      repeatable: {},
+    };
+
+    if (!registry || registry.size === 0) {
+      rootState.values = this.collectFlatFormValues();
+      return rootState;
+    }
+
+    registry.forEach(({ field, contextPath, container }) => {
+      if (!field || !container) return;
+      const value = this.readFieldValue(field, container);
+
+      if (!Object.prototype.hasOwnProperty.call(rootState.values, field.data_name)) {
+        rootState.values[field.data_name] = value;
+      }
+
+      if (contextPath.length === 0) {
+        rootState.values[field.data_name] = value;
+      } else {
+        const instance = this.ensureRepeatableInstance(rootState, contextPath);
+        instance.values[field.data_name] = value;
+      }
+    });
+
+    return rootState;
+  }
+
   getCurrentFormValues() {
-    const formData = new FormData(document.getElementById('main-form'));
+    const { values } = this.getCurrentFormState();
+    return values;
+  }
+
+  collectFlatFormValues() {
+    const form = document.getElementById('main-form');
+    if (!form) return {};
+
+    const formData = new FormData(form);
     const values = {};
 
-    // Convert form values to appropriate types based on field definitions
     for (const [key, value] of formData.entries()) {
-      const field = this.formRenderer.findFieldByDataName(key);
-      if (field) {
-        if (field.type === 'NumericField') {
-          // Convert to number, handle empty strings
-          values[key] = value === '' ? null : Number(value);
-        } else if (field.type === 'SingleChoiceField') {
-          // For all ChoiceFields, the value is JSON from the hidden input
-          try {
-            values[key] = value === '' ? null : JSON.parse(value);
-          } catch (e) {
-            values[key] = null;
-          }
-        } else if (field.type === 'MultiChoiceField') {
-          // For all MultiChoiceFields, the value is JSON from the hidden input
-          try {
-            values[key] = value === '' ? null : JSON.parse(value);
-          } catch (e) {
-            values[key] = null;
-          }
-        } else if (field.type === 'BooleanField') {
-          // For BooleanField, the value is JSON from the hidden input
-          try {
-            values[key] = value === '' ? null : JSON.parse(value);
-          } catch (e) {
-            values[key] = null;
-          }
-        } else if (
-          field.type === 'PhotoField' ||
-          field.type === 'VideoField' ||
-          field.type === 'SignatureField'
-        ) {
-          // For PhotoField, VideoField, and SignatureField, the value is JSON from the hidden input
-          try {
-            values[key] = value === '' ? null : JSON.parse(value);
-          } catch (e) {
-            values[key] = null;
-          }
-        } else {
-          values[key] = value === '' ? null : value;
-        }
-      } else {
+      const field = this.formRenderer.findFieldByDataName
+        ? this.formRenderer.findFieldByDataName(key)
+        : null;
+
+      if (!field) {
         values[key] = value === '' ? null : value;
+        continue;
       }
+
+      values[key] = this.parseFieldValue(field, value);
     }
 
     return values;
+  }
+
+  parseFieldValue(field, rawValue) {
+    const textToNull = (val) => (val === '' ? null : val);
+    const parseJSON = (val) => {
+      if (val === '') return null;
+      try {
+        return JSON.parse(val);
+      } catch (err) {
+        return null;
+      }
+    };
+
+    switch (field.type) {
+      case 'NumericField':
+        return rawValue === '' ? null : Number(rawValue);
+      case 'SingleChoiceField':
+      case 'MultiChoiceField':
+      case 'BooleanField':
+      case 'PhotoField':
+      case 'VideoField':
+      case 'SignatureField':
+        return parseJSON(rawValue);
+      case 'DateField':
+      case 'TimeField':
+        return textToNull(rawValue);
+      default:
+        return textToNull(rawValue);
+    }
+  }
+
+  readFieldValue(field, container) {
+    if (!field || !container) return null;
+
+    const selectorCandidates = [
+      '[data-field-value="true"]',
+      `input[name="${field.data_name}"]`,
+      `textarea[name="${field.data_name}"]`,
+      `select[name="${field.data_name}"]`,
+    ];
+
+    let element = null;
+    for (const selector of selectorCandidates) {
+      element = container.querySelector(selector);
+      if (element) break;
+    }
+
+    if (!element) {
+      const flatValues = this.collectFlatFormValues();
+      return Object.prototype.hasOwnProperty.call(flatValues, field.data_name)
+        ? flatValues[field.data_name]
+        : null;
+    }
+
+    const rawValue = element.value ?? '';
+    return this.parseFieldValue(field, rawValue);
+  }
+
+  ensureRepeatableInstance(rootState, contextPath) {
+    let current = rootState;
+
+    contextPath.forEach(({ key, index }) => {
+      if (!current.repeatable) {
+        current.repeatable = {};
+      }
+
+      if (!current.repeatable[key]) {
+        current.repeatable[key] = [];
+      }
+
+      while (current.repeatable[key].length <= index) {
+        current.repeatable[key].push({
+          id: null,
+          values: {},
+          repeatable: {},
+        });
+      }
+
+      current = current.repeatable[key][index];
+
+      if (!current.values) {
+        current.values = {};
+      }
+      if (!current.repeatable) {
+        current.repeatable = {};
+      }
+    });
+
+    if (contextPath.length > 0 && typeof this.formRenderer.getRepeatableInstanceContainer === 'function') {
+      const instanceContainer = this.formRenderer.getRepeatableInstanceContainer(contextPath);
+      if (instanceContainer) {
+        const instanceId = instanceContainer.getAttribute('data-instance-id');
+        current.id = instanceId || current.id || null;
+      }
+    }
+
+    return current;
+  }
+
+  getFieldInstanceRegistry() {
+    if (typeof this.formRenderer.getFieldInstanceRegistry === 'function') {
+      return this.formRenderer.getFieldInstanceRegistry();
+    }
+    return null;
+  }
+
+  getNodeState(state, contextPath = []) {
+    let current = state;
+    for (const segment of contextPath) {
+      if (!current || !current.repeatable) return null;
+      const instances = current.repeatable[segment.key];
+      if (!Array.isArray(instances) || !instances[segment.index]) {
+        return null;
+      }
+      current = instances[segment.index];
+    }
+    return current;
+  }
+
+  getFieldProperty(nodeState, rootState, prop, fieldName) {
+    if (nodeState && nodeState[prop] && fieldName in nodeState[prop]) {
+      return nodeState[prop][fieldName];
+    }
+    if (rootState && rootState[prop] && fieldName in rootState[prop]) {
+      return rootState[prop][fieldName];
+    }
+    return undefined;
+  }
+
+  updateFieldVisibility(container, isVisible) {
+    if (!container) return;
+    const visible = isVisible === undefined ? true : Boolean(isVisible);
+    container.classList.toggle('hidden', !visible);
+  }
+
+  updateFieldReadOnly(field, container, isReadOnly) {
+    if (isReadOnly === undefined || !container || !field) return;
+    const readOnly = Boolean(isReadOnly);
+
+    if (field.type === 'SingleChoiceField') {
+      const scContainer =
+        container.querySelector('.single-choice-field-radio-container') ||
+        container.querySelector('.single-choice-field-container') ||
+        container.querySelector('.single-choice-field-simple-container');
+
+      if (scContainer) {
+        if (scContainer.classList.contains('single-choice-field-radio-container')) {
+          const radios = scContainer.querySelectorAll('input[type="radio"]');
+          const otherInput = scContainer.querySelector('.single-choice-field-other');
+          radios.forEach((radio) => (radio.disabled = readOnly));
+          if (otherInput) otherInput.readOnly = readOnly;
+        } else if (field.allow_other) {
+          const select = scContainer.querySelector('.single-choice-field-select');
+          const otherInput = scContainer.querySelector('.single-choice-field-other');
+          if (select) select.disabled = readOnly;
+          if (otherInput) otherInput.readOnly = readOnly;
+        } else {
+          const select = scContainer.querySelector('.single-choice-field-simple-select');
+          if (select) select.disabled = readOnly;
+        }
+      }
+    } else if (field.type === 'MultiChoiceField') {
+      const mcContainer =
+        container.querySelector('.multi-choice-field-checkbox-container') ||
+        container.querySelector('.multi-choice-field-container') ||
+        container.querySelector('.multi-choice-field-simple-container');
+
+      if (mcContainer) {
+        if (mcContainer.classList.contains('multi-choice-field-checkbox-container')) {
+          const checkboxes = mcContainer.querySelectorAll('input[type="checkbox"]');
+          checkboxes.forEach((checkbox) => (checkbox.disabled = readOnly));
+        } else if (field.allow_other) {
+          const select = mcContainer.querySelector('.multi-choice-field-select');
+          const otherInput = mcContainer.querySelector('.multi-choice-field-other');
+          if (select) select.disabled = readOnly;
+          if (otherInput) otherInput.readOnly = readOnly;
+        } else {
+          const select = mcContainer.querySelector('.multi-choice-field-simple-select');
+          if (select) select.disabled = readOnly;
+        }
+      }
+    } else if (field.type === 'BooleanField') {
+      const boolContainer = container.querySelector('.boolean-field-container');
+      if (boolContainer) {
+        const buttons = boolContainer.querySelectorAll('.boolean-field-option');
+        buttons.forEach((button) => (button.disabled = readOnly));
+      }
+    } else {
+      const input = container.querySelector('[data-field-value="true"], input, select, textarea');
+      if (input) {
+        input.readOnly = readOnly;
+        if (input.tagName === 'SELECT') {
+          input.disabled = readOnly;
+        }
+      }
+    }
+
+    container.classList.toggle('readonly', readOnly);
+  }
+
+  parseStructuredValue(value) {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch (err) {
+        return value;
+      }
+    }
+    return value;
+  }
+
+  setSingleChoiceValue(field, container, value) {
+    const scContainer =
+      container.querySelector('.single-choice-field-radio-container') ||
+      container.querySelector('.single-choice-field-container') ||
+      container.querySelector('.single-choice-field-simple-container');
+    if (!scContainer) return;
+
+    const hiddenInput = scContainer.querySelector('[data-field-value="true"], input[type="hidden"]');
+    if (!hiddenInput) return;
+
+    const parsedValue = this.parseStructuredValue(value) || { choice: [], other: [] };
+
+    if (scContainer.classList.contains('single-choice-field-radio-container')) {
+      if (scContainer._setUpdating) scContainer._setUpdating(true);
+
+      const radios = scContainer.querySelectorAll('input[type="radio"]');
+      radios.forEach((radio) => {
+        radio.checked =
+          parsedValue.choice && parsedValue.choice.length > 0 && radio.value === parsedValue.choice[0].value;
+      });
+
+      const otherInput = scContainer.querySelector('.single-choice-field-other');
+      if (otherInput) {
+        if (parsedValue.other && parsedValue.other.length > 0) {
+          otherInput.style.display = 'block';
+          otherInput.value = parsedValue.other[0].label || parsedValue.other[0].value || '';
+        } else {
+          otherInput.style.display = 'none';
+          otherInput.value = '';
+        }
+      }
+
+      hiddenInput.value = JSON.stringify(parsedValue);
+      if (scContainer._setUpdating) scContainer._setUpdating(false);
+      return;
+    }
+
+    if (field.allow_other) {
+      const select = scContainer.querySelector('.single-choice-field-select');
+      const otherInput = scContainer.querySelector('.single-choice-field-other');
+      if (select && otherInput) {
+        if (scContainer._setUpdating) scContainer._setUpdating(true);
+
+        if (parsedValue.choice && parsedValue.choice.length > 0) {
+          select.value = parsedValue.choice[0].value;
+          otherInput.style.display = 'none';
+          otherInput.value = '';
+        } else if (parsedValue.other && parsedValue.other.length > 0) {
+          select.value = '__other__';
+          otherInput.style.display = 'block';
+          otherInput.value = parsedValue.other[0].label || parsedValue.other[0].value || '';
+        } else {
+          select.value = '';
+          otherInput.style.display = 'none';
+          otherInput.value = '';
+        }
+
+        hiddenInput.value = JSON.stringify(parsedValue);
+        if (scContainer._setUpdating) scContainer._setUpdating(false);
+      }
+    } else {
+      const select = scContainer.querySelector('.single-choice-field-simple-select');
+      if (select) {
+        if (parsedValue.choice && parsedValue.choice.length > 0) {
+          select.value = parsedValue.choice[0].value;
+        } else {
+          select.value = '';
+        }
+        hiddenInput.value = JSON.stringify(parsedValue);
+      }
+    }
+  }
+
+  setBooleanFieldValue(field, container, value) {
+    const boolContainer = container.querySelector('.boolean-field-container');
+    if (!boolContainer) return;
+
+    const hiddenInput = boolContainer.querySelector('[data-field-value="true"], input[type="hidden"]');
+    if (!hiddenInput) return;
+
+    const parsedValue = this.parseStructuredValue(value) || { choice: [], other: [] };
+
+    if (boolContainer._setUpdating) boolContainer._setUpdating(true);
+
+    const buttons = boolContainer.querySelectorAll('.boolean-field-option');
+    buttons.forEach((button) => {
+      button.classList.remove('selected');
+      button.style.background = 'white';
+      button.style.color = '#666';
+    });
+
+    if (parsedValue.choice && parsedValue.choice.length > 0) {
+      const target = boolContainer.querySelector(
+        `.boolean-field-option[data-value="${parsedValue.choice[0].value}"]`
+      );
+      if (target) {
+        target.classList.add('selected');
+        target.style.background = '#007bff';
+        target.style.color = 'white';
+      }
+    }
+
+    hiddenInput.value = JSON.stringify(parsedValue);
+    if (boolContainer._setUpdating) boolContainer._setUpdating(false);
+  }
+
+  setMultiChoiceFieldValue(field, container, value) {
+    const mcContainer =
+      container.querySelector('.multi-choice-field-checkbox-container') ||
+      container.querySelector('.multi-choice-field-container') ||
+      container.querySelector('.multi-choice-field-simple-container');
+    if (!mcContainer) return;
+
+    const hiddenInput = mcContainer.querySelector('[data-field-value="true"], input[type="hidden"]');
+    if (!hiddenInput) return;
+
+    const parsedValue = this.parseStructuredValue(value) || { choices: [], other: [] };
+
+    if (mcContainer.classList.contains('multi-choice-field-checkbox-container')) {
+      if (mcContainer._setUpdating) mcContainer._setUpdating(true);
+      const checkboxes = mcContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach((checkbox) => {
+        checkbox.checked = parsedValue.choices?.some((choice) => choice.value === checkbox.value);
+      });
+      hiddenInput.value = JSON.stringify(parsedValue);
+      if (mcContainer._setUpdating) mcContainer._setUpdating(false);
+    } else if (field.allow_other) {
+      const select = mcContainer.querySelector('.multi-choice-field-select');
+      const otherInput = mcContainer.querySelector('.multi-choice-field-other');
+      if (select && otherInput) {
+        if (mcContainer._setUpdating) mcContainer._setUpdating(true);
+
+        Array.from(select.options).forEach((option) => (option.selected = false));
+
+        if (parsedValue.choices && parsedValue.choices.length > 0) {
+          parsedValue.choices.forEach((choice) => {
+            const opt = select.querySelector(`option[value="${choice.value}"]`);
+            if (opt) opt.selected = true;
+          });
+        }
+
+        const otherOption = select.querySelector('option[value="__other__"]');
+        if (parsedValue.other && parsedValue.other.length > 0) {
+          if (otherOption) otherOption.selected = true;
+          otherInput.style.display = 'block';
+          otherInput.value = parsedValue.other[0].label || parsedValue.other[0].value || '';
+        } else {
+          if (otherOption) otherOption.selected = false;
+          otherInput.style.display = 'none';
+          otherInput.value = '';
+        }
+
+        hiddenInput.value = JSON.stringify(parsedValue);
+        if (mcContainer._setUpdating) mcContainer._setUpdating(false);
+      }
+    } else {
+      const select = mcContainer.querySelector('.multi-choice-field-simple-select');
+      if (select) {
+        Array.from(select.options).forEach((option) => (option.selected = false));
+        if (parsedValue.choices && parsedValue.choices.length > 0) {
+          parsedValue.choices.forEach((choice) => {
+            const opt = select.querySelector(`option[value="${choice.value}"]`);
+            if (opt) opt.selected = true;
+          });
+        }
+        hiddenInput.value = JSON.stringify(parsedValue);
+      }
+    }
+  }
+
+  setStandardFieldValue(field, container, value) {
+    const input = container.querySelector('[data-field-value="true"], input, textarea, select');
+    if (!input) return;
+
+    const displayValue = value === null || value === undefined ? '' : value;
+    const isCalculated = field.type === 'CalculatedField';
+    const isReadOnly = input.readOnly || input.disabled || isCalculated;
+
+    if (input.type === 'file') {
+      if (!displayValue) input.value = '';
+      return;
+    }
+
+    if (
+      isReadOnly ||
+      input.value === '' ||
+      input.value === null ||
+      typeof input.value === 'undefined'
+    ) {
+      input.value = typeof displayValue === 'object' ? JSON.stringify(displayValue) : String(displayValue);
+    }
+  }
+
+  updateFieldValue(field, container, value) {
+    if (value === undefined) return;
+
+    switch (field.type) {
+      case 'SingleChoiceField':
+        this.setSingleChoiceValue(field, container, value);
+        break;
+      case 'BooleanField':
+        this.setBooleanFieldValue(field, container, value);
+        break;
+      case 'MultiChoiceField':
+        this.setMultiChoiceFieldValue(field, container, value);
+        break;
+      case 'PhotoField':
+      case 'VideoField':
+      case 'SignatureField': {
+        const hiddenInput = container.querySelector('[data-field-value="true"], input[type="hidden"]');
+        if (hiddenInput) {
+          hiddenInput.value = typeof value === 'string' ? value : JSON.stringify(value ?? null);
+        }
+        break;
+      }
+      default:
+        this.setStandardFieldValue(field, container, value);
+        break;
+    }
+  }
+
+  clearFieldInstanceError(container) {
+    if (!container) return;
+    container.classList.remove('error');
+    const existing = container.querySelectorAll('.error-message');
+    existing.forEach((node) => node.remove());
+  }
+
+  showFieldInstanceError(container, message) {
+    if (!container || !message) return;
+    container.classList.add('error');
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.textContent = message;
+    container.appendChild(errorDiv);
+  }
+
+  hasValueForField(field, value) {
+    if (!field) return false;
+    if (value === null || value === undefined) return false;
+
+    if (field.type === 'SingleChoiceField' || field.type === 'BooleanField') {
+      const parsed = this.parseStructuredValue(value) || {};
+      return (parsed.choice && parsed.choice.length > 0) || (parsed.other && parsed.other.length > 0);
+    }
+
+    if (field.type === 'MultiChoiceField') {
+      const parsed = this.parseStructuredValue(value) || {};
+      return (parsed.choices && parsed.choices.length > 0) || (parsed.other && parsed.other.length > 0);
+    }
+
+    if (field.type === 'PhotoField' || field.type === 'VideoField') {
+      const parsed = this.parseStructuredValue(value);
+      return Array.isArray(parsed) && parsed.length > 0;
+    }
+
+    if (field.type === 'SignatureField') {
+      const parsed = this.parseStructuredValue(value);
+      return parsed && typeof parsed === 'object' && !!parsed.data;
+    }
+
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+
+    if (typeof value === 'object') {
+      return Object.keys(value).length > 0;
+    }
+
+    return value !== '';
+  }
+
+  updateFieldValidation(field, container, value, isRequired, errorMessage) {
+    this.clearFieldInstanceError(container);
+
+    if (errorMessage) {
+      this.showFieldInstanceError(container, errorMessage);
+      return;
+    }
+
+    if (isRequired) {
+      const hasValue = this.hasValueForField(field, value);
+      if (!hasValue) {
+        this.showFieldInstanceError(container, 'This field is required');
+      }
+    }
   }
 
   /**
    * Update form engine and get new state
    */
   async updateFormState() {
-    const values = this.getCurrentFormValues();
+    const { values, repeatable } = this.getCurrentFormState();
 
     try {
       const response = await fetch('/api/engine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values }),
+        body: JSON.stringify({ values, repeatable }),
       });
 
       const state = await response.json();
@@ -830,6 +1336,36 @@ export class FormStateManager {
     // Handle required field validation
     Object.entries(state.required || {}).forEach(([fieldName, isRequired]) => {
       this.handleRequiredFieldValidation(fieldName, isRequired);
+    });
+
+    this.applyRepeatableState(state);
+  }
+
+  applyRepeatableState(state) {
+    const registry = this.getFieldInstanceRegistry();
+    if (!registry || registry.size === 0) {
+      return;
+    }
+
+    if (typeof this.formRenderer.syncRepeatableState === 'function') {
+      this.formRenderer.syncRepeatableState(state.repeatable || {});
+    }
+
+    registry.forEach(({ field, contextPath, container }) => {
+      if (!field || !container) return;
+      if (!Array.isArray(contextPath) || contextPath.length === 0) return; // handled by flat logic
+
+      const nodeState = this.getNodeState(state, contextPath);
+      const value = this.getFieldProperty(nodeState, state, 'values', field.data_name);
+      const visible = this.getFieldProperty(nodeState, state, 'visible', field.data_name);
+      const readOnly = this.getFieldProperty(nodeState, state, 'read_only', field.data_name);
+      const error = this.getFieldProperty(nodeState, state, 'errors', field.data_name);
+      const required = this.getFieldProperty(nodeState, state, 'required', field.data_name);
+
+      this.updateFieldVisibility(container, visible);
+      this.updateFieldReadOnly(field, container, readOnly);
+      this.updateFieldValue(field, container, value);
+      this.updateFieldValidation(field, container, value, required, error);
     });
   }
 
