@@ -562,6 +562,8 @@ export class FormStateManager {
       while (current.repeatable[key].length <= index) {
         current.repeatable[key].push({
           id: null,
+          created_at_client: null,
+          updated_at_client: null,
           values: {},
           repeatable: {},
         });
@@ -582,6 +584,25 @@ export class FormStateManager {
       if (instanceContainer) {
         const instanceId = instanceContainer.getAttribute('data-instance-id');
         current.id = instanceId || current.id || null;
+
+        const activeInstance =
+          typeof this.formRenderer.getActiveInstance === 'function'
+            ? this.formRenderer.getActiveInstance(contextPath)
+            : null;
+
+        const createdAtClient =
+          instanceContainer.getAttribute('data-created-at-client') ||
+          activeInstance?.created_at_client ||
+          current.created_at_client ||
+          null;
+        const updatedAtClient =
+          instanceContainer.getAttribute('data-updated-at-client') ||
+          activeInstance?.updated_at_client ||
+          current.updated_at_client ||
+          createdAtClient;
+
+        current.created_at_client = createdAtClient;
+        current.updated_at_client = updatedAtClient;
       }
     }
 

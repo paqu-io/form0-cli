@@ -80,16 +80,19 @@ function generateRecordIds(originalElements, existingOptions) {
     options.changeset_id = uuidv7();
   }
 
+  const childRecordIdsOption = options.childRecordIds;
+  if (!childRecordIdsOption) {
+    return options;
+  }
+
   // Reuse the same RepeatableSection tree building logic from record-transformer.js
   const repeatableSectionTree = new Map();
 
-  // Helper function (copied from record-transformer.js)
   const buildRepeatableSectionTree = (elements, parentPath = []) => {
     if (!Array.isArray(elements)) return;
 
     elements.forEach((element) => {
       if (element.type === 'Section') {
-        // Recursively process Section children with same parentPath
         if (Array.isArray(element.elements)) {
           buildRepeatableSectionTree(element.elements, parentPath);
         }
@@ -98,14 +101,12 @@ function generateRecordIds(originalElements, existingOptions) {
           element.key && element.key.trim() !== '' ? element.key : element.data_name;
         const currentPath = [...parentPath, preferredKey];
 
-        // Store this RepeatableSection in the tree
         repeatableSectionTree.set(element.data_name, {
           preferredKey,
           parentPath: [...parentPath],
           currentPath: [...currentPath],
         });
 
-        // Recursively process RepeatableSection children with updated path
         if (Array.isArray(element.elements)) {
           buildRepeatableSectionTree(element.elements, currentPath);
         }
@@ -113,58 +114,55 @@ function generateRecordIds(originalElements, existingOptions) {
     });
   };
 
-  // Build the tree structure from original elements
   buildRepeatableSectionTree(originalElements);
 
-  // Generate child record IDs using the proper nested structure
-  const childRecordIds = { ...options.childRecordIds };
+  const childRecordIds = { ...childRecordIdsOption };
 
-  // For form0-cli, generate one child record per RepeatableSection
-  for (const [dataName, repInfo] of repeatableSectionTree) {
+  for (const [, repInfo] of repeatableSectionTree) {
     const { preferredKey, parentPath } = repInfo;
 
     if (parentPath.length === 0) {
-      // Top-level RepeatableSection: simple array format
-      if (!childRecordIds[preferredKey]) {
-        childRecordIds[preferredKey] = [uuidv7()];
+      if (Array.isArray(childRecordIds[preferredKey])) {
+        continue;
       }
     } else {
-      // Nested RepeatableSection: build nested structure
       let current = childRecordIds;
+      let valid = true;
 
-      // Navigate to the parent RepeatableSection
       for (let i = 0; i < parentPath.length; i++) {
         const pathKey = parentPath[i];
+        const next = current[pathKey];
 
-        if (!current[pathKey]) {
-          current[pathKey] = { _records: [uuidv7()] };
+        if (!next) {
+          valid = false;
+          break;
         }
 
-        // Convert simple array to nested structure if needed
-        if (Array.isArray(current[pathKey])) {
-          const recordId = current[pathKey][0];
-          current[pathKey] = { _records: [recordId] };
+        if (Array.isArray(next)) {
+          valid = false;
+          break;
         }
 
-        // Create record-specific section if it doesn't exist
-        const recordId = current[pathKey]._records[0];
-        if (!current[pathKey][recordId]) {
-          current[pathKey][recordId] = {};
+        const recordId = next._records?.[0];
+        if (!recordId || !next[recordId]) {
+          valid = false;
+          break;
         }
 
-        current = current[pathKey][recordId];
+        current = next[recordId];
       }
 
-      // Add the nested RepeatableSection
-      if (!current[preferredKey]) {
-        current[preferredKey] = [uuidv7()];
+      if (!valid) {
+        continue;
+      }
+
+      if (Array.isArray(current[preferredKey])) {
+        continue;
       }
     }
   }
 
-  if (Object.keys(childRecordIds).length > 0) {
-    options.childRecordIds = childRecordIds;
-  }
+  options.childRecordIds = childRecordIds;
 
   return options;
 }

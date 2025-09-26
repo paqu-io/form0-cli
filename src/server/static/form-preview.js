@@ -13,6 +13,17 @@ let translations = {};
 // Session-based warning deduplication (better than server-side throttling)
 const shownWarnings = new Set();
 
+function markInstanceUpdatedFromTarget(target) {
+  if (!target || typeof target.closest !== 'function') return;
+  const instanceNode = target.closest('[data-repeatable-context]');
+  if (!instanceNode) return;
+  const contextKey = instanceNode.getAttribute('data-repeatable-context');
+  if (!contextKey) return;
+  if (typeof formRenderer.markInstanceUpdated === 'function') {
+    formRenderer.markInstanceUpdated(contextKey);
+  }
+}
+
 // Simple translation function for browser use
 function t(key, params = {}) {
   let translation = translations[key] || key;
@@ -576,6 +587,7 @@ function addFormEventListeners() {
       if (!fieldName) {
         return;
       }
+      markInstanceUpdatedFromTarget(target);
       formStateManager.updateFormState();
       triggerFormEvent('change', fieldName);
     };
@@ -592,6 +604,7 @@ function addFormEventListeners() {
       if (target.closest('[class*="choice-field"]')) {
         return;
       }
+      markInstanceUpdatedFromTarget(target);
       formStateManager.updateFormState();
     };
     form.addEventListener('change', formChangeHandler, true);
@@ -599,6 +612,7 @@ function addFormEventListeners() {
 
   // Create handlers and keep track of them
   const singleChoiceHandler = (event) => {
+    markInstanceUpdatedFromTarget(event.target);
     formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'single');
     if (fieldName) {
@@ -607,6 +621,7 @@ function addFormEventListeners() {
   };
 
   const multiChoiceHandler = (event) => {
+    markInstanceUpdatedFromTarget(event.target);
     formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'multi');
     if (fieldName) {
@@ -615,6 +630,7 @@ function addFormEventListeners() {
   };
 
   const booleanFieldHandler = (event) => {
+    markInstanceUpdatedFromTarget(event.target);
     formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'boolean');
     if (fieldName) {
@@ -623,6 +639,7 @@ function addFormEventListeners() {
   };
 
   const photoFieldHandler = (event) => {
+    markInstanceUpdatedFromTarget(event.target);
     formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'photo');
     if (fieldName) {
@@ -631,6 +648,7 @@ function addFormEventListeners() {
   };
 
   const videoFieldHandler = (event) => {
+    markInstanceUpdatedFromTarget(event.target);
     formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'video');
     if (fieldName) {
@@ -639,6 +657,7 @@ function addFormEventListeners() {
   };
 
   const signatureFieldHandler = (event) => {
+    markInstanceUpdatedFromTarget(event.target);
     formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'signature');
     if (fieldName) {
@@ -671,6 +690,7 @@ function addFormEventListeners() {
       }
     }
 
+    markInstanceUpdatedFromTarget(event.target);
     formStateManager.updateFormState();
   };
 

@@ -1,3 +1,4 @@
+import { generateUuidV7 } from './uuid.js';
 import { resolveSupportingImagePath } from './supporting-image-utils.js';
 
 /**
@@ -61,6 +62,29 @@ export class FormRenderer {
     return `root.${segments.join('.')}`;
   }
 
+  parseContextKey(contextKey) {
+    if (!contextKey || contextKey === 'root') {
+      return [];
+    }
+
+    const trimmed = contextKey.startsWith('root.') ? contextKey.slice(5) : contextKey;
+    if (!trimmed) {
+      return [];
+    }
+
+    return trimmed
+      .split('.')
+      .map((segment) => {
+        const match = segment.match(/^(.*)\[(\d+)\]$/);
+        if (!match) return null;
+        return {
+          key: match[1],
+          index: Number(match[2]),
+        };
+      })
+      .filter(Boolean);
+  }
+
   /**
    * Register rendered field instance for later lookup
    */
@@ -109,9 +133,9 @@ export class FormRenderer {
     if (element.type === 'Section') {
       return element.display === 'drilldown';
     }
-    if (element.type === 'RepeatableSection') {
-      return true; // Always partially supported for now
-    }
+    // if (element.type === 'RepeatableSection') {
+    //   return true; // Always partially supported for now
+    // }
 
     // For fields, currently no partially supported features
     // This is ready for future expansion
@@ -279,8 +303,11 @@ export class FormRenderer {
   }
 
   createEmptyRepeatableInstance(section = null) {
+    const now = new Date().toISOString();
     const instance = {
-      id: null,
+      id: generateUuidV7(),
+      created_at_client: now,
+      updated_at_client: now,
       values: {},
       repeatable: {},
     };
@@ -493,6 +520,12 @@ export class FormRenderer {
       target.repeatable = snapshotInstance.repeatable
         ? JSON.parse(JSON.stringify(snapshotInstance.repeatable))
         : target.repeatable || {};
+      if (snapshotInstance.created_at_client) {
+        target.created_at_client = snapshotInstance.created_at_client;
+      }
+      if (snapshotInstance.updated_at_client) {
+        target.updated_at_client = snapshotInstance.updated_at_client;
+      }
     });
   }
 
@@ -710,6 +743,14 @@ export class FormRenderer {
     instanceDiv.setAttribute('data-repeatable-index', String(index));
     instanceDiv.setAttribute('data-instance-id', instanceState?.id || '');
 
+    const createdAtClient =
+      instanceState?.created_at_client || instanceDiv.getAttribute('data-created-at-client') || new Date().toISOString();
+    const updatedAtClient = instanceState?.updated_at_client || createdAtClient;
+    instanceState.created_at_client = createdAtClient;
+    instanceState.updated_at_client = updatedAtClient;
+    instanceDiv.setAttribute('data-created-at-client', createdAtClient);
+    instanceDiv.setAttribute('data-updated-at-client', updatedAtClient);
+
     const headerRow = document.createElement('div');
     headerRow.className = 'repeatable-instance-header';
     const headerTitle = document.createElement('div');
@@ -737,7 +778,8 @@ export class FormRenderer {
     const snapshotInstances = this.captureRepeatableSnapshot(section, contextPath);
     const instances = this.getRepeatableInstances(section, contextPath);
     this.mergeSnapshotIntoInstances(instances, snapshotInstances);
-    instances.push(this.createEmptyRepeatableInstance(section));
+    const newInstance = this.createEmptyRepeatableInstance(section);
+    instances.push(newInstance);
     this.rebuildRepeatableSection(section, contextPath, snapshotInstances);
     this.dispatchRepeatableChange('add', section, contextPath, instances.length - 1, {
       totalInstances: instances.length,
@@ -798,6 +840,45 @@ export class FormRenderer {
     return document.querySelector(`[data-repeatable-context="${contextKey}"]`);
   }
 
+  getActiveInstance(contextPath = []) {
+    let current = this.activeRepeatableState;
+    let instance = null;
+
+    for (const segment of contextPath) {
+      const list = current?.[segment.key];
+      if (!Array.isArray(list) || !list[segment.index]) {
+        return null;
+      }
+      instance = list[segment.index];
+      current = instance.repeatable || (instance.repeatable = {});
+    }
+
+    return instance;
+  }
+
+  markInstanceUpdated(contextKey, timestamp = new Date().toISOString()) {
+    if (!contextKey) return;
+
+    const path = this.parseContextKey(contextKey);
+    if (path.length === 0) return;
+
+    const instance = this.getActiveInstance(path);
+    if (instance) {
+      if (!instance.created_at_client) {
+        instance.created_at_client = timestamp;
+      }
+      instance.updated_at_client = timestamp;
+    }
+
+    const container = this.getRepeatableInstanceContainer(path);
+    if (container) {
+      if (!container.getAttribute('data-created-at-client')) {
+        container.setAttribute('data-created-at-client', instance?.created_at_client || timestamp);
+      }
+      container.setAttribute('data-updated-at-client', timestamp);
+    }
+  }
+
   syncRepeatableState(repeatableState = {}, contextPath = []) {
     if (!repeatableState || typeof repeatableState !== 'object') {
       return;
@@ -832,6 +913,12 @@ export class FormRenderer {
         const instanceContainer = this.getRepeatableInstanceContainer(childPath);
         if (instanceContainer) {
           instanceContainer.setAttribute('data-instance-id', instance.id || '');
+          if (instance.created_at_client) {
+            instanceContainer.setAttribute('data-created-at-client', instance.created_at_client);
+          }
+          if (instance.updated_at_client) {
+            instanceContainer.setAttribute('data-updated-at-client', instance.updated_at_client);
+          }
         }
         this.syncRepeatableState(instance.repeatable || {}, childPath);
       });
