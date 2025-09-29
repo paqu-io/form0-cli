@@ -7,6 +7,7 @@ import {
   WarningSystem,
   recordVersion,
   formVersion,
+  buildRepeatableMetadata,
 } from 'form0-core';
 import { fileURLToPath } from 'url';
 import { getLocale, t, getRawTranslation } from '../utils/i18n.js';
@@ -79,16 +80,19 @@ function generateRecordIds(originalElements, existingOptions) {
     options.changeset_id = uuidv7();
   }
 
+  const childRecordIdsOption = options.childRecordIds;
+  if (!childRecordIdsOption) {
+    return options;
+  }
+
   // Reuse the same RepeatableSection tree building logic from record-transformer.js
   const repeatableSectionTree = new Map();
 
-  // Helper function (copied from record-transformer.js)
   const buildRepeatableSectionTree = (elements, parentPath = []) => {
     if (!Array.isArray(elements)) return;
 
     elements.forEach((element) => {
       if (element.type === 'Section') {
-        // Recursively process Section children with same parentPath
         if (Array.isArray(element.elements)) {
           buildRepeatableSectionTree(element.elements, parentPath);
         }
@@ -97,14 +101,12 @@ function generateRecordIds(originalElements, existingOptions) {
           element.key && element.key.trim() !== '' ? element.key : element.data_name;
         const currentPath = [...parentPath, preferredKey];
 
-        // Store this RepeatableSection in the tree
         repeatableSectionTree.set(element.data_name, {
           preferredKey,
           parentPath: [...parentPath],
           currentPath: [...currentPath],
         });
 
-        // Recursively process RepeatableSection children with updated path
         if (Array.isArray(element.elements)) {
           buildRepeatableSectionTree(element.elements, currentPath);
         }
@@ -112,60 +114,171 @@ function generateRecordIds(originalElements, existingOptions) {
     });
   };
 
-  // Build the tree structure from original elements
   buildRepeatableSectionTree(originalElements);
 
-  // Generate child record IDs using the proper nested structure
-  const childRecordIds = { ...options.childRecordIds };
+  const childRecordIds = { ...childRecordIdsOption };
 
-  // For form0-cli, generate one child record per RepeatableSection
-  for (const [dataName, repInfo] of repeatableSectionTree) {
+  for (const [, repInfo] of repeatableSectionTree) {
     const { preferredKey, parentPath } = repInfo;
 
     if (parentPath.length === 0) {
-      // Top-level RepeatableSection: simple array format
-      if (!childRecordIds[preferredKey]) {
-        childRecordIds[preferredKey] = [uuidv7()];
+      if (Array.isArray(childRecordIds[preferredKey])) {
+        continue;
       }
     } else {
-      // Nested RepeatableSection: build nested structure
       let current = childRecordIds;
+      let valid = true;
 
-      // Navigate to the parent RepeatableSection
       for (let i = 0; i < parentPath.length; i++) {
         const pathKey = parentPath[i];
+        const next = current[pathKey];
 
-        if (!current[pathKey]) {
-          current[pathKey] = { _records: [uuidv7()] };
+        if (!next) {
+          valid = false;
+          break;
         }
 
-        // Convert simple array to nested structure if needed
-        if (Array.isArray(current[pathKey])) {
-          const recordId = current[pathKey][0];
-          current[pathKey] = { _records: [recordId] };
+        if (Array.isArray(next)) {
+          valid = false;
+          break;
         }
 
-        // Create record-specific section if it doesn't exist
-        const recordId = current[pathKey]._records[0];
-        if (!current[pathKey][recordId]) {
-          current[pathKey][recordId] = {};
+        const recordId = next._records?.[0];
+        if (!recordId || !next[recordId]) {
+          valid = false;
+          break;
         }
 
-        current = current[pathKey][recordId];
+        current = next[recordId];
       }
 
-      // Add the nested RepeatableSection
-      if (!current[preferredKey]) {
-        current[preferredKey] = [uuidv7()];
+      if (!valid) {
+        continue;
+      }
+
+      if (Array.isArray(current[preferredKey])) {
+        continue;
       }
     }
   }
 
-  if (Object.keys(childRecordIds).length > 0) {
-    options.childRecordIds = childRecordIds;
-  }
+  options.childRecordIds = childRecordIds;
 
   return options;
+}
+
+function pickStateSlice(stateMap, fieldNames, { omitFalsy = false } = {}) {
+  const result = {};
+  if (!stateMap) return result;
+
+  fieldNames.forEach((name) => {
+    if (!Object.prototype.hasOwnProperty.call(stateMap, name)) {
+      return;
+    }
+    const value = stateMap[name];
+    if (omitFalsy && !value) {
+      return;
+    }
+    result[name] = value;
+  });
+
+  return result;
+}
+
+function evaluateRepeatableInstance({ schema, repInfo, instance, parentValues, engineOptions }) {
+  const fieldNames = Array.from(repInfo.fields.keys());
+
+  // Merge parent values with direct instance values for evaluation
+  const mergedValues = {
+    ...parentValues,
+    ...(instance?.values || {}),
+  };
+
+  const engine = createFormEngine({
+    schema,
+    initialValues: mergedValues,
+    helpers: engineOptions.helpers,
+    security: engineOptions.security,
+  });
+
+  engine.eval();
+  const evaluatedState = engine.getState();
+
+  const valuesSlice = pickStateSlice(evaluatedState.values, fieldNames);
+  const errorsSlice = pickStateSlice(evaluatedState.errors, fieldNames, { omitFalsy: true });
+  const visibleSlice = pickStateSlice(evaluatedState.visible, fieldNames);
+  const requiredSlice = pickStateSlice(evaluatedState.required, fieldNames);
+  const readOnlySlice = pickStateSlice(evaluatedState.read_only, fieldNames);
+
+  // Prepare values for nested repeatables
+  const nextParentValues = { ...parentValues };
+  Object.entries(valuesSlice).forEach(([key, value]) => {
+    nextParentValues[key] = value;
+  });
+
+  const nestedRepeatable = {};
+  for (const [, childRepInfo] of repInfo.children) {
+    const childInstances = instance?.repeatable?.[childRepInfo.preferredKey] || [];
+    if (!Array.isArray(childInstances) || childInstances.length === 0) {
+      continue;
+    }
+
+    const evaluatedChildren = childInstances.map((childInstance) =>
+      evaluateRepeatableInstance({
+        schema,
+        repInfo: childRepInfo,
+        instance: childInstance,
+        parentValues: nextParentValues,
+        engineOptions,
+      })
+    );
+
+    if (evaluatedChildren.length > 0) {
+      nestedRepeatable[childRepInfo.preferredKey] = evaluatedChildren;
+    }
+  }
+
+  return {
+    ...instance,
+    id: instance?.id ?? instance?.record_id ?? null,
+    values: valuesSlice,
+    errors: errorsSlice,
+    visible: visibleSlice,
+    required: requiredSlice,
+    read_only: readOnlySlice,
+    repeatable: nestedRepeatable,
+  };
+}
+
+function evaluateRepeatableState({ schema, baseValues, repeatableInput, metadata, engineOptions }) {
+  const result = {};
+
+  for (const [, repInfo] of metadata.repeatableSectionTree) {
+    if (repInfo.parentPath.length > 0) {
+      continue;
+    }
+
+    const instances = repeatableInput?.[repInfo.preferredKey] || [];
+    if (!Array.isArray(instances) || instances.length === 0) {
+      continue;
+    }
+
+    const evaluatedInstances = instances.map((instance) =>
+      evaluateRepeatableInstance({
+        schema,
+        repInfo,
+        instance,
+        parentValues: baseValues,
+        engineOptions,
+      })
+    );
+
+    if (evaluatedInstances.length > 0) {
+      result[repInfo.preferredKey] = evaluatedInstances;
+    }
+  }
+
+  return result;
 }
 
 export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
@@ -259,14 +372,19 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
         return res.status(404).json({ error: 'No schema loaded' });
       }
 
-      const { values = {}, eventType, fieldKey } = req.body;
+      const { values = {}, repeatable = {}, eventType, fieldKey } = req.body;
 
       // Create engine with shared warning system to enable throttling across requests
+      const engineOptions = {
+        helpers: {},
+        security: { mode: 'development' },
+      };
+
       const engine = createFormEngine({
         schema: schema,
         initialValues: values,
-        helpers: {}, // builtins are included by default in createFormEngine
-        security: { mode: 'development' }, // Enable development mode for better warnings
+        helpers: engineOptions.helpers, // builtins are included by default in createFormEngine
+        security: engineOptions.security, // Enable development mode for better warnings
         warningSystem: sharedWarningSystem, // Use shared instance for throttling
       });
 
@@ -274,6 +392,20 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
 
       engine.eval();
       const state = engine.getState();
+
+      const metadata = buildRepeatableMetadata(schema.form?.elements || []);
+      const evaluatedRepeatable = evaluateRepeatableState({
+        schema,
+        baseValues: state.values || {},
+        repeatableInput: repeatable,
+        metadata,
+        engineOptions,
+      });
+
+      const responseState = {
+        ...state,
+        repeatable: evaluatedRepeatable,
+      };
 
       // Handle event triggering if specified (backward compatible - existing calls don't include eventType)
       let operations = [];
@@ -305,7 +437,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
       const collectedWarnings = sharedWarningSystem.getCollectedWarnings();
 
       // Return state with operations and warnings (backward compatible - existing clients ignore warnings)
-      res.json({ ...state, operations, warnings: collectedWarnings });
+      res.json({ ...responseState, operations, warnings: collectedWarnings });
 
       // Clear warnings immediately after sending - the 30-second throttling prevents spam
       // No need for setTimeout hack since throttling handles duplicate prevention

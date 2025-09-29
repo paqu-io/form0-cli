@@ -1,3 +1,4 @@
+import { generateUuidV7 } from './uuid.js';
 import { resolveSupportingImagePath } from './supporting-image-utils.js';
 
 /**
@@ -6,6 +7,122 @@ import { resolveSupportingImagePath } from './supporting-image-utils.js';
 export class FormRenderer {
   constructor() {
     this.currentSchema = null;
+    this.fieldInstanceRegistry = new Map();
+    this.initialRepeatableState = {};
+    this.activeRepeatableState = {};
+    this.repeatableSectionRegistry = new Map();
+    this.formStateManager = null;
+  }
+
+  /**
+   * Reset field instance registry
+   */
+  resetFieldRegistry() {
+    this.fieldInstanceRegistry = new Map();
+  }
+
+  setStateManager(stateManager) {
+    this.formStateManager = stateManager;
+  }
+
+  /**
+   * Retrieve field instance registry (for state manager)
+   */
+  getFieldInstanceRegistry() {
+    return this.fieldInstanceRegistry;
+  }
+
+  /**
+   * Compute preferred key for sections/repeatables
+   */
+  getPreferredKey(element) {
+    if (!element) return '';
+    return element.key && element.key.trim() !== '' ? element.key : element.data_name;
+  }
+
+  /**
+   * Extend context path when entering a repeatable section
+   */
+  extendContextPath(contextPath, element, index = 0) {
+    if (!element || element.type !== 'RepeatableSection') {
+      return contextPath;
+    }
+    const preferredKey = this.getPreferredKey(element);
+    return [...contextPath, { key: preferredKey, index }];
+  }
+
+  /**
+   * Format context path to string identifier
+   */
+  formatContextPath(contextPath = []) {
+    if (!Array.isArray(contextPath) || contextPath.length === 0) {
+      return 'root';
+    }
+    const segments = contextPath.map((segment) => `${segment.key}[${segment.index}]`);
+    return `root.${segments.join('.')}`;
+  }
+
+  parseContextKey(contextKey) {
+    if (!contextKey || contextKey === 'root') {
+      return [];
+    }
+
+    const trimmed = contextKey.startsWith('root.') ? contextKey.slice(5) : contextKey;
+    if (!trimmed) {
+      return [];
+    }
+
+    return trimmed
+      .split('.')
+      .map((segment) => {
+        const match = segment.match(/^(.*)\[(\d+)\]$/);
+        if (!match) return null;
+        return {
+          key: match[1],
+          index: Number(match[2]),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  /**
+   * Register rendered field instance for later lookup
+   */
+  registerFieldInstance(field, contextPath, container) {
+    if (!field || !field.data_name) return;
+    const contextKey = this.formatContextPath(contextPath);
+    const compositeKey = `${contextKey}::${field.data_name}`;
+    this.fieldInstanceRegistry.set(compositeKey, {
+      field,
+      contextPath: [...contextPath],
+      contextKey,
+      container,
+    });
+  }
+
+  dispatchRepeatableChange(changeType, section, contextPath, instanceIndex, extraDetail = {}) {
+    const preferredKey = this.getPreferredKey(section);
+    const parentPath = (contextPath || []).map((segment) => ({ ...segment }));
+    const instancePath = [
+      ...parentPath,
+      { key: preferredKey, index: typeof instanceIndex === 'number' ? instanceIndex : 0 },
+    ];
+
+    const detail = {
+      changeType,
+      sectionKey: preferredKey,
+      dataName: section?.data_name || null,
+      parentPath,
+      instancePath,
+      instanceIndex,
+      ...extraDetail,
+    };
+
+    document.dispatchEvent(
+      new CustomEvent('form0:repeatable-change', {
+        detail,
+      })
+    );
   }
 
   /**
@@ -16,9 +133,9 @@ export class FormRenderer {
     if (element.type === 'Section') {
       return element.display === 'drilldown';
     }
-    if (element.type === 'RepeatableSection') {
-      return true; // Always partially supported for now
-    }
+    // if (element.type === 'RepeatableSection') {
+    //   return true; // Always partially supported for now
+    // }
 
     // For fields, currently no partially supported features
     // This is ready for future expansion
@@ -108,8 +225,16 @@ export class FormRenderer {
   /**
    * Set the current schema
    */
-  setSchema(schema) {
+  cloneRepeatableState(state) {
+    return state ? JSON.parse(JSON.stringify(state)) : {};
+  }
+
+  setSchema(schema, { repeatableState = {} } = {}) {
     this.currentSchema = schema;
+    this.initialRepeatableState = this.cloneRepeatableState(repeatableState);
+    this.activeRepeatableState = this.cloneRepeatableState(repeatableState);
+    this.resetFieldRegistry();
+    this.repeatableSectionRegistry = new Map();
   }
 
   /**
@@ -123,6 +248,9 @@ export class FormRenderer {
     const container = document.getElementById('form-container');
     container.innerHTML = '';
 
+    this.resetFieldRegistry();
+    this.repeatableSectionRegistry = new Map();
+
     const formTitle = document.createElement('h2');
     formTitle.textContent = this.currentSchema.form.name || 'Untitled Form';
     container.appendChild(formTitle);
@@ -130,27 +258,711 @@ export class FormRenderer {
     const form = document.createElement('form');
     form.id = 'main-form';
 
-    this.renderElements(this.currentSchema.form.elements || [], form);
+    this.renderElements(this.currentSchema.form.elements || [], form, []);
     container.appendChild(form);
   }
 
   /**
    * Render form elements recursively
    */
-  renderElements(elements, container) {
+  renderElements(elements, container, contextPath = []) {
     elements.forEach((element) => {
-      if (element.type === 'Section' || element.type === 'RepeatableSection') {
-        this.renderSection(element, container);
+      if (element.type === 'RepeatableSection') {
+        this.renderRepeatableSection(element, container, contextPath);
+      } else if (element.type === 'Section') {
+        this.renderSection(element, container, contextPath);
       } else {
-        this.renderField(element, container);
+        this.renderField(element, container, contextPath);
       }
     });
+  }
+
+  getRepeatableStateContainer(contextPath = []) {
+    let container = this.activeRepeatableState;
+
+    for (let i = 0; i < contextPath.length; i++) {
+      const segment = contextPath[i];
+      if (!container[segment.key]) {
+        container[segment.key] = [];
+      }
+
+      while (container[segment.key].length <= segment.index) {
+        const parentPath = contextPath.slice(0, i);
+        const repeatableSection = this.findRepeatableSectionByKey(parentPath, segment.key);
+        container[segment.key].push(this.createEmptyRepeatableInstance(repeatableSection));
+      }
+
+      const instance = container[segment.key][segment.index];
+      if (!instance.repeatable) {
+        instance.repeatable = {};
+      }
+      container = instance.repeatable;
+    }
+
+    return container;
+  }
+
+  createEmptyRepeatableInstance(section = null) {
+    const now = new Date().toISOString();
+    const instance = {
+      id: generateUuidV7(),
+      created_at_client: now,
+      updated_at_client: now,
+      values: {},
+      repeatable: {},
+    };
+
+    if (section) {
+      this.applyDefaultsToInstance(section, instance);
+    }
+
+    return instance;
+  }
+
+  applyDefaultsToInstance(section, instance) {
+    const elements = this.getSectionElements(section);
+    elements.forEach((element) => {
+      if (!element) return;
+
+      if (element.type === 'Section') {
+        this.applyDefaultsToInstance(element, instance);
+        return;
+      }
+
+      if (element.type === 'RepeatableSection') {
+        const preferredKey = this.getPreferredKey(element);
+
+        if (!Array.isArray(instance.repeatable[preferredKey]) || instance.repeatable[preferredKey].length === 0) {
+          const initialCount = this.getInitialInstanceCount(element);
+          instance.repeatable[preferredKey] = [];
+          for (let i = 0; i < initialCount; i++) {
+            instance.repeatable[preferredKey].push(this.createEmptyRepeatableInstance(element));
+          }
+        }
+
+        return;
+      }
+
+      if (element.type === 'CalculatedField') {
+        return;
+      }
+
+      const defaultValue = this.extractFieldDefault(element);
+      if (defaultValue !== undefined) {
+        instance.values[element.data_name] = defaultValue;
+      }
+    });
+  }
+
+  getSectionElements(section) {
+    if (!section) return [];
+    if (Array.isArray(section.elements)) return section.elements;
+    if (Array.isArray(section.drilldown_elements)) return section.drilldown_elements;
+    return [];
+  }
+
+  getInitialInstanceCount(section) {
+    if (!section) return 0;
+    const { initial_instances, min_instances } = section;
+    if (Number.isInteger(initial_instances) && initial_instances > 0) {
+      return initial_instances;
+    }
+    if (Number.isInteger(min_instances) && min_instances > 0) {
+      return min_instances;
+    }
+    return 0;
+  }
+
+  extractFieldDefault(field) {
+    if (!field || !Object.prototype.hasOwnProperty.call(field, 'default_value')) {
+      return undefined;
+    }
+
+    const value = field.default_value;
+    if (value === undefined) {
+      return undefined;
+    }
+
+    return this.cloneDefaultValue(value);
+  }
+
+  cloneDefaultValue(value) {
+    if (value === null) {
+      return null;
+    }
+    if (Array.isArray(value) || typeof value === 'object') {
+      try {
+        return JSON.parse(JSON.stringify(value));
+      } catch (err) {
+        console.warn('Failed to clone default value:', err);
+        return value;
+      }
+    }
+    return value;
+  }
+
+  getRepeatableInstances(section, contextPath = []) {
+    const parentContainer = this.getRepeatableStateContainer(contextPath);
+    const preferredKey = this.getPreferredKey(section);
+    if (!parentContainer[preferredKey]) {
+      parentContainer[preferredKey] = [];
+      const initialCount = this.getInitialInstanceCount(section);
+      for (let i = 0; i < initialCount; i++) {
+        parentContainer[preferredKey].push(this.createEmptyRepeatableInstance(section));
+      }
+    }
+    return parentContainer[preferredKey];
+  }
+
+  getExistingRepeatableContainer(contextPath = []) {
+    let container = this.activeRepeatableState;
+
+    for (const segment of contextPath) {
+      const list = container?.[segment.key];
+      if (!Array.isArray(list) || list.length <= segment.index) {
+        return null;
+      }
+
+      const instance = list[segment.index];
+      if (!instance) {
+        return null;
+      }
+
+      container = instance.repeatable || (instance.repeatable = {});
+    }
+
+    return container;
+  }
+
+  getRepeatableSectionIdentifier(contextPath, section) {
+    const base = this.formatContextPath(contextPath);
+    const preferredKey = this.getPreferredKey(section);
+    return `${base}::${preferredKey}`;
+  }
+
+  clearFieldRegistryForRepeatable(contextPath, section) {
+    const preferredKey = this.getPreferredKey(section);
+    const baseLength = contextPath.length + 1;
+    for (const [key, entry] of this.fieldInstanceRegistry) {
+      const entryPath = entry.contextPath || [];
+      if (entryPath.length < baseLength) continue;
+
+      let matches = true;
+      for (let i = 0; i < contextPath.length; i++) {
+        if (
+          entryPath[i].key !== contextPath[i].key ||
+          entryPath[i].index !== contextPath[i].index
+        ) {
+          matches = false;
+          break;
+        }
+      }
+
+      if (matches && entryPath[contextPath.length].key === preferredKey) {
+        this.fieldInstanceRegistry.delete(key);
+      }
+    }
+  }
+
+  captureRepeatableSnapshot(section, contextPath = []) {
+    if (!this.formStateManager || typeof this.formStateManager.getCurrentFormState !== 'function') {
+      return null;
+    }
+
+    try {
+      const state = this.formStateManager.getCurrentFormState();
+      const preferredKey = this.getPreferredKey(section);
+      const instances = this.resolveSnapshotInstances(state.repeatable || {}, contextPath, preferredKey);
+      if (!Array.isArray(instances) || instances.length === 0) {
+        return null;
+      }
+      return JSON.parse(JSON.stringify(instances));
+    } catch (err) {
+      console.warn('Failed to capture repeatable snapshot:', err);
+      return null;
+    }
+  }
+
+  resolveSnapshotInstances(repeatableState = {}, contextPath = [], preferredKey) {
+    let current = repeatableState;
+
+    for (const segment of contextPath) {
+      const branch = current?.[segment.key];
+      if (!Array.isArray(branch) || branch.length <= segment.index) {
+        return [];
+      }
+      const node = branch[segment.index];
+      if (!node) {
+        return [];
+      }
+      current = node.repeatable || {};
+    }
+
+    const instances = current?.[preferredKey];
+    return Array.isArray(instances) ? instances : [];
+  }
+
+  mergeSnapshotIntoInstances(instances, snapshotInstances) {
+    if (!Array.isArray(instances) || !Array.isArray(snapshotInstances)) {
+      return;
+    }
+
+    snapshotInstances.forEach((snapshotInstance, index) => {
+      const target = instances[index];
+      if (!target || !snapshotInstance) {
+        return;
+      }
+
+      target.id = snapshotInstance.id || snapshotInstance.record_id || target.id || null;
+      target.values = snapshotInstance.values
+        ? JSON.parse(JSON.stringify(snapshotInstance.values))
+        : target.values || {};
+      target.repeatable = snapshotInstance.repeatable
+        ? JSON.parse(JSON.stringify(snapshotInstance.repeatable))
+        : target.repeatable || {};
+      if (snapshotInstance.created_at_client) {
+        target.created_at_client = snapshotInstance.created_at_client;
+      }
+      if (snapshotInstance.updated_at_client) {
+        target.updated_at_client = snapshotInstance.updated_at_client;
+      }
+    });
+  }
+
+  restoreInstanceValuesFromSnapshot(section, contextPath = [], snapshotInstances = []) {
+    if (!this.formStateManager || typeof this.formStateManager.updateFieldValue !== 'function') {
+      return;
+    }
+
+    const preferredKey = this.getPreferredKey(section);
+
+    snapshotInstances.forEach((instanceSnapshot, index) => {
+      if (!instanceSnapshot || !instanceSnapshot.values) {
+        // Still recurse into nested repeatables if present
+        const instancePath = [...contextPath, { key: preferredKey, index }];
+        if (instanceSnapshot && instanceSnapshot.repeatable) {
+          this.restoreNestedRepeatableSnapshots(instanceSnapshot.repeatable, instancePath);
+        }
+        return;
+      }
+
+      const instancePath = [...contextPath, { key: preferredKey, index }];
+      const contextKey = this.formatContextPath(instancePath);
+
+      this.restoreFieldValuesForContext(contextKey, instanceSnapshot.values);
+
+      if (instanceSnapshot.repeatable) {
+        this.restoreNestedRepeatableSnapshots(instanceSnapshot.repeatable, instancePath);
+      }
+    });
+  }
+
+  restoreFieldValuesForContext(contextKey, valuesSnapshot = {}) {
+    if (!valuesSnapshot || typeof valuesSnapshot !== 'object') {
+      return;
+    }
+
+    Object.entries(valuesSnapshot).forEach(([dataName, value]) => {
+      const compositeKey = `${contextKey}::${dataName}`;
+      const entry = this.fieldInstanceRegistry.get(compositeKey);
+      if (!entry) {
+        return;
+      }
+      try {
+        this.formStateManager.updateFieldValue(entry.field, entry.container, value);
+      } catch (err) {
+        console.warn('Failed to restore field value for', dataName, err);
+      }
+    });
+  }
+
+  restoreNestedRepeatableSnapshots(repeatableSnapshot = {}, parentPath = []) {
+    if (!repeatableSnapshot || typeof repeatableSnapshot !== 'object') {
+      return;
+    }
+
+    Object.entries(repeatableSnapshot).forEach(([childKey, instances]) => {
+      if (!Array.isArray(instances)) {
+        return;
+      }
+
+      instances.forEach((instanceSnapshot, index) => {
+        if (!instanceSnapshot) {
+          return;
+        }
+
+        const instancePath = [...parentPath, { key: childKey, index }];
+        const contextKey = this.formatContextPath(instancePath);
+
+        if (instanceSnapshot.values) {
+          this.restoreFieldValuesForContext(contextKey, instanceSnapshot.values);
+        }
+
+        if (instanceSnapshot.repeatable) {
+          this.restoreNestedRepeatableSnapshots(instanceSnapshot.repeatable, instancePath);
+        }
+      });
+    });
+  }
+
+  renderRepeatableSection(section, container, contextPath = []) {
+    const preferredKey = this.getPreferredKey(section);
+    const sectionIdentifier = this.getRepeatableSectionIdentifier(contextPath, section);
+
+    const sectionDiv = document.createElement('div');
+    sectionDiv.className = 'section repeatable-section';
+    sectionDiv.setAttribute('data-key', section.key);
+    sectionDiv.setAttribute('data-name', section.data_name);
+    sectionDiv.setAttribute('data-repeatable-section', sectionIdentifier);
+    sectionDiv.setAttribute('data-context-path', JSON.stringify(contextPath));
+
+    this.repeatableSectionRegistry.set(sectionIdentifier, {
+      section,
+      contextPath: [...contextPath],
+      element: sectionDiv,
+    });
+
+    const titleRow = document.createElement('div');
+    titleRow.className = 'section-title-row';
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.textContent =
+      section.label ||
+      section.data_name ||
+      (section.type === 'RepeatableSection' ? 'Repeatable Section' : 'Section');
+    titleRow.appendChild(title);
+
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'repeatable-section-actions';
+    titleRow.appendChild(actionsContainer);
+
+    if (section.description && typeof section.description === 'string') {
+      if (section.description_mode === 'default') {
+        const infoIcon = document.createElement('span');
+        infoIcon.className = 'description-info-icon section-info-icon';
+        infoIcon.textContent = 'ℹ️';
+        infoIcon.title = 'Show description';
+        infoIcon.style.cursor = 'pointer';
+        infoIcon.tabIndex = 0;
+        actionsContainer.appendChild(infoIcon);
+
+        const dialog = document.createElement('div');
+        dialog.className = 'description-dialog';
+        dialog.style.display = 'none';
+        dialog.innerHTML = `
+          <div class="description-dialog-content">
+            <span class="description-dialog-close" tabindex="0">&times;</span>
+            <div class="description-dialog-header">${section.label || section.data_name || 'Section'}</div>
+            <div class="description-dialog-text">${section.description}</div>
+          </div>
+        `;
+        document.body.appendChild(dialog);
+
+        const showDialog = () => {
+          dialog.style.display = 'block';
+        };
+        const hideDialog = () => {
+          dialog.style.display = 'none';
+        };
+        infoIcon.addEventListener('click', showDialog);
+        infoIcon.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') showDialog();
+        });
+        dialog.querySelector('.description-dialog-close').addEventListener('click', hideDialog);
+        dialog
+          .querySelector('.description-dialog-close')
+          .addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') hideDialog();
+          });
+        dialog.addEventListener('click', (e) => {
+          if (e.target === dialog) hideDialog();
+        });
+      }
+    }
+
+    if (this.isPartiallySupportedFeature(section)) {
+      const warningIcon = this.createWarningIcon(section, 'section');
+      actionsContainer.appendChild(warningIcon);
+    }
+
+    if (this.isUnsupportedFeature(section)) {
+      const stopIcon = this.createStopIcon(section, 'section');
+      actionsContainer.appendChild(stopIcon);
+    }
+
+    sectionDiv.appendChild(titleRow);
+
+    if (section.description && section.description_mode === 'subtext') {
+      const subtext = document.createElement('div');
+      subtext.className = 'description-subtext';
+      subtext.textContent = section.description;
+      sectionDiv.appendChild(subtext);
+    }
+
+    const instancesContainer = document.createElement('div');
+    instancesContainer.className = 'repeatable-instances';
+    sectionDiv.appendChild(instancesContainer);
+
+    const instances = this.getRepeatableInstances(section, contextPath);
+    const canRemove = instances.length > 0;
+    instances.forEach((instance, index) => {
+      this.renderRepeatableInstance(section, instancesContainer, contextPath, index, instance, canRemove);
+    });
+
+    this.restoreInstanceValuesFromSnapshot(section, contextPath, instances);
+
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.className = 'repeatable-add-button';
+    const sectionLabel = section.label || section.data_name || 'item';
+    addButton.textContent = `Add ${sectionLabel}`;
+    addButton.addEventListener('click', () => {
+      this.addRepeatableInstance(section, contextPath);
+    });
+    actionsContainer.appendChild(addButton);
+
+    container.appendChild(sectionDiv);
+  }
+
+  renderRepeatableInstance(
+    section,
+    instancesContainer,
+    parentContextPath,
+    index,
+    instanceState,
+    canRemove
+  ) {
+    const preferredKey = this.getPreferredKey(section);
+    const instancePath = [...parentContextPath, { key: preferredKey, index }];
+    const contextKey = this.formatContextPath(instancePath);
+
+    const instanceDiv = document.createElement('div');
+    instanceDiv.className = 'repeatable-instance';
+    instanceDiv.setAttribute('data-repeatable-context', contextKey);
+    instanceDiv.setAttribute('data-repeatable-key', preferredKey);
+    instanceDiv.setAttribute('data-repeatable-index', String(index));
+    instanceDiv.setAttribute('data-instance-id', instanceState?.id || '');
+
+    const createdAtClient =
+      instanceState?.created_at_client || instanceDiv.getAttribute('data-created-at-client') || new Date().toISOString();
+    const updatedAtClient = instanceState?.updated_at_client || createdAtClient;
+    instanceState.created_at_client = createdAtClient;
+    instanceState.updated_at_client = updatedAtClient;
+    instanceDiv.setAttribute('data-created-at-client', createdAtClient);
+    instanceDiv.setAttribute('data-updated-at-client', updatedAtClient);
+
+    const headerRow = document.createElement('div');
+    headerRow.className = 'repeatable-instance-header';
+    const headerTitle = document.createElement('div');
+    headerTitle.className = 'repeatable-instance-title';
+    headerTitle.textContent = `${section.label || section.data_name} #${index + 1}`;
+    headerRow.appendChild(headerTitle);
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'repeatable-instance-remove';
+    removeButton.textContent = 'Remove';
+    removeButton.disabled = !canRemove;
+    removeButton.addEventListener('click', () => {
+      this.removeRepeatableInstance(section, parentContextPath, index);
+    });
+    headerRow.appendChild(removeButton);
+    instanceDiv.appendChild(headerRow);
+
+    this.renderElements(section.elements || section.drilldown_elements || [], instanceDiv, instancePath);
+
+    instancesContainer.appendChild(instanceDiv);
+  }
+
+  addRepeatableInstance(section, contextPath = []) {
+    const snapshotInstances = this.captureRepeatableSnapshot(section, contextPath);
+    const instances = this.getRepeatableInstances(section, contextPath);
+    this.mergeSnapshotIntoInstances(instances, snapshotInstances);
+    const newInstance = this.createEmptyRepeatableInstance(section);
+    instances.push(newInstance);
+    this.rebuildRepeatableSection(section, contextPath, snapshotInstances);
+    this.dispatchRepeatableChange('add', section, contextPath, instances.length - 1, {
+      totalInstances: instances.length,
+    });
+  }
+
+  removeRepeatableInstance(section, contextPath = [], index = 0) {
+    const snapshotInstances = this.captureRepeatableSnapshot(section, contextPath);
+    const parentContainer = this.getExistingRepeatableContainer(contextPath) || this.activeRepeatableState;
+    const preferredKey = this.getPreferredKey(section);
+    const instances = Array.isArray(parentContainer[preferredKey]) ? parentContainer[preferredKey] : [];
+
+    if (instances.length === 0) {
+      return;
+    }
+    if (index < 0 || index >= instances.length) {
+      return;
+    }
+    this.mergeSnapshotIntoInstances(instances, snapshotInstances);
+    instances.splice(index, 1);
+    if (instances.length === 0) {
+      delete parentContainer[preferredKey];
+    }
+    if (Array.isArray(snapshotInstances)) {
+      snapshotInstances.splice(index, 1);
+    }
+    this.rebuildRepeatableSection(section, contextPath, snapshotInstances);
+    const nextIndex = instances.length === 0 ? 0 : Math.min(index, instances.length - 1);
+    this.dispatchRepeatableChange('remove', section, contextPath, nextIndex, {
+      removedIndex: index,
+      totalInstances: instances.length,
+    });
+  }
+
+  rebuildRepeatableSection(section, contextPath = [], snapshotInstances = null) {
+    const identifier = this.getRepeatableSectionIdentifier(contextPath, section);
+    const entry = this.repeatableSectionRegistry.get(identifier);
+    const sectionDiv = entry?.element || document.querySelector(`[data-repeatable-section="${identifier}"]`);
+    if (!sectionDiv) return;
+
+    const instancesContainer = sectionDiv.querySelector('.repeatable-instances');
+    if (!instancesContainer) return;
+
+    this.clearFieldRegistryForRepeatable(contextPath, section);
+    instancesContainer.innerHTML = '';
+
+    const instances = this.getRepeatableInstances(section, contextPath);
+    const canRemove = instances.length > 0;
+    instances.forEach((instance, index) => {
+      this.renderRepeatableInstance(section, instancesContainer, contextPath, index, instance, canRemove);
+    });
+
+    this.restoreInstanceValuesFromSnapshot(section, contextPath, instances);
+  }
+
+  getRepeatableInstanceContainer(contextPath = []) {
+    const contextKey = this.formatContextPath(contextPath);
+    return document.querySelector(`[data-repeatable-context="${contextKey}"]`);
+  }
+
+  getActiveInstance(contextPath = []) {
+    let current = this.activeRepeatableState;
+    let instance = null;
+
+    for (const segment of contextPath) {
+      const list = current?.[segment.key];
+      if (!Array.isArray(list) || !list[segment.index]) {
+        return null;
+      }
+      instance = list[segment.index];
+      current = instance.repeatable || (instance.repeatable = {});
+    }
+
+    return instance;
+  }
+
+  markInstanceUpdated(contextKey, timestamp = new Date().toISOString()) {
+    if (!contextKey) return;
+
+    const path = this.parseContextKey(contextKey);
+    if (path.length === 0) return;
+
+    const instance = this.getActiveInstance(path);
+    if (instance) {
+      if (!instance.created_at_client) {
+        instance.created_at_client = timestamp;
+      }
+      instance.updated_at_client = timestamp;
+    }
+
+    const container = this.getRepeatableInstanceContainer(path);
+    if (container) {
+      if (!container.getAttribute('data-created-at-client')) {
+        container.setAttribute('data-created-at-client', instance?.created_at_client || timestamp);
+      }
+      container.setAttribute('data-updated-at-client', timestamp);
+    }
+  }
+
+  syncRepeatableState(repeatableState = {}, contextPath = []) {
+    if (!repeatableState || typeof repeatableState !== 'object') {
+      return;
+    }
+
+    Object.entries(repeatableState).forEach(([key, instances]) => {
+      if (!Array.isArray(instances)) return;
+
+      const dummySection = this.findRepeatableSectionByKey(contextPath, key);
+      if (!dummySection) return;
+
+      const parentContainer = this.getRepeatableStateContainer(contextPath);
+      parentContainer[key] = parentContainer[key] || [];
+
+      const stateArray = parentContainer[key];
+      const previousLength = stateArray.length;
+      while (stateArray.length < instances.length)
+        stateArray.push(this.createEmptyRepeatableInstance(dummySection));
+      while (stateArray.length > instances.length) stateArray.pop();
+
+      instances.forEach((instance, index) => {
+        stateArray[index].id = instance.id || null;
+      });
+
+      const lengthsDiffer = previousLength !== instances.length;
+      if (lengthsDiffer) {
+        this.rebuildRepeatableSection(dummySection, contextPath);
+      }
+
+      instances.forEach((instance, index) => {
+        const childPath = [...contextPath, { key, index }];
+        const instanceContainer = this.getRepeatableInstanceContainer(childPath);
+        if (instanceContainer) {
+          instanceContainer.setAttribute('data-instance-id', instance.id || '');
+          if (instance.created_at_client) {
+            instanceContainer.setAttribute('data-created-at-client', instance.created_at_client);
+          }
+          if (instance.updated_at_client) {
+            instanceContainer.setAttribute('data-updated-at-client', instance.updated_at_client);
+          }
+        }
+        this.syncRepeatableState(instance.repeatable || {}, childPath);
+      });
+    });
+  }
+
+  findRepeatableSectionByKey(contextPath, preferredKey) {
+    if (!this.currentSchema) return null;
+
+    const traverse = (elements, path = []) => {
+      for (const element of elements || []) {
+        if (element.type === 'RepeatableSection') {
+          const key = this.getPreferredKey(element);
+          if (key === preferredKey && this.pathsMatch(path, contextPath)) {
+            return element;
+          }
+          const childPath = [...path, { key, index: 0 }];
+          const found = traverse(element.elements || element.drilldown_elements || [], childPath);
+          if (found) return found;
+        } else if (element.type === 'Section') {
+          const found = traverse(element.elements || element.drilldown_elements || [], path);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    return traverse(this.currentSchema.form?.elements || [], []);
+  }
+
+  pathsMatch(basePath, targetPath) {
+    if (basePath.length !== targetPath.length) return false;
+    for (let i = 0; i < basePath.length; i++) {
+      if (basePath[i].key !== targetPath[i].key) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
    * Render a section element
    */
-  renderSection(section, container) {
+  renderSection(section, container, contextPath = []) {
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'section';
     sectionDiv.setAttribute('data-key', section.key);
@@ -237,7 +1049,7 @@ export class FormRenderer {
 
     // Render drilldown sections as inline sections
     const elements = section.elements || section.drilldown_elements || [];
-    this.renderElements(elements, sectionDiv);
+    this.renderElements(elements, sectionDiv, contextPath);
 
     container.appendChild(sectionDiv);
   }
@@ -245,11 +1057,18 @@ export class FormRenderer {
   /**
    * Render a field element
    */
-  renderField(field, container) {
+  renderField(field, container, contextPath = []) {
     const fieldDiv = document.createElement('div');
     fieldDiv.className = 'field';
     fieldDiv.setAttribute('data-key', field.key);
     fieldDiv.setAttribute('data-name', field.data_name);
+    const contextKey = this.formatContextPath(contextPath);
+    const compositeKey = `${contextKey}::${field.data_name}`;
+    fieldDiv.setAttribute('data-context-key', contextKey);
+    fieldDiv.setAttribute('data-context-path', JSON.stringify(contextPath));
+    fieldDiv.setAttribute('data-field-key', compositeKey);
+    const sanitizedContext = contextKey === 'root' ? '' : contextKey.replace(/[^a-zA-Z0-9]+/g, '_');
+    const idBase = sanitizedContext ? `${field.data_name}_${sanitizedContext}` : field.data_name;
 
     // Skip creating standard label for LabelField since it renders its own content
     if (field.type !== 'LabelField') {
@@ -257,7 +1076,7 @@ export class FormRenderer {
       const labelRow = document.createElement('div');
       labelRow.className = 'field-label-row';
       const label = document.createElement('label');
-      label.id = field.data_name + '_label';
+      label.id = `${idBase}_label`;
       label.textContent = field.label || field.data_name;
       if (field.required) label.textContent += ' *';
       // Only set for attribute for simple fields that have a direct input with matching id
@@ -269,7 +1088,7 @@ export class FormRenderer {
         'TimeField',
       ];
       if (simpleFieldTypes.includes(field.type)) {
-        label.htmlFor = field.data_name;
+        label.htmlFor = idBase;
       }
       labelRow.appendChild(label);
 
@@ -424,7 +1243,7 @@ export class FormRenderer {
       }
     }
 
-    const input = this.createFieldInput(field);
+    const input = this.createFieldInput(field, { idBase, contextKey });
 
     // Only set name attribute if input is a form element (not a container)
     if (input.tagName && input.tagName.toLowerCase() !== 'div') {
@@ -488,31 +1307,38 @@ export class FormRenderer {
 
     fieldDiv.appendChild(input);
     container.appendChild(fieldDiv);
+
+    if (field.type !== 'LabelField') {
+      this.registerFieldInstance(field, contextPath, fieldDiv);
+    }
   }
 
   /**
    * Create input element based on field type
    */
-  createFieldInput(field) {
+  createFieldInput(field, options = {}) {
     let input;
+    const idBase = options.idBase || field.data_name;
 
     switch (field.type) {
       case 'TextField':
         input = document.createElement('input');
         input.type = 'text';
-        input.id = field.data_name;
+        input.id = idBase;
         input.autocomplete = 'off';
         if (field.pattern) input.pattern = field.pattern;
+        input.dataset.fieldValue = 'true';
         break;
 
       case 'NumericField':
         input = document.createElement('input');
         input.type = 'number';
-        input.id = field.data_name;
+        input.id = idBase;
         input.autocomplete = 'off';
         if (field.min !== undefined) input.min = field.min;
         if (field.max !== undefined) input.max = field.max;
         if (field.format === 'integer') input.step = '1';
+        input.dataset.fieldValue = 'true';
         break;
 
       case 'SingleChoiceField':
@@ -523,13 +1349,14 @@ export class FormRenderer {
           // Render as radio buttons
           const container = document.createElement('div');
           container.className = 'single-choice-field-radio-container';
-          container.setAttribute('aria-labelledby', field.data_name + '_label');
+          container.setAttribute('aria-labelledby', `${idBase}_label`);
 
           // Create hidden input for the actual field value
           const hiddenInput = document.createElement('input');
           hiddenInput.type = 'hidden';
-          hiddenInput.id = field.data_name + '_hidden';
+          hiddenInput.id = `${idBase}_hidden`;
           hiddenInput.name = field.data_name;
+          hiddenInput.dataset.fieldValue = 'true';
 
           // Flag to prevent recursive updates
           let isUpdating = false;
@@ -597,7 +1424,7 @@ export class FormRenderer {
             otherRadio.type = 'radio';
             otherRadio.name = field.data_name + '_radio';
             otherRadio.value = '__other__';
-            otherRadio.id = field.data_name + '_other_radio';
+            otherRadio.id = `${idBase}_other_radio`;
 
             const otherLabel = document.createElement('label');
             otherLabel.htmlFor = otherRadio.id;
@@ -605,7 +1432,7 @@ export class FormRenderer {
 
             const otherInput = document.createElement('input');
             otherInput.type = 'text';
-            otherInput.id = field.data_name + '_other_input';
+            otherInput.id = `${idBase}_other_input`;
             otherInput.name = field.data_name + '_other';
             otherInput.className = 'single-choice-field-other';
             otherInput.placeholder = 'Please specify...';
@@ -649,10 +1476,10 @@ export class FormRenderer {
             // Create a container for choice field with "other" option
             const container = document.createElement('div');
             container.className = 'single-choice-field-container';
-            container.setAttribute('aria-labelledby', field.data_name + '_label');
+            container.setAttribute('aria-labelledby', `${idBase}_label`);
 
             const select = document.createElement('select');
-            select.id = field.data_name + '_select';
+            select.id = `${idBase}_select`;
             select.name = field.data_name + '_choice';
             select.className = 'single-choice-field-select';
 
@@ -679,7 +1506,7 @@ export class FormRenderer {
             // Create text input for "other" value
             const otherInput = document.createElement('input');
             otherInput.type = 'text';
-            otherInput.id = field.data_name + '_other_input';
+            otherInput.id = `${idBase}_other_input`;
             otherInput.name = field.data_name + '_other';
             otherInput.className = 'single-choice-field-other';
             otherInput.placeholder = 'Please specify...';
@@ -695,6 +1522,7 @@ export class FormRenderer {
             const hiddenInput = document.createElement('input');
             hiddenInput.type = 'hidden';
             hiddenInput.name = field.data_name;
+            hiddenInput.dataset.fieldValue = 'true';
 
             // Flag to prevent recursive updates
             let isUpdating = false;
@@ -755,10 +1583,10 @@ export class FormRenderer {
             // Simple select for non-allow_other fields
             const container = document.createElement('div');
             container.className = 'single-choice-field-simple-container';
-            container.setAttribute('aria-labelledby', field.data_name + '_label');
+            container.setAttribute('aria-labelledby', `${idBase}_label`);
 
             const select = document.createElement('select');
-            select.id = field.data_name + '_simple_select';
+            select.id = `${idBase}_simple_select`;
             select.className = 'single-choice-field-simple-select';
 
             // Add default empty option
@@ -777,8 +1605,9 @@ export class FormRenderer {
             // Create hidden input for the actual field value
             const hiddenInput = document.createElement('input');
             hiddenInput.type = 'hidden';
-            hiddenInput.id = field.data_name + '_hidden';
+            hiddenInput.id = `${idBase}_hidden`;
             hiddenInput.name = field.data_name;
+            hiddenInput.dataset.fieldValue = 'true';
 
             // Function to update hidden value for simple choice field
             function updateSimpleHiddenValue() {
@@ -816,12 +1645,12 @@ export class FormRenderer {
           // Render as checkboxes
           const container = document.createElement('div');
           container.className = 'multi-choice-field-checkbox-container';
-          container.setAttribute('aria-labelledby', field.data_name + '_label');
+          container.setAttribute('aria-labelledby', `${idBase}_label`);
 
           // Create hidden input for the actual field value
           const hiddenInput = document.createElement('input');
           hiddenInput.type = 'hidden';
-          hiddenInput.id = field.data_name + '_hidden';
+          hiddenInput.id = `${idBase}_hidden`;
           hiddenInput.name = field.data_name;
 
           // Initialize with correct structure
@@ -906,7 +1735,7 @@ export class FormRenderer {
 
             const otherInput = document.createElement('input');
             otherInput.type = 'text';
-            otherInput.id = field.data_name + '_other_input';
+            otherInput.id = `${idBase}_other_input`;
             otherInput.name = field.data_name + '_other';
             otherInput.className = 'multi-choice-field-other';
             otherInput.placeholder = 'Please specify...';
@@ -952,10 +1781,10 @@ export class FormRenderer {
             // Create a container for multi choice field with "other" option
             const container = document.createElement('div');
             container.className = 'multi-choice-field-container';
-            container.setAttribute('aria-labelledby', field.data_name + '_label');
+            container.setAttribute('aria-labelledby', `${idBase}_label`);
 
             const select = document.createElement('select');
-            select.id = field.data_name + '_select';
+            select.id = `${idBase}_select`;
             select.name = field.data_name + '_choices';
             select.className = 'multi-choice-field-select';
             select.multiple = true;
@@ -978,7 +1807,7 @@ export class FormRenderer {
             // Create text input for "other" value
             const otherInput = document.createElement('input');
             otherInput.type = 'text';
-            otherInput.id = field.data_name + '_other_input';
+            otherInput.id = `${idBase}_other_input`;
             otherInput.name = field.data_name + '_other';
             otherInput.className = 'multi-choice-field-other';
             otherInput.placeholder = 'Please specify...';
@@ -993,7 +1822,7 @@ export class FormRenderer {
             // Create hidden input for the actual field value
             const hiddenInput = document.createElement('input');
             hiddenInput.type = 'hidden';
-            hiddenInput.id = field.data_name + '_hidden';
+            hiddenInput.id = `${idBase}_hidden`;
             hiddenInput.name = field.data_name;
 
             // Initialize with correct structure
@@ -1072,10 +1901,10 @@ export class FormRenderer {
             // Simple multi-select for non-allow_other fields
             const container = document.createElement('div');
             container.className = 'multi-choice-field-simple-container';
-            container.setAttribute('aria-labelledby', field.data_name + '_label');
+            container.setAttribute('aria-labelledby', `${idBase}_label`);
 
             const select = document.createElement('select');
-            select.id = field.data_name + '_simple_select';
+            select.id = `${idBase}_simple_select`;
             select.className = 'multi-choice-field-simple-select';
             select.multiple = true;
             select.size = Math.min(field.choices ? field.choices.length : 6, 8); // Show up to 8 options
@@ -1090,7 +1919,7 @@ export class FormRenderer {
             // Create hidden input for the actual field value
             const hiddenInput = document.createElement('input');
             hiddenInput.type = 'hidden';
-            hiddenInput.id = field.data_name + '_hidden';
+            hiddenInput.id = `${idBase}_hidden`;
             hiddenInput.name = field.data_name;
 
             // Initialize with correct structure
@@ -1132,32 +1961,36 @@ export class FormRenderer {
       case 'CalculatedField':
         input = document.createElement('input');
         input.type = 'text';
-        input.id = field.data_name;
+        input.id = idBase;
         input.readOnly = true;
+        input.dataset.fieldValue = 'true';
         break;
 
       case 'DateField':
         input = document.createElement('input');
         input.type = 'date';
-        input.id = field.data_name;
+        input.id = idBase;
+        input.dataset.fieldValue = 'true';
         break;
 
       case 'TimeField':
         input = document.createElement('input');
         input.type = 'time';
-        input.id = field.data_name;
+        input.id = idBase;
+        input.dataset.fieldValue = 'true';
         break;
 
       case 'BooleanField':
         // BooleanField renders as a segmented control (buttons styled as a group)
         const container = document.createElement('div');
         container.className = 'boolean-field-container';
-        container.setAttribute('aria-labelledby', field.data_name + '_label');
+        container.setAttribute('aria-labelledby', `${idBase}_label`);
 
         // Create hidden input for the actual field value
         const hiddenInput = document.createElement('input');
         hiddenInput.type = 'hidden';
         hiddenInput.name = field.data_name;
+        hiddenInput.dataset.fieldValue = 'true';
 
         // Flag to prevent recursive updates
         let isUpdating = false;
@@ -1251,7 +2084,7 @@ export class FormRenderer {
         const labelContainer = document.createElement('div');
         labelContainer.className = 'label-field-container';
         labelContainer.id = field.data_name;
-        labelContainer.setAttribute('aria-labelledby', field.data_name + '_label');
+        labelContainer.setAttribute('aria-labelledby', `${idBase}_label`);
 
         // Create the label text element with proper newline handling
         const labelText = document.createElement('div');
@@ -1294,7 +2127,8 @@ export class FormRenderer {
         const hiddenInput = document.createElement('input');
         hiddenInput.type = 'hidden';
         hiddenInput.name = field.data_name;
-        hiddenInput.id = field.data_name + '_hidden';
+        hiddenInput.id = `${idBase}_hidden`;
+        hiddenInput.dataset.fieldValue = 'true';
         container.appendChild(hiddenInput);
 
         // Clear button
@@ -1418,6 +2252,7 @@ export class FormRenderer {
         const hiddenInput = document.createElement('input');
         hiddenInput.type = 'hidden';
         hiddenInput.name = field.data_name;
+        hiddenInput.dataset.fieldValue = 'true';
         container.appendChild(hiddenInput);
 
         const fileInput = document.createElement('input');
@@ -1524,6 +2359,7 @@ export class FormRenderer {
         const hiddenInput = document.createElement('input');
         hiddenInput.type = 'hidden';
         hiddenInput.name = field.data_name;
+        hiddenInput.dataset.fieldValue = 'true';
         container.appendChild(hiddenInput);
 
         const fileInput = document.createElement('input');
