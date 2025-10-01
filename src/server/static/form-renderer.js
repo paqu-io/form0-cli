@@ -155,6 +155,10 @@ export class FormRenderer {
       return element.is_searchable === true;
     }
 
+    if (element.type === 'FormLinkField') {
+      return true;
+    }
+
     return false;
   }
 
@@ -182,10 +186,14 @@ export class FormRenderer {
     const supportLevel = isPartiallySupported ? 'partially supported' : 'not supported';
     const docsPath = isPartiallySupported ? 'partially-supported-features' : 'unsupported-features';
 
+    const featureDescription = this.generateFeatureDescription(this.currentElement);
+    const fullSupportMessage =
+      this.currentElement && this.currentElement.type === 'FormLinkField'
+        ? 'Full support available in reform platform only.'
+        : 'Full support available in form0-react and form0-react-native packages.';
+
     return {
-      message:
-        `The feature ${this.generateFeatureDescription(this.currentElement)} is ${supportLevel} in form0-cli. ` +
-        `Full support available in form0-react and form0-react-native packages.`,
+      message: `The feature ${featureDescription} is ${supportLevel} in form0-cli. ${fullSupportMessage}`,
       docsUrl: `docs.form0.dev/cli/${docsPath}`,
     };
   }
@@ -2078,6 +2086,242 @@ export class FormRenderer {
 
         input = container;
         break;
+
+      case 'FormLinkField': {
+        const container = document.createElement('div');
+        container.className = 'form-link-field-container';
+        container.setAttribute('aria-labelledby', `${idBase}_label`);
+
+        const actions = document.createElement('div');
+        actions.className = 'form-link-field-actions';
+
+        const openModal = (title, buildContent, options = {}) => {
+          const overlay = document.createElement('div');
+          overlay.className = 'form-link-modal-overlay';
+          overlay.style.position = 'fixed';
+          overlay.style.top = '0';
+          overlay.style.left = '0';
+          overlay.style.width = '100vw';
+          overlay.style.height = '100vh';
+          overlay.style.display = 'flex';
+          overlay.style.alignItems = 'center';
+          overlay.style.justifyContent = 'center';
+          overlay.style.background = 'rgba(0, 0, 0, 0.35)';
+          overlay.style.zIndex = '1100';
+
+          const modal = document.createElement('div');
+          modal.className = 'form-link-modal';
+          modal.style.background = '#fff';
+          modal.style.borderRadius = '8px';
+          modal.style.padding = '20px';
+          modal.style.width = 'min(420px, 90vw)';
+          modal.style.boxShadow = '0 12px 28px rgba(0, 0, 0, 0.25)';
+          modal.style.display = 'flex';
+          modal.style.flexDirection = 'column';
+          modal.style.gap = '16px';
+
+          const header = document.createElement('div');
+          header.textContent = title;
+          header.style.fontSize = '18px';
+          header.style.fontWeight = '600';
+          modal.appendChild(header);
+
+          const body = document.createElement('div');
+          body.style.display = 'flex';
+          body.style.flexDirection = 'column';
+          body.style.gap = '12px';
+          if (typeof buildContent === 'function') {
+            buildContent(body);
+          }
+          modal.appendChild(body);
+
+          const footer = document.createElement('div');
+          footer.style.display = 'flex';
+          footer.style.justifyContent = 'flex-end';
+          footer.style.gap = '10px';
+
+          function removeOverlay() {
+            if (document.body.contains(overlay)) {
+              document.body.removeChild(overlay);
+            }
+            document.removeEventListener('keydown', handleEscape);
+          }
+
+          function handleEscape(event) {
+            if (event.key === 'Escape') {
+              removeOverlay();
+            }
+          }
+
+          if (options.primaryLabel) {
+            const primaryButton = document.createElement('button');
+            primaryButton.type = 'button';
+            primaryButton.textContent = options.primaryLabel;
+            primaryButton.disabled = true;
+            primaryButton.className = 'primary-button';
+            primaryButton.style.opacity = '0.6';
+            primaryButton.style.cursor = 'not-allowed';
+            footer.appendChild(primaryButton);
+          }
+
+          const closeButton = document.createElement('button');
+          closeButton.type = 'button';
+          closeButton.textContent = 'Close';
+          closeButton.className = 'form-link-modal-close';
+          closeButton.style.padding = '6px 14px';
+          closeButton.style.border = '1px solid #ccc';
+          closeButton.style.borderRadius = '4px';
+          closeButton.style.background = '#f7f7f7';
+          closeButton.style.cursor = 'pointer';
+
+          closeButton.addEventListener('click', removeOverlay);
+
+          overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+              removeOverlay();
+            }
+          });
+
+          document.addEventListener('keydown', handleEscape);
+
+          footer.appendChild(closeButton);
+          modal.appendChild(footer);
+          overlay.appendChild(modal);
+
+          document.body.appendChild(overlay);
+          closeButton.focus();
+        };
+
+        const placeholderHandler = (title, builder, options = {}) => {
+          console.info(
+            `[form0-cli] FormLinkField action "${title}" is not supported in CLI. This modal is a placeholder.`
+          );
+          openModal(title, builder, options);
+        };
+
+        if (field.allow_creating_records) {
+          const createButton = document.createElement('button');
+          createButton.type = 'button';
+          createButton.className = 'form-link-field-action';
+          createButton.textContent = 'Create Record';
+          createButton.title = 'Creating linked records is only available in reform.';
+          createButton.className = 'primary-button';
+          createButton.classList.add('form-link-primary');
+          createButton.addEventListener('click', () =>
+            placeholderHandler(
+              'Create Linked Record',
+              (body) => {
+                const message = document.createElement('p');
+                message.textContent = 'This feature is not supported in form0-cli.';
+                body.appendChild(message);
+              },
+              { primaryLabel: 'Save' }
+            )
+          );
+          actions.appendChild(createButton);
+        }
+
+        if (field.allow_existing_records || field.allow_multiple_records) {
+          const selectButton = document.createElement('button');
+          selectButton.type = 'button';
+          selectButton.className = 'form-link-field-action';
+          selectButton.textContent = 'Select Record(s)';
+          selectButton.title = 'Selecting linked records is only available in reform.';
+          selectButton.className = 'primary-button';
+          selectButton.classList.add('form-link-primary');
+          selectButton.addEventListener('click', () =>
+            placeholderHandler(
+              'Select Linked Record(s)',
+              (body) => {
+                const info = document.createElement('p');
+                info.textContent =
+                  "Placeholder record(s); selecting them won't import them into the form.";
+                body.appendChild(info);
+
+                const placeholderContainer = document.createElement('div');
+                placeholderContainer.style.display = 'flex';
+                placeholderContainer.style.flexDirection = 'column';
+                placeholderContainer.style.gap = '10px';
+
+                const recordCount = 3;
+                const selectionState = new Set();
+
+                for (let index = 1; index <= recordCount; index += 1) {
+                  const row = document.createElement('label');
+                  row.style.display = 'flex';
+                  row.style.alignItems = 'center';
+                  row.style.gap = '8px';
+
+                  const input = document.createElement('input');
+                  input.type = field.allow_multiple_records ? 'checkbox' : 'radio';
+                  input.name = 'form-link-placeholder';
+                  input.value = `placeholder-${index}`;
+
+                  input.addEventListener('change', () => {
+                    if (field.allow_multiple_records) {
+                      if (input.checked) {
+                        selectionState.add(input.value);
+                      } else {
+                        selectionState.delete(input.value);
+                      }
+                    } else {
+                      selectionState.clear();
+                      const radios = placeholderContainer.querySelectorAll(
+                        'input[name="form-link-placeholder"]'
+                      );
+                      radios.forEach((radio) => {
+                        if (radio.checked) {
+                          selectionState.add(radio.value);
+                        }
+                      });
+                    }
+                    console.info('[form0-cli] Placeholder selection state:', Array.from(selectionState));
+                  });
+
+                  const label = document.createElement('span');
+                  label.textContent = `Placeholder Record ${index}`;
+
+                  row.appendChild(input);
+                  row.appendChild(label);
+                  placeholderContainer.appendChild(row);
+                }
+
+                body.appendChild(placeholderContainer);
+              },
+              { primaryLabel: 'Select' }
+            )
+          );
+          actions.appendChild(selectButton);
+        }
+
+        if (actions.children.length > 0) {
+          container.appendChild(actions);
+        }
+
+        const selection = document.createElement('div');
+        selection.className = 'form-link-field-selection';
+
+        const selectionPlaceholder = document.createElement('div');
+        selectionPlaceholder.className = 'form-link-field-selection-placeholder';
+        selectionPlaceholder.textContent = 'No linked records selected.';
+        const previewMessage = field.allow_updating_records
+          ? 'Linked record preview and editing are available in reform.'
+          : 'Linked record preview is available in reform.';
+        selectionPlaceholder.title = previewMessage;
+        selectionPlaceholder.addEventListener('click', () =>
+          placeholderHandler('Preview Linked Record', (body) => {
+            const message = document.createElement('p');
+            message.textContent = 'Record preview is not available in form0-cli.';
+            body.appendChild(message);
+          })
+        );
+
+        selection.appendChild(selectionPlaceholder);
+        container.appendChild(selection);
+
+        input = container;
+        break;
+      }
 
       case 'LabelField':
         // LabelField renders as a simple div with the label text
