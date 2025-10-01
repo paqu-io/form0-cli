@@ -35,6 +35,66 @@ body {
     font-weight: 500; 
 }
 
+.primary-button {
+    background: #6c757d;
+    border: 1px solid #5c636a;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.primary-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.form-link-field-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.form-link-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 1100;
+}
+
+.form-link-modal {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    width: min(420px, 90vw);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form-link-modal-header {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.form-link-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.form-link-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
 .field input, .field select, .field textarea { 
     width: 100%; 
     padding: 8px; 
