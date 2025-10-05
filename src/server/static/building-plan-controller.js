@@ -1,0 +1,381 @@
+function cloneVertices(vertices = []) {
+  return Array.isArray(vertices) ? vertices.map((point) => ({ ...point })) : [];
+}
+
+function rectFromVertices(vertices) {
+  if (!Array.isArray(vertices) || vertices.length === 0) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+
+  const xs = vertices.map((p) => p.x);
+  const ys = vertices.map((p) => p.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+}
+
+function verticesFromRect(rect) {
+  return [
+    { x: rect.x, y: rect.y },
+    { x: rect.x + rect.width, y: rect.y },
+    { x: rect.x + rect.width, y: rect.y + rect.height },
+    { x: rect.x, y: rect.y + rect.height },
+  ];
+}
+
+function parseVertices(rawValue) {
+  if (!rawValue) return [];
+  if (Array.isArray(rawValue)) return cloneVertices(rawValue);
+  if (typeof rawValue === 'string') {
+    try {
+      const parsed = JSON.parse(rawValue);
+      return Array.isArray(parsed) ? cloneVertices(parsed) : [];
+    } catch (err) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function parsePoints(rawValue) {
+  return parseVertices(rawValue);
+}
+
+function stringifyValue(value) {
+  try {
+    return JSON.stringify(value);
+  } catch (err) {
+    return '';
+  }
+}
+
+function highlightElement(element) {
+  if (!element) return;
+  element.classList.add('building-plan-focus');
+  element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  window.setTimeout(() => {
+    element.classList.remove('building-plan-focus');
+  }, 1500);
+}
+
+export class BuildingPlanController {
+  constructor(formRenderer, formStateManager, section, contextPath = [], meta = null) {
+    this.formRenderer = formRenderer;
+    this.formStateManager = formStateManager;
+    this.section = section;
+    this.contextPath = Array.isArray(contextPath) ? contextPath : [];
+    this.meta = meta;
+
+    this.floorSection = this.getRepeatableByDataName('building_plan_floors', section?.elements || []);
+    this.roomSection = this.floorSection
+      ? this.getRepeatableByDataName('building_plan_rooms', this.floorSection.elements || [])
+      : null;
+    this.wallSection = this.roomSection
+      ? this.getRepeatableByDataName('room_walls', this.roomSection.elements || [])
+      : null;
+
+    this.floorKey = this.floorSection ? this.formRenderer.getPreferredKey(this.floorSection) : null;
+    this.roomKey = this.roomSection ? this.formRenderer.getPreferredKey(this.roomSection) : null;
+    this.wallKey = this.wallSection ? this.formRenderer.getPreferredKey(this.wallSection) : null;
+
+    this.rooms = new Map();
+    this.walls = new Map();
+    this.roomColors = new Map();
+    this.listeners = new Set();
+    this.floorCount = 0;
+
+    this.handleRepeatableChange = this.handleRepeatableChange.bind(this);
+    document.addEventListener('form0:repeatable-change', this.handleRepeatableChange);
+
+    this.syncFromState();
+  }
+
+  dispose() {
+    document.removeEventListener('form0:repeatable-change', this.handleRepeatableChange);
+    this.listeners.clear();
+  }
+
+  subscribe(listener) {
+    if (typeof listener === 'function') {
+      this.listeners.add(listener);
+      listener(this.getSnapshot());
+    }
+
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  handleRepeatableChange(event) {
+    const detail = event?.detail;
+    if (!detail) return;
+
+    const relevantKeys = new Set([this.roomKey, this.wallKey, this.floorKey]);
+    if (!relevantKeys.has(detail.sectionKey)) {
+      return;
+    }
+
+    this.syncFromState();
+    this.emitUpdate();
+  }
+
+  getRepeatableByDataName(dataName, elements = []) {
+    return elements.find((el) => el.type === 'RepeatableSection' && el.data_name === dataName) || null;
+  }
+
+  createRoom(rectangle) {
+    if (!this.roomSection) {
+      throw new Error('Building plan blueprint missing rooms definition');
+    }
+
+    const floorInfo = this.ensureFloorInstance();
+    if (!floorInfo) {
+      return null;
+    }
+
+    const floorPath = this.getFloorPath(floorInfo.index);
+
+    this.formRenderer.addRepeatableInstance(this.roomSection, floorPath);
+    const roomInstances = this.formRenderer.getRepeatableInstances(this.roomSection, floorPath) || [];
+    const roomIndex = roomInstances.length - 1;
+    const roomInstance = roomInstances[roomIndex];
+    const roomPath = [...floorPath, { key: this.roomKey, index: roomIndex }];
+
+    if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
+      this.formStateManager.setFieldValueAtContext(
+        'room_vertices',
+        roomPath,
+        stringifyValue(verticesFromRect(rectangle)),
+        { suppressLogging: true, skipStateUpdate: true }
+      );
+      this.formStateManager.updateFormState();
+    }
+
+    this.syncFromState();
+    this.emitUpdate();
+
+    return this.rooms.get(roomInstance?.id) || null;
+  }
+
+  updateRoom(roomId, rectangle) {
+    const roomInfo = this.rooms.get(roomId);
+    if (!roomInfo) return;
+
+    if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
+      this.formStateManager.setFieldValueAtContext(
+        'room_vertices',
+        roomInfo.path,
+        stringifyValue(verticesFromRect(rectangle)),
+        { suppressLogging: true, skipStateUpdate: true }
+      );
+    }
+
+    const deltaX = rectangle.x - roomInfo.rect.x;
+    const deltaY = rectangle.y - roomInfo.rect.y;
+
+    const relatedWalls = Array.from(this.walls.values()).filter((wall) => wall.roomId === roomId);
+    relatedWalls.forEach((wall) => {
+      const updatedPoints = wall.points.map((point) => ({ x: point.x + deltaX, y: point.y + deltaY }));
+      if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
+        this.formStateManager.setFieldValueAtContext(
+          'wall_geometry',
+          wall.path,
+          stringifyValue(updatedPoints),
+          { suppressLogging: true, skipStateUpdate: true }
+        );
+      }
+    });
+
+    if (relatedWalls.length > 0) {
+      this.formStateManager.updateFormState();
+    } else if (this.formStateManager && typeof this.formStateManager.updateFormState === 'function') {
+      this.formStateManager.updateFormState();
+    }
+
+    this.syncFromState();
+    this.emitUpdate();
+  }
+
+  createWall(roomId, points) {
+    if (!this.wallSection) {
+      throw new Error('Building plan blueprint missing walls definition');
+    }
+
+    const roomInfo = this.rooms.get(roomId);
+    if (!roomInfo) return null;
+
+    this.formRenderer.addRepeatableInstance(this.wallSection, roomInfo.path);
+    const wallInstances = this.formRenderer.getRepeatableInstances(this.wallSection, roomInfo.path) || [];
+    const wallIndex = wallInstances.length - 1;
+    const wallInstance = wallInstances[wallIndex];
+    const wallPath = [...roomInfo.path, { key: this.wallKey, index: wallIndex }];
+
+    if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
+      this.formStateManager.setFieldValueAtContext(
+        'wall_geometry',
+        wallPath,
+        stringifyValue(points),
+        { suppressLogging: true, skipStateUpdate: true }
+      );
+      this.formStateManager.updateFormState();
+    }
+
+    this.syncFromState();
+    this.emitUpdate();
+
+    return this.walls.get(wallInstance?.id) || null;
+  }
+
+  updateWall(wallId, points) {
+    const wallInfo = this.walls.get(wallId);
+    if (!wallInfo) return;
+
+    if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
+      this.formStateManager.setFieldValueAtContext(
+        'wall_geometry',
+        wallInfo.path,
+        stringifyValue(points),
+        { suppressLogging: true, skipStateUpdate: true }
+      );
+      this.formStateManager.updateFormState();
+    }
+
+    this.syncFromState();
+    this.emitUpdate();
+  }
+
+  focusRoom(roomId) {
+    const roomInfo = this.rooms.get(roomId);
+    if (!roomInfo) return;
+    const container = this.formRenderer.getRepeatableInstanceContainer(roomInfo.path);
+    highlightElement(container);
+  }
+
+  focusWall(wallId) {
+    const wallInfo = this.walls.get(wallId);
+    if (!wallInfo) return;
+    const container = this.formRenderer.getRepeatableInstanceContainer(wallInfo.path);
+    highlightElement(container);
+  }
+
+  getSnapshot() {
+    return {
+      rooms: Array.from(this.rooms.values()).map((room) => ({
+        id: room.id,
+        path: room.path,
+        vertices: cloneVertices(room.vertices),
+        rect: { ...room.rect },
+        color: room.color,
+      })),
+      walls: Array.from(this.walls.values()).map((wall) => ({
+        id: wall.id,
+        roomId: wall.roomId,
+        path: wall.path,
+        points: cloneVertices(wall.points),
+      })),
+    };
+  }
+
+  emitUpdate() {
+    const snapshot = this.getSnapshot();
+    this.listeners.forEach((listener) => {
+      try {
+        listener(snapshot);
+      } catch (err) {
+        console.error('[BuildingPlan] listener error', err);
+      }
+    });
+  }
+
+  ensureRoomColor(roomId) {
+    if (!this.roomColors.has(roomId)) {
+      const palette = ['#79b8ff', '#b392f0', '#ffab70', '#ff938a', '#f7c843', '#46d1b8'];
+      const color = palette[this.roomColors.size % palette.length];
+      this.roomColors.set(roomId, color);
+    }
+    return this.roomColors.get(roomId);
+  }
+
+  syncFromState() {
+    this.rooms.clear();
+    this.walls.clear();
+
+    if (!this.floorSection || !this.roomSection) {
+      return;
+    }
+
+    const floorInstances = this.formRenderer.getRepeatableInstances(this.floorSection, this.contextPath) || [];
+    this.floorCount = floorInstances.length;
+
+    floorInstances.forEach((floorInstance, floorIndex) => {
+      const floorPath = [...this.contextPath, { key: this.floorKey, index: floorIndex }];
+      const roomInstances = this.formRenderer.getRepeatableInstances(this.roomSection, floorPath) || [];
+
+      roomInstances.forEach((roomInstance, roomIndex) => {
+        const roomPath = [...floorPath, { key: this.roomKey, index: roomIndex }];
+        const vertices = parseVertices(roomInstance?.values?.room_vertices);
+        const rect = rectFromVertices(vertices);
+        const roomId = roomInstance?.id || `${this.formRenderer.formatContextPath(roomPath)}`;
+        const color = this.ensureRoomColor(roomId);
+
+        this.rooms.set(roomId, {
+          id: roomId,
+          path: roomPath,
+          vertices,
+          rect,
+          color,
+        });
+
+        if (!this.wallSection) return;
+
+        const wallInstances = this.formRenderer.getRepeatableInstances(this.wallSection, roomPath) || [];
+
+        wallInstances.forEach((wallInstance, wallIndex) => {
+          const wallPath = [...roomPath, { key: this.wallKey, index: wallIndex }];
+          const points = parsePoints(wallInstance?.values?.wall_geometry);
+          const wallId = wallInstance?.id || `${this.formRenderer.formatContextPath(wallPath)}`;
+
+          this.walls.set(wallId, {
+            id: wallId,
+            roomId: roomId,
+            path: wallPath,
+            points,
+          });
+        });
+      });
+    });
+  }
+
+  hasFloors() {
+    return this.floorCount > 0;
+  }
+
+  ensureFloorInstance() {
+    if (!this.floorSection) {
+      throw new Error('Building plan blueprint is missing floors definition');
+    }
+
+    const instances = this.formRenderer.getRepeatableInstances(this.floorSection, this.contextPath) || [];
+
+    if (instances.length === 0) {
+      return null;
+    }
+
+    return { instances, index: 0 };
+  }
+
+  getFloorPath(index = 0) {
+    if (this.floorKey === null) {
+      return [];
+    }
+    return [...this.contextPath, { key: this.floorKey, index }];
+  }
+}

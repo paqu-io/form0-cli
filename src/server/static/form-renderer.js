@@ -1,5 +1,7 @@
 import { generateUuidV7 } from './uuid.js';
 import { resolveSupportingImagePath } from './supporting-image-utils.js';
+import { BuildingPlanController } from './building-plan-controller.js';
+import { BuildingPlanCanvas } from './building-plan-canvas.js';
 
 /**
  * Handles form rendering and field creation
@@ -11,7 +13,9 @@ export class FormRenderer {
     this.initialRepeatableState = {};
     this.activeRepeatableState = {};
     this.repeatableSectionRegistry = new Map();
+    this.buildingPlanRegistry = new Map();
     this.formStateManager = null;
+    this.currentBuildingPlanMeta = [];
   }
 
   /**
@@ -19,6 +23,8 @@ export class FormRenderer {
    */
   resetFieldRegistry() {
     this.fieldInstanceRegistry = new Map();
+    this.disposeBuildingPlanControllers();
+    this.buildingPlanRegistry = new Map();
   }
 
   setStateManager(stateManager) {
@@ -133,6 +139,9 @@ export class FormRenderer {
     if (element.type === 'Section') {
       return element.display === 'drilldown';
     }
+    if (element.type === 'BuildingPlanSection') {
+      return true;
+    }
     // if (element.type === 'RepeatableSection') {
     //   return true; // Always partially supported for now
     // }
@@ -170,6 +179,10 @@ export class FormRenderer {
 
     if (element.type === 'Section' && element.display === 'drilldown') {
       parts.push(`(display: ${element.display})`);
+    }
+
+    if (element.type === 'BuildingPlanSection') {
+      parts.push('(canvas preview)');
     }
 
     if (element.is_searchable === true) {
@@ -237,12 +250,13 @@ export class FormRenderer {
     return state ? JSON.parse(JSON.stringify(state)) : {};
   }
 
-  setSchema(schema, { repeatableState = {} } = {}) {
+  setSchema(schema, { repeatableState = {}, buildingPlanMeta = [] } = {}) {
     this.currentSchema = schema;
     this.initialRepeatableState = this.cloneRepeatableState(repeatableState);
     this.activeRepeatableState = this.cloneRepeatableState(repeatableState);
     this.resetFieldRegistry();
     this.repeatableSectionRegistry = new Map();
+    this.currentBuildingPlanMeta = Array.isArray(buildingPlanMeta) ? buildingPlanMeta : [];
   }
 
   /**
@@ -270,6 +284,22 @@ export class FormRenderer {
     container.appendChild(form);
   }
 
+  disposeBuildingPlanControllers() {
+    if (!this.buildingPlanRegistry || this.buildingPlanRegistry.size === 0) {
+      return;
+    }
+
+    for (const entry of this.buildingPlanRegistry.values()) {
+      if (entry && typeof entry.dispose === 'function') {
+        try {
+          entry.dispose();
+        } catch (error) {
+          console.error('[BuildingPlan] Dispose error:', error);
+        }
+      }
+    }
+  }
+
   /**
    * Render form elements recursively
    */
@@ -277,6 +307,8 @@ export class FormRenderer {
     elements.forEach((element) => {
       if (element.type === 'RepeatableSection') {
         this.renderRepeatableSection(element, container, contextPath);
+      } else if (element.type === 'BuildingPlanSection') {
+        this.renderBuildingPlanSection(element, container, contextPath);
       } else if (element.type === 'Section') {
         this.renderSection(element, container, contextPath);
       } else {
@@ -332,7 +364,7 @@ export class FormRenderer {
     elements.forEach((element) => {
       if (!element) return;
 
-      if (element.type === 'Section') {
+      if (element.type === 'Section' || element.type === 'BuildingPlanSection') {
         this.applyDefaultsToInstance(element, instance);
         return;
       }
@@ -967,10 +999,147 @@ export class FormRenderer {
     return true;
   }
 
+  renderBuildingPlanSection(section, container, contextPath = []) {
+    const sectionDiv = document.createElement('div');
+    sectionDiv.className = 'section building-plan-section';
+    sectionDiv.setAttribute('data-key', section.key);
+    sectionDiv.setAttribute('data-name', section.data_name);
+
+    const titleRow = document.createElement('div');
+    titleRow.className = 'section-title-row';
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.textContent = section.label || section.data_name || 'Building Plan';
+    titleRow.appendChild(title);
+
+    if (section.description && typeof section.description === 'string') {
+      if (section.description_mode === 'default') {
+        const infoIcon = document.createElement('span');
+        infoIcon.className = 'description-info-icon section-info-icon';
+        infoIcon.textContent = 'ℹ️';
+        infoIcon.title = 'Show description';
+        infoIcon.style.cursor = 'pointer';
+        infoIcon.tabIndex = 0;
+        titleRow.appendChild(infoIcon);
+
+        const dialog = document.createElement('div');
+        dialog.className = 'description-dialog';
+        dialog.style.display = 'none';
+        dialog.innerHTML = `
+          <div class="description-dialog-content">
+            <span class="description-dialog-close" tabindex="0">&times;</span>
+            <div class="description-dialog-header">${section.label || section.data_name || 'Building Plan'}</div>
+            <div class="description-dialog-text">${section.description}</div>
+          </div>
+        `;
+        document.body.appendChild(dialog);
+
+        const showDialog = () => {
+          dialog.style.display = 'block';
+        };
+        const hideDialog = () => {
+          dialog.style.display = 'none';
+        };
+        infoIcon.addEventListener('click', showDialog);
+        infoIcon.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') showDialog();
+        });
+        dialog.querySelector('.description-dialog-close').addEventListener('click', hideDialog);
+        dialog.querySelector('.description-dialog-close').addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') hideDialog();
+        });
+        dialog.addEventListener('click', (e) => {
+          if (e.target === dialog) hideDialog();
+        });
+      }
+    }
+
+    if (this.isPartiallySupportedFeature(section)) {
+      const warningIcon = this.createWarningIcon(section, 'section');
+      titleRow.appendChild(warningIcon);
+    }
+
+    if (this.isUnsupportedFeature(section)) {
+      const stopIcon = this.createStopIcon(section, 'section');
+      titleRow.appendChild(stopIcon);
+    }
+
+    sectionDiv.appendChild(titleRow);
+
+    if (section.description && section.description_mode === 'subtext') {
+      const subtext = document.createElement('div');
+      subtext.className = 'description-subtext';
+      subtext.textContent = section.description;
+      sectionDiv.appendChild(subtext);
+    }
+
+    const layoutWrapper = document.createElement('div');
+    layoutWrapper.className = 'building-plan-layout';
+
+    const canvasContainer = document.createElement('div');
+    canvasContainer.className = 'building-plan-canvas-panel';
+
+    const detailContainer = document.createElement('div');
+    detailContainer.className = 'building-plan-detail-panel';
+
+    const childElements = Array.isArray(section.elements) ? section.elements : [];
+    this.renderElements(childElements, detailContainer, contextPath);
+
+    layoutWrapper.appendChild(canvasContainer);
+    layoutWrapper.appendChild(detailContainer);
+
+    sectionDiv.appendChild(layoutWrapper);
+    container.appendChild(sectionDiv);
+
+    const metaEntry = this.currentBuildingPlanMeta.find((meta) => meta.dataName === section.data_name) || null;
+
+    const existing = this.buildingPlanRegistry.get(section.data_name);
+    if (existing && typeof existing.dispose === 'function') {
+      existing.dispose();
+    }
+
+    let controller = null;
+    let canvas = null;
+
+    if (this.formStateManager) {
+      controller = new BuildingPlanController(this, this.formStateManager, section, contextPath, metaEntry);
+      canvas = new BuildingPlanCanvas({ container: canvasContainer, controller });
+    } else {
+      canvasContainer.innerHTML = `
+        <div class="building-plan-canvas-placeholder">
+          <div class="building-plan-canvas-placeholder-title">Canvas preview</div>
+          <div class="building-plan-canvas-placeholder-body">
+            Drawing tools for rooms and walls will appear here.
+          </div>
+        </div>
+      `;
+    }
+
+    this.buildingPlanRegistry.set(section.data_name, {
+      field: section,
+      blueprint: section.building_plan?.blueprint || metaEntry?.blueprint || null,
+      meta: section.building_plan?.meta || metaEntry || null,
+      element: sectionDiv,
+      canvasContainer,
+      detailContainer,
+      contextPath: [...contextPath],
+      controller,
+      canvas,
+      dispose: () => {
+        canvas?.destroy();
+        controller?.dispose();
+      },
+    });
+  }
+
   /**
    * Render a section element
    */
   renderSection(section, container, contextPath = []) {
+    if (section.type === 'BuildingPlanSection') {
+      this.renderBuildingPlanSection(section, container, contextPath);
+      return;
+    }
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'section';
     sectionDiv.setAttribute('data-key', section.key);

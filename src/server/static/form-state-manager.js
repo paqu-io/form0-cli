@@ -1603,6 +1603,49 @@ export class FormStateManager {
     }
   }
 
+  setFieldValueAtContext(
+    fieldDataName,
+    contextPath = [],
+    valueToSet,
+    { suppressLogging = false, skipStateUpdate = false } = {}
+  ) {
+    const contextKey = this.formRenderer.formatContextPath(contextPath);
+    const fieldSelector = `[data-field-key="${contextKey}::${fieldDataName}"]`;
+    const fieldContainer = document.querySelector(fieldSelector);
+
+    if (!fieldContainer) {
+      if (!suppressLogging) {
+        console.warn(
+          `[SETVALUE] Field container not found for "${fieldDataName}" in context "${contextKey}"`
+        );
+      }
+      return;
+    }
+
+    const input =
+      fieldContainer.querySelector(`[data-field-value="true"]`) ||
+      fieldContainer.querySelector(`input[name="${fieldDataName}"]`) ||
+      fieldContainer.querySelector(`textarea[name="${fieldDataName}"]`) ||
+      fieldContainer.querySelector(`select[name="${fieldDataName}"]`);
+
+    if (!input) {
+      if (!suppressLogging) {
+        console.warn(
+          `[SETVALUE] Input element not found for "${fieldDataName}" in context "${contextKey}"`
+        );
+      }
+      return;
+    }
+
+    const displayValue =
+      valueToSet === null || valueToSet === undefined ? '' : String(valueToSet);
+    input.value = displayValue;
+
+    if (!skipStateUpdate) {
+      this.updateFormState();
+    }
+  }
+
   /**
    * Set value for SingleChoiceField
    * @param {string} fieldDataName - Field data name

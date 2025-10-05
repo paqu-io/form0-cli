@@ -1,6 +1,7 @@
 import { WebSocketServer } from 'ws';
 import { colors } from '../utils/theme.js';
 import { t, tn } from '../utils/i18n.js';
+import { expandBuildingPlanSchema } from 'form0-core';
 
 export function createWebSocketServer(server, getCurrentSchema, getSchemaSource) {
   const wss = new WebSocketServer({ server });
@@ -20,11 +21,13 @@ export function createWebSocketServer(server, getCurrentSchema, getSchemaSource)
     const schema = getCurrentSchema();
     if (schema) {
       const source = getSchemaSource ? getSchemaSource() : 'Current Schema';
+      const { schema: preparedSchema, buildingPlanMeta } = expandBuildingPlanSchema(schema);
       ws.send(
         JSON.stringify({
           type: 'schema-update',
-          schema: schema,
+          schema: preparedSchema,
           source: source,
+          buildingPlanMeta,
         })
       );
     }
@@ -43,10 +46,12 @@ export function createWebSocketServer(server, getCurrentSchema, getSchemaSource)
     console.log(colors.textSecondary(t('websocket.broadcastingUpdate')));
 
     const source = schemaSource || 'Current Schema';
+    const { schema: preparedSchema, buildingPlanMeta } = expandBuildingPlanSchema(schema);
     const message = JSON.stringify({
       type: 'schema-update',
-      schema: schema,
+      schema: preparedSchema,
       source: source,
+      buildingPlanMeta,
     });
 
     let clientCount = 0;

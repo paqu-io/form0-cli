@@ -83,6 +83,7 @@ let currentSchema = null;
 let schemaSource = 'Current Schema'; // Will be updated by server
 let currentStatusValue = null; // Selected status for metadata panel (not part of engine state)
 let createdAtTimestamp = null; // Simple client-side timestamps for preview
+let currentBuildingPlanMeta = [];
 
 // Initialize modular components
 const formRenderer = new FormRenderer();
@@ -186,6 +187,7 @@ function initializeWebSocket() {
 
         currentSchema = newSchema;
         schemaSource = data.source || 'Current Schema'; // Get schema source from server
+        currentBuildingPlanMeta = data.buildingPlanMeta || [];
         await renderForm();
 
         // Format timestamp as yyyy-mm-dd hh:mm:ss
@@ -229,6 +231,7 @@ async function loadInitialSchema() {
       const data = await response.json();
       currentSchema = data.schema;
       schemaSource = data.source || 'Current Schema';
+      currentBuildingPlanMeta = data.buildingPlanMeta || [];
       await renderForm();
     } else {
       document.getElementById('status').textContent = t('failedToLoadSchema');
@@ -259,7 +262,7 @@ async function renderForm() {
   if (!currentSchema) return;
 
   // Set schema in renderer and render form
-  formRenderer.setSchema(currentSchema);
+  formRenderer.setSchema(currentSchema, { buildingPlanMeta: currentBuildingPlanMeta });
   formRenderer.renderForm();
 
   // Update schema path in header with schema source

@@ -8,6 +8,7 @@ import {
   recordVersion,
   formVersion,
   buildRepeatableMetadata,
+  expandBuildingPlanSchema,
 } from 'form0-core';
 import { fileURLToPath } from 'url';
 import { getLocale, t, getRawTranslation } from '../utils/i18n.js';
@@ -317,6 +318,20 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   // Initialize connectors when the app is created
   initializeConnectors();
 
+  function getPreparedSchemaPayload() {
+    const schema = getCurrentSchema();
+    if (!schema) {
+      return null;
+    }
+
+    const { schema: preparedSchema, buildingPlanMeta } = expandBuildingPlanSchema(schema);
+    return {
+      schema: preparedSchema,
+      source: getSchemaSource ? getSchemaSource() : 'Current Schema',
+      buildingPlanMeta,
+    };
+  }
+
   // Serve static files
   app.use(express.static(path.join(__dirname, 'static')));
 
@@ -325,12 +340,11 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
 
   // API endpoint to get current schema
   app.get('/api/schema', (req, res) => {
-    const schema = getCurrentSchema();
-    if (!schema) {
+    const payload = getPreparedSchemaPayload();
+    if (!payload) {
       return res.status(404).json({ error: 'No schema loaded' });
     }
-    const source = getSchemaSource ? getSchemaSource() : 'Current Schema';
-    res.json({ schema, source });
+    res.json(payload);
   });
 
   // API endpoint to get current locale and translations
@@ -343,10 +357,11 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   // API endpoint to get default values from schema
   app.get('/api/default-values', (req, res) => {
     try {
-      const schema = getCurrentSchema();
-      if (!schema) {
+      const payload = getPreparedSchemaPayload();
+      if (!payload) {
         return res.status(404).json({ error: 'No schema loaded' });
       }
+      const { schema } = payload;
 
       // Create engine to get default values
       const engine = createFormEngine({
@@ -367,10 +382,11 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   // API endpoint to run engine with values
   app.post('/api/engine', express.json(), (req, res) => {
     try {
-      const schema = getCurrentSchema();
-      if (!schema) {
+      const payload = getPreparedSchemaPayload();
+      if (!payload) {
         return res.status(404).json({ error: 'No schema loaded' });
       }
+      const { schema } = payload;
 
       const { values = {}, repeatable = {}, eventType, fieldKey } = req.body;
 
@@ -451,10 +467,11 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   // API endpoint to create structured record
   app.post('/api/create-record', express.json(), (req, res) => {
     try {
-      const schema = getCurrentSchema();
-      if (!schema) {
+      const payload = getPreparedSchemaPayload();
+      if (!payload) {
         return res.status(404).json({ error: 'No schema loaded' });
       }
+      const { schema } = payload;
 
       const { state, options = {} } = req.body;
 
