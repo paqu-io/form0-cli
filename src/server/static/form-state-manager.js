@@ -5,6 +5,8 @@ export class FormStateManager {
   constructor(formRenderer) {
     this.formRenderer = formRenderer;
     this.preservedValues = {}; // Store values to preserve across schema updates
+    this.pendingFieldValues = new Map();
+    this.pendingFieldCallbacks = new Map();
   }
 
   /**
@@ -1613,13 +1615,16 @@ export class FormStateManager {
     const fieldSelector = `[data-field-key="${contextKey}::${fieldDataName}"]`;
     const fieldContainer = document.querySelector(fieldSelector);
 
+    this.updateContextState(fieldDataName, contextPath, valueToSet);
+
     if (!fieldContainer) {
       if (!suppressLogging) {
         console.warn(
           `[SETVALUE] Field container not found for "${fieldDataName}" in context "${contextKey}"`
         );
       }
-      return;
+      this.storePendingFieldValue(contextKey, fieldDataName, valueToSet, contextPath);
+      return false;
     }
 
     const input =
@@ -1634,7 +1639,8 @@ export class FormStateManager {
           `[SETVALUE] Input element not found for "${fieldDataName}" in context "${contextKey}"`
         );
       }
-      return;
+      this.storePendingFieldValue(contextKey, fieldDataName, valueToSet, contextPath);
+      return false;
     }
 
     const displayValue =
@@ -1644,6 +1650,73 @@ export class FormStateManager {
     if (!skipStateUpdate) {
       this.updateFormState();
     }
+
+    return true;
+  }
+
+  updateContextState(fieldDataName, contextPath, valueToSet) {
+    if (!this.formRenderer || typeof this.formRenderer.getActiveInstance !== 'function') {
+      return;
+    }
+
+    const instance = this.formRenderer.getActiveInstance(contextPath);
+    if (instance) {
+      if (!instance.values) {
+        instance.values = {};
+      }
+      instance.values[fieldDataName] = valueToSet;
+    } else if (contextPath.length === 0) {
+      if (!this.activeRepeatableState) {
+        this.activeRepeatableState = {};
+      }
+      this.activeRepeatableState[fieldDataName] = valueToSet;
+    }
+  }
+
+  storePendingFieldValue(contextKey, fieldDataName, valueToSet, contextPath = []) {
+    const pendingKey = this.getPendingKey(contextKey, fieldDataName);
+    this.pendingFieldValues.set(pendingKey, {
+      value: valueToSet,
+      contextPath: Array.isArray(contextPath) ? [...contextPath] : [],
+    });
+  }
+
+  registerPendingFieldCallback(contextKey, fieldName, callback) {
+    if (typeof callback !== 'function') return;
+    const pendingKey = this.getPendingKey(contextKey, fieldName);
+    this.pendingFieldCallbacks.set(pendingKey, callback);
+  }
+
+  applyPendingFieldValue(field, contextKey) {
+    if (!field || !contextKey) return;
+    const pendingKey = this.getPendingKey(contextKey, field.data_name);
+    const pending = this.pendingFieldValues.get(pendingKey);
+    if (!pending) return;
+
+    const success = this.setFieldValueAtContext(
+      field.data_name,
+      pending.contextPath,
+      pending.value,
+      { suppressLogging: true, skipStateUpdate: true }
+    );
+
+    if (success) {
+      this.pendingFieldValues.delete(pendingKey);
+      const callback = this.pendingFieldCallbacks.get(pendingKey);
+      if (callback) {
+        this.pendingFieldCallbacks.delete(pendingKey);
+        callback();
+      }
+    }
+  }
+
+  clearPendingFieldValues() {
+    this.pendingFieldValues.clear();
+    this.pendingFieldCallbacks.clear();
+  }
+
+  getPendingKey(contextKey, fieldName) {
+    return `${contextKey}::${fieldName}`;
   }
 
   /**

@@ -25,6 +25,12 @@ export class FormRenderer {
     this.fieldInstanceRegistry = new Map();
     this.disposeBuildingPlanControllers();
     this.buildingPlanRegistry = new Map();
+    if (
+      this.formStateManager &&
+      typeof this.formStateManager.clearPendingFieldValues === 'function'
+    ) {
+      this.formStateManager.clearPendingFieldValues();
+    }
   }
 
   setStateManager(stateManager) {
@@ -104,6 +110,13 @@ export class FormRenderer {
       contextKey,
       container,
     });
+
+    if (
+      this.formStateManager &&
+      typeof this.formStateManager.applyPendingFieldValue === 'function'
+    ) {
+      this.formStateManager.applyPendingFieldValue(field, contextKey);
+    }
   }
 
   dispatchRepeatableChange(changeType, section, contextPath, instanceIndex, extraDetail = {}) {

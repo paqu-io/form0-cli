@@ -12,6 +12,10 @@ function distance(a, b) {
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+function clonePoints(points = []) {
+  return Array.isArray(points) ? points.map((point) => ({ ...point })) : [];
+}
+
 function pointToSegmentDistance(point, a, b) {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
@@ -40,6 +44,7 @@ export class BuildingPlanCanvas {
     this.selectedWallId = null;
 
     this.dragState = null;
+    this.wallDragState = null;
     this.wallDraft = null;
     this.roomDraft = null;
 
@@ -55,6 +60,14 @@ export class BuildingPlanCanvas {
 
   destroy() {
     window.removeEventListener('resize', this.boundResizeHandler);
+    if (this.resizeObserver) {
+      try {
+        this.resizeObserver.disconnect();
+      } catch (err) {
+        console.error('[BuildingPlan] Resize observer disconnect error', err);
+      }
+      this.resizeObserver = null;
+    }
     if (this.canvas) {
       this.canvas.removeEventListener('mousedown', this.boundMouseDown);
       this.canvas.removeEventListener('mousemove', this.boundMouseMove);
@@ -102,6 +115,12 @@ export class BuildingPlanCanvas {
 
     this.boundResizeHandler = () => this.resizeCanvas();
     window.addEventListener('resize', this.boundResizeHandler);
+
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.resizeCanvas());
+      this.resizeObserver.observe(this.canvasContainer);
+    }
+
     this.resizeCanvas();
     this.updateCursor();
     this.updateButtonStates();
@@ -135,6 +154,7 @@ export class BuildingPlanCanvas {
     this.wallDraft = null;
     this.roomDraft = null;
     this.dragState = null;
+    this.wallDragState = null;
     this.updateCursor();
     this.updateButtonStates();
     this.render();
@@ -175,7 +195,7 @@ export class BuildingPlanCanvas {
   updateCursor() {
     if (!this.canvas) return;
     if (this.mode === MODE_SELECT) {
-      this.canvas.style.cursor = this.dragState ? 'grabbing' : 'grab';
+      this.canvas.style.cursor = this.dragState || this.wallDragState ? 'grabbing' : 'grab';
     } else {
       this.canvas.style.cursor = 'crosshair';
     }
@@ -191,7 +211,12 @@ export class BuildingPlanCanvas {
   clearSelection() {
     this.selectedRoomId = null;
     this.selectedWallId = null;
+    this.wallDragState = null;
+    this.walls.forEach((wall) => {
+      if (wall.previewPoints) delete wall.previewPoints;
+    });
     this.updateCursor();
+    this.updateButtonStates();
     this.render();
   }
 
@@ -223,8 +248,28 @@ export class BuildingPlanCanvas {
       return;
     }
 
-    const room = this.findRoomAtPoint(point);
     const wall = this.findWallNearPoint(point);
+    const room = this.findRoomAtPoint(point);
+
+    if (this.mode === MODE_SELECT && wall) {
+      const basePoints =
+        wall.previewPoints && wall.previewPoints.length > 0
+          ? clonePoints(wall.previewPoints)
+          : clonePoints(wall.points);
+      this.selectedRoomId = wall.roomId;
+      this.selectedWallId = wall.id;
+      this.wallDragState = {
+        wallId: wall.id,
+        pointerStart: point,
+        originalPoints: basePoints,
+        moved: false,
+      };
+      this.controller?.focusWall(wall.id);
+      this.updateButtonStates();
+      this.updateCursor();
+      this.render();
+      return;
+    }
 
     if (room) {
       this.selectedRoomId = room.id;
@@ -237,15 +282,6 @@ export class BuildingPlanCanvas {
       this.controller?.focusRoom(room.id);
       this.updateButtonStates();
       this.updateCursor();
-      this.render();
-      return;
-    }
-
-    if (wall) {
-      this.selectedRoomId = null;
-      this.selectedWallId = wall.id;
-      this.controller?.focusWall(wall.id);
-      this.updateButtonStates();
       this.render();
       return;
     }
@@ -288,6 +324,37 @@ export class BuildingPlanCanvas {
       };
 
       this.previewRoomMovement(room.id, newRect);
+      this.render();
+      return;
+    }
+
+    if (this.mode === MODE_SELECT && this.wallDragState) {
+      const wall = this.walls.find((w) => w.id === this.wallDragState.wallId);
+      if (!wall) return;
+      const room = this.rooms.find((r) => r.id === wall.roomId);
+      if (!room || !room.rect) return;
+
+      const deltaX = point.x - this.wallDragState.pointerStart.x;
+      const deltaY = point.y - this.wallDragState.pointerStart.y;
+
+      if (!this.wallDragState.moved && Math.abs(deltaX) + Math.abs(deltaY) > 1) {
+        this.wallDragState.moved = true;
+      }
+
+      const newPoints = this.wallDragState.originalPoints.map((pt) => {
+        const translated = {
+          x: pt.x + deltaX,
+          y: pt.y + deltaY,
+        };
+        const clamped = {
+          x: clamp(translated.x, room.rect.x, room.rect.x + room.rect.width),
+          y: clamp(translated.y, room.rect.y, room.rect.y + room.rect.height),
+        };
+        return this.snapPoint(clamped);
+      });
+
+      wall.previewPoints = newPoints;
+      this.wallDragState.previewPoints = newPoints;
       this.render();
       return;
     }
@@ -352,6 +419,22 @@ export class BuildingPlanCanvas {
       this.updateCursor();
       this.updateButtonStates();
       this.render();
+      return;
+    }
+
+    if (this.mode === MODE_SELECT && this.wallDragState) {
+      const wall = this.walls.find((w) => w.id === this.wallDragState.wallId);
+      if (wall && this.wallDragState.previewPoints && this.wallDragState.moved) {
+        this.controller?.updateWall(wall.id, this.wallDragState.previewPoints);
+      }
+      if (wall) {
+        delete wall.previewPoints;
+      }
+      this.wallDragState = null;
+      this.updateCursor();
+      this.updateButtonStates();
+      this.render();
+      return;
     }
   }
 
@@ -365,8 +448,16 @@ export class BuildingPlanCanvas {
     if (this.mode === MODE_SELECT) {
       this.rooms.forEach((r) => delete r.previewRect);
       this.dragState = null;
+      if (this.wallDragState) {
+        const wall = this.walls.find((w) => w.id === this.wallDragState.wallId);
+        if (wall) {
+          delete wall.previewPoints;
+        }
+        this.wallDragState = null;
+      }
     }
     this.updateCursor();
+    this.updateButtonStates();
     this.render();
   }
 
@@ -434,9 +525,13 @@ export class BuildingPlanCanvas {
     const rect = room.rect;
     if (!rect) return this.snapPoint(point);
 
+    const snapped = this.snapPoint(point);
+    const insideX = snapped.x >= rect.x && snapped.x <= rect.x + rect.width;
+    const insideY = snapped.y >= rect.y && snapped.y <= rect.y + rect.height;
+
     const clamped = {
-      x: clamp(point.x, rect.x, rect.x + rect.width),
-      y: clamp(point.y, rect.y, rect.y + rect.height),
+      x: clamp(snapped.x, rect.x, rect.x + rect.width),
+      y: clamp(snapped.y, rect.y, rect.y + rect.height),
     };
 
     const vertices = [
@@ -450,7 +545,7 @@ export class BuildingPlanCanvas {
     let bestDistance = SNAP_RADIUS;
 
     vertices.forEach((vertex) => {
-      const dist = distance(vertex, clamped);
+      const dist = distance(vertex, snapped);
       if (dist < bestDistance) {
         bestDistance = dist;
         bestVertex = vertex;
@@ -461,27 +556,26 @@ export class BuildingPlanCanvas {
       return { x: bestVertex.x, y: bestVertex.y };
     }
 
-    const distances = [
-      { axis: 'left', dist: Math.abs(clamped.x - rect.x) },
-      { axis: 'right', dist: Math.abs(clamped.x - (rect.x + rect.width)) },
-      { axis: 'top', dist: Math.abs(clamped.y - rect.y) },
-      { axis: 'bottom', dist: Math.abs(clamped.y - (rect.y + rect.height)) },
-    ];
-
-    distances.sort((a, b) => a.dist - b.dist);
-    const nearest = distances[0];
-
-    switch (nearest.axis) {
-      case 'left':
-        return { x: rect.x, y: clamped.y };
-      case 'right':
-        return { x: rect.x + rect.width, y: clamped.y };
-      case 'top':
-        return { x: clamped.x, y: rect.y };
-      case 'bottom':
-      default:
-        return { x: clamped.x, y: rect.y + rect.height };
+    const edgeOptions = [];
+    if (insideY) {
+      edgeOptions.push({ point: { x: rect.x, y: snapped.y }, dist: Math.abs(snapped.x - rect.x) });
+      edgeOptions.push({ point: { x: rect.x + rect.width, y: snapped.y }, dist: Math.abs(snapped.x - (rect.x + rect.width)) });
     }
+    if (insideX) {
+      edgeOptions.push({ point: { x: snapped.x, y: rect.y }, dist: Math.abs(snapped.y - rect.y) });
+      edgeOptions.push({ point: { x: snapped.x, y: rect.y + rect.height }, dist: Math.abs(snapped.y - (rect.y + rect.height)) });
+    }
+
+    const nearestEdge = edgeOptions.sort((a, b) => a.dist - b.dist)[0];
+    if (nearestEdge && nearestEdge.dist < SNAP_RADIUS) {
+      return nearestEdge.point;
+    }
+
+    if (!insideX || !insideY) {
+      return clamped;
+    }
+
+    return snapped;
   }
 
   findRoomAtPoint(point) {
@@ -618,6 +712,23 @@ export class BuildingPlanCanvas {
     }
 
     ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = '#9fb3d9';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0.5, 0);
+    ctx.lineTo(0.5, height);
+    ctx.moveTo(0, 0.5);
+    ctx.lineTo(width, 0.5);
+    ctx.stroke();
+
+    ctx.fillStyle = '#55607a';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('0,0', 6, 4);
+    ctx.restore();
   }
 
   drawRoom(room) {
@@ -679,14 +790,20 @@ export class BuildingPlanCanvas {
   }
 
   getRenderedWallPoints(wall) {
-    const points = Array.isArray(wall.points) ? wall.points : [];
+    if (!wall) return [];
+
+    if (Array.isArray(wall.previewPoints) && wall.previewPoints.length > 0) {
+      return clonePoints(wall.previewPoints);
+    }
+
+    const basePoints = Array.isArray(wall.points) ? wall.points : [];
     const room = this.rooms.find((r) => r.id === wall.roomId);
     if (!room || !room.previewRect || !room.rect) {
-      return points;
+      return basePoints;
     }
 
     const deltaX = room.previewRect.x - room.rect.x;
     const deltaY = room.previewRect.y - room.rect.y;
-    return points.map((point) => ({ x: point.x + deltaX, y: point.y + deltaY }));
+    return basePoints.map((point) => ({ x: point.x + deltaX, y: point.y + deltaY }));
   }
 }

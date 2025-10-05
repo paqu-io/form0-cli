@@ -149,20 +149,38 @@ export class BuildingPlanController {
     const roomInstance = roomInstances[roomIndex];
     const roomPath = [...floorPath, { key: this.roomKey, index: roomIndex }];
 
-    if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
-      this.formStateManager.setFieldValueAtContext(
-        'room_vertices',
-        roomPath,
-        stringifyValue(verticesFromRect(rectangle)),
-        { suppressLogging: true, skipStateUpdate: true }
-      );
-      this.formStateManager.updateFormState();
+    const roomId = roomInstance?.id || `${this.formRenderer.formatContextPath(roomPath)}`;
+    const roomVerticesValue = verticesFromRect(rectangle);
+    const roomVerticesString = stringifyValue(roomVerticesValue);
+
+    if (roomInstance) {
+      if (!roomInstance.values) {
+        roomInstance.values = {};
+      }
+      roomInstance.values.room_vertices = roomVerticesString;
     }
 
-    this.syncFromState();
+    const provisionalRoom = {
+      id: roomId,
+      path: roomPath,
+      vertices: roomVerticesValue,
+      rect: { ...rectangle },
+      color: this.ensureRoomColor(roomId),
+    };
+    this.rooms.set(roomId, provisionalRoom);
     this.emitUpdate();
 
-    return this.rooms.get(roomInstance?.id) || null;
+    this.queueFieldUpdate(
+      'room_vertices',
+      roomPath,
+      roomVerticesString,
+      () => {
+        this.syncFromState();
+        this.emitUpdate();
+      }
+    );
+
+    return provisionalRoom;
   }
 
   updateRoom(roomId, rectangle) {
@@ -218,38 +236,93 @@ export class BuildingPlanController {
     const wallInstance = wallInstances[wallIndex];
     const wallPath = [...roomInfo.path, { key: this.wallKey, index: wallIndex }];
 
-    if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
-      this.formStateManager.setFieldValueAtContext(
-        'wall_geometry',
-        wallPath,
-        stringifyValue(points),
-        { suppressLogging: true, skipStateUpdate: true }
-      );
-      this.formStateManager.updateFormState();
+    const wallId = wallInstance?.id || `${this.formRenderer.formatContextPath(wallPath)}`;
+    const wallPointsString = stringifyValue(points);
+
+    if (wallInstance) {
+      if (!wallInstance.values) {
+        wallInstance.values = {};
+      }
+      wallInstance.values.wall_geometry = wallPointsString;
     }
 
-    this.syncFromState();
+    const provisionalWall = {
+      id: wallId,
+      roomId: roomId,
+      path: wallPath,
+      points: cloneVertices(points),
+    };
+    this.walls.set(wallId, provisionalWall);
     this.emitUpdate();
 
-    return this.walls.get(wallInstance?.id) || null;
+    this.queueFieldUpdate(
+      'wall_geometry',
+      wallPath,
+      wallPointsString,
+      () => {
+        this.syncFromState();
+        this.emitUpdate();
+      }
+    );
+
+    return provisionalWall;
+  }
+
+  queueFieldUpdate(fieldName, path, value, afterUpdate = null) {
+    if (
+      !this.formStateManager ||
+      typeof this.formStateManager.setFieldValueAtContext !== 'function' ||
+      typeof this.formStateManager.updateFormState !== 'function'
+    ) {
+      return;
+    }
+
+    this.runAfterRender(() => {
+      const success = this.formStateManager.setFieldValueAtContext(
+        fieldName,
+        path,
+        value,
+        { suppressLogging: true, skipStateUpdate: true }
+      );
+
+      if (success) {
+        this.formStateManager.updateFormState();
+        if (typeof afterUpdate === 'function') {
+          afterUpdate();
+        }
+        return;
+      }
+
+      if (typeof this.formStateManager.registerPendingFieldCallback === 'function') {
+        const contextKey = this.formRenderer.formatContextPath(path);
+        this.formStateManager.registerPendingFieldCallback(contextKey, fieldName, () => {
+          this.formStateManager.updateFormState();
+          if (typeof afterUpdate === 'function') {
+            afterUpdate();
+          }
+        });
+      }
+    });
   }
 
   updateWall(wallId, points) {
     const wallInfo = this.walls.get(wallId);
     if (!wallInfo) return;
-
-    if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
-      this.formStateManager.setFieldValueAtContext(
-        'wall_geometry',
-        wallInfo.path,
-        stringifyValue(points),
-        { suppressLogging: true, skipStateUpdate: true }
-      );
-      this.formStateManager.updateFormState();
+    wallInfo.points = cloneVertices(points);
+    if (wallInfo.previewPoints) {
+      delete wallInfo.previewPoints;
     }
-
-    this.syncFromState();
     this.emitUpdate();
+
+    this.queueFieldUpdate(
+      'wall_geometry',
+      wallInfo.path,
+      stringifyValue(points),
+      () => {
+        this.syncFromState();
+        this.emitUpdate();
+      }
+    );
   }
 
   focusRoom(roomId) {
@@ -292,6 +365,17 @@ export class BuildingPlanController {
       } catch (err) {
         console.error('[BuildingPlan] listener error', err);
       }
+    });
+  }
+
+  runAfterRender(callback) {
+    if (typeof window === 'undefined') {
+      setTimeout(callback, 0);
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      setTimeout(callback, 0);
     });
   }
 
