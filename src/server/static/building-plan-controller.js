@@ -49,6 +49,28 @@ function parsePoints(rawValue) {
   return parseVertices(rawValue);
 }
 
+const ROUND_DECIMALS = 3;
+
+function roundCoordinate(value, decimals = ROUND_DECIMALS) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function roundPoint(point, decimals = ROUND_DECIMALS) {
+  if (!point) return { x: 0, y: 0 };
+  return {
+    x: roundCoordinate(point.x, decimals),
+    y: roundCoordinate(point.y, decimals),
+  };
+}
+
+function roundVertices(vertices, decimals = ROUND_DECIMALS) {
+  return Array.isArray(vertices) ? vertices.map((point) => roundPoint(point, decimals)) : [];
+}
+
 function stringifyValue(value) {
   try {
     return JSON.stringify(value);
@@ -177,7 +199,8 @@ export class BuildingPlanController {
 
     const roomId = roomInstance?.id || `${this.formRenderer.formatContextPath(roomPath)}`;
     const roomVerticesValue = verticesFromRect(rectangle);
-    const roomVerticesString = stringifyValue(roomVerticesValue);
+    const roundedVertices = roundVertices(roomVerticesValue);
+    const roomVerticesString = stringifyValue(roundedVertices);
 
     if (roomInstance) {
       if (!roomInstance.values) {
@@ -190,7 +213,7 @@ export class BuildingPlanController {
       id: roomId,
       path: roomPath,
       floorIndex: this.activeFloorIndex,
-      vertices: roomVerticesValue,
+      vertices: roundedVertices,
       rect: { ...rectangle },
       color: this.ensureRoomColor(roomId),
     };
@@ -216,30 +239,48 @@ export class BuildingPlanController {
     const roomInfo = this.rooms.get(roomId);
     if (!roomInfo) return;
 
+    const roundedVertices = roundVertices(verticesFromRect(rectangle));
+
     if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
       this.formStateManager.setFieldValueAtContext(
         'room_vertices',
         roomInfo.path,
-        stringifyValue(verticesFromRect(rectangle)),
+        stringifyValue(roundedVertices),
         { suppressLogging: true, skipStateUpdate: true }
       );
     }
 
     const oldRect = roomInfo.rect ? { ...roomInfo.rect } : null;
-    roomInfo.rect = { ...rectangle };
-    roomInfo.vertices = verticesFromRect(rectangle);
-
     const deltaX = oldRect ? rectangle.x - oldRect.x : 0;
     const deltaY = oldRect ? rectangle.y - oldRect.y : 0;
+    roomInfo.rect = { ...rectangle };
+    roomInfo.vertices = roundedVertices;
 
     const relatedWalls = Array.from(this.walls.values()).filter((wall) => wall.roomId === roomId);
     relatedWalls.forEach((wall) => {
-      const updatedPoints = wall.points.map((point) => ({ x: point.x + deltaX, y: point.y + deltaY }));
+      const updatedPoints = wall.points.map((point) => {
+        if (!oldRect || oldRect.width === 0 || oldRect.height === 0) {
+          return {
+            x: point.x + deltaX,
+            y: point.y + deltaY,
+          };
+        }
+
+        const relativeX = (point.x - oldRect.x) / oldRect.width;
+        const relativeY = (point.y - oldRect.y) / oldRect.height;
+
+        return {
+          x: rectangle.x + relativeX * rectangle.width,
+          y: rectangle.y + relativeY * rectangle.height,
+        };
+      });
+      const roundedPoints = roundVertices(updatedPoints);
+      wall.points = cloneVertices(roundedPoints);
       if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
         this.formStateManager.setFieldValueAtContext(
           'wall_geometry',
           wall.path,
-          stringifyValue(updatedPoints),
+          stringifyValue(roundedPoints),
           { suppressLogging: true, skipStateUpdate: true }
         );
       }
@@ -270,7 +311,8 @@ export class BuildingPlanController {
     const wallPath = [...roomInfo.path, { key: this.wallKey, index: wallIndex }];
 
     const wallId = wallInstance?.id || `${this.formRenderer.formatContextPath(wallPath)}`;
-    const wallPointsString = stringifyValue(points);
+    const roundedPoints = roundVertices(points);
+    const wallPointsString = stringifyValue(roundedPoints);
 
     if (wallInstance) {
       if (!wallInstance.values) {
@@ -284,7 +326,7 @@ export class BuildingPlanController {
       roomId: roomId,
       floorIndex: roomInfo.floorIndex ?? this.activeFloorIndex,
       path: wallPath,
-      points: cloneVertices(points),
+      points: cloneVertices(roundedPoints),
     };
     this.walls.set(wallId, provisionalWall);
     this.emitUpdate();
@@ -347,7 +389,8 @@ export class BuildingPlanController {
   updateWall(wallId, points) {
     const wallInfo = this.walls.get(wallId);
     if (!wallInfo) return;
-    wallInfo.points = cloneVertices(points);
+    const roundedPoints = roundVertices(points);
+    wallInfo.points = cloneVertices(roundedPoints);
     if (wallInfo.previewPoints) {
       delete wallInfo.previewPoints;
     }
@@ -356,7 +399,7 @@ export class BuildingPlanController {
     this.queueFieldUpdate(
       'wall_geometry',
       wallInfo.path,
-      stringifyValue(points),
+      stringifyValue(roundedPoints),
       () => {
         this.syncFromState();
         this.emitUpdate();
@@ -490,7 +533,7 @@ export class BuildingPlanController {
 
       roomInstances.forEach((roomInstance, roomIndex) => {
         const roomPath = [...floorPath, { key: this.roomKey, index: roomIndex }];
-        const vertices = parseVertices(roomInstance?.values?.room_vertices);
+        const vertices = roundVertices(parseVertices(roomInstance?.values?.room_vertices));
         const rect = rectFromVertices(vertices);
         const roomId =
           roomInstance && roomInstance.id
@@ -513,7 +556,7 @@ export class BuildingPlanController {
 
         wallInstances.forEach((wallInstance, wallIndex) => {
           const wallPath = [...roomPath, { key: this.wallKey, index: wallIndex }];
-          const points = parsePoints(wallInstance?.values?.wall_geometry);
+          const points = roundVertices(parsePoints(wallInstance?.values?.wall_geometry));
           const wallId =
             wallInstance && wallInstance.id
               ? wallInstance.id
@@ -559,7 +602,7 @@ export class BuildingPlanController {
       width: 120,
       height: 80,
     };
-    const verticesValue = verticesFromRect(rect);
+    const verticesValue = roundVertices(verticesFromRect(rect));
     const verticesString = stringifyValue(verticesValue);
 
     room.rect = { ...rect };
