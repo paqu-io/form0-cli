@@ -91,6 +91,15 @@ export class BuildingPlanCanvas {
     this.toolbar.className = 'building-plan-toolbar';
 
     this.selectButton = this.createToolbarButton('Select / Move', MODE_SELECT);
+    this.floorButton = document.createElement('button');
+    this.floorButton.type = 'button';
+    this.floorButton.className = 'building-plan-toolbar-button';
+    this.floorButton.textContent = 'Draw Floor';
+    this.floorButton.addEventListener('click', () => {
+      if (this.controller && typeof this.controller.createFloor === 'function') {
+        this.controller.createFloor();
+      }
+    });
     this.roomButton = this.createToolbarButton('Draw Room', MODE_DRAW_ROOM);
     this.wallButton = this.createToolbarButton('Draw Wall', MODE_DRAW_WALL);
 
@@ -101,6 +110,7 @@ export class BuildingPlanCanvas {
     this.clearButton.addEventListener('click', () => this.clearSelection());
 
     this.toolbar.appendChild(this.selectButton);
+    this.toolbar.appendChild(this.floorButton);
     this.toolbar.appendChild(this.roomButton);
     this.toolbar.appendChild(this.wallButton);
     this.toolbar.appendChild(this.clearButton);
@@ -234,6 +244,9 @@ export class BuildingPlanCanvas {
     this.selectedRoomId = null;
     this.selectedWallId = null;
     this.wallDragState = null;
+    this.rooms.forEach((room) => {
+      if (room.previewRect) delete room.previewRect;
+    });
     this.walls.forEach((wall) => {
       if (wall.previewPoints) delete wall.previewPoints;
     });
@@ -655,13 +668,13 @@ export class BuildingPlanCanvas {
       return;
     }
 
+    this.rooms.forEach((room) => this.drawRoom(room));
+
     this.walls.forEach((wall) => this.drawWall(wall));
 
     if (this.wallDraft && this.wallDraft.start && this.wallDraft.end) {
       this.drawDraftWall(this.wallDraft.start, this.wallDraft.end);
     }
-
-    this.rooms.forEach((room) => this.drawRoom(room));
 
     if (this.roomDraft) {
       const rect = this.normalizeRectangle(this.roomDraft.start, this.roomDraft.current);
@@ -720,6 +733,12 @@ export class BuildingPlanCanvas {
   updateButtonStates() {
     const hasFloors = this.hasFloors;
     const hasSelectedRoom = Boolean(this.selectedRoomId);
+
+    if (this.floorButton) {
+      const canCreateFloor = Boolean(this.controller && typeof this.controller.createFloor === 'function');
+      this.floorButton.disabled = !canCreateFloor;
+      this.floorButton.title = canCreateFloor ? 'Add a new floor' : 'Floor creation unavailable';
+    }
 
     if (this.roomButton) {
       this.roomButton.disabled = !hasFloors;
@@ -800,15 +819,38 @@ export class BuildingPlanCanvas {
     const rect = room.previewRect || room.rect;
     if (!rect) return;
 
+    const isSelected = this.selectedRoomId === room.id;
+
     ctx.save();
     ctx.fillStyle = room.color || '#79b8ff';
-    ctx.globalAlpha = this.selectedRoomId === room.id ? 0.5 : 0.35;
+    ctx.globalAlpha = isSelected ? 0.55 : 0.35;
     ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
 
     ctx.globalAlpha = 1;
-    ctx.lineWidth = this.selectedRoomId === room.id ? 3 : 2;
-    ctx.strokeStyle = this.selectedRoomId === room.id ? '#1b4b91' : '#3a6fb0';
+    ctx.lineWidth = isSelected ? 4 : 2;
+    ctx.strokeStyle = isSelected ? '#1b4b91' : '#3a6fb0';
     ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+
+    if (isSelected) {
+      const handleSize = 6;
+      const half = handleSize / 2;
+      const corners = [
+        { x: rect.x, y: rect.y },
+        { x: rect.x + rect.width, y: rect.y },
+        { x: rect.x + rect.width, y: rect.y + rect.height },
+        { x: rect.x, y: rect.y + rect.height },
+      ];
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#1b4b91';
+      ctx.lineWidth = 1;
+      corners.forEach((corner) => {
+        ctx.beginPath();
+        ctx.rect(corner.x - half, corner.y - half, handleSize, handleSize);
+        ctx.fill();
+        ctx.stroke();
+      });
+    }
 
     ctx.restore();
   }

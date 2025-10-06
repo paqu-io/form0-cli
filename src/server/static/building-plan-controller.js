@@ -142,6 +142,14 @@ export class BuildingPlanController {
       }
     }
 
+    if (detail.changeType === 'add' && Array.isArray(detail.instancePath)) {
+      if (detail.sectionKey === this.roomKey) {
+        this.autoPopulateRoom(detail.instancePath);
+      } else if (detail.sectionKey === this.wallKey) {
+        this.autoPopulateWall(detail.instancePath);
+      }
+    }
+
     this.emitUpdate();
   }
 
@@ -188,6 +196,8 @@ export class BuildingPlanController {
     };
     this.rooms.set(roomId, provisionalRoom);
     this.emitUpdate();
+
+    this.ensurePerimeterWalls(provisionalRoom);
 
     this.queueFieldUpdate(
       'room_vertices',
@@ -290,6 +300,11 @@ export class BuildingPlanController {
     );
 
     return provisionalWall;
+  }
+
+  createFloor() {
+    if (!this.floorSection) return;
+    this.formRenderer.addRepeatableInstance(this.floorSection, this.contextPath);
   }
 
   queueFieldUpdate(fieldName, path, value, afterUpdate = null) {
@@ -526,5 +541,119 @@ export class BuildingPlanController {
     return this.floors && this.floors.length > 0;
   }
 
+
+  autoPopulateRoom(instancePath) {
+    const room = this.findRoomByPath(instancePath);
+    if (!room) return;
+    const vertices = Array.isArray(room.vertices) ? room.vertices : [];
+    if (vertices.length >= 4) {
+      this.ensurePerimeterWalls(room);
+      return;
+    }
+
+    const roomIndexSegment = instancePath[instancePath.length - 1] || { index: 0 };
+    const offset = (roomIndexSegment.index || 0) * 40;
+    const rect = {
+      x: 40 + offset,
+      y: 40 + (offset % 160),
+      width: 120,
+      height: 80,
+    };
+    const verticesValue = verticesFromRect(rect);
+    const verticesString = stringifyValue(verticesValue);
+
+    room.rect = { ...rect };
+    room.vertices = verticesValue;
+
+    this.queueFieldUpdate(
+      'room_vertices',
+      instancePath,
+      verticesString,
+      () => {
+        this.ensurePerimeterWalls(room);
+      }
+    );
+  }
+
+  autoPopulateWall(instancePath) {
+    const wall = this.findWallByPath(instancePath);
+    if (!wall) return;
+    const points = Array.isArray(wall.points) ? wall.points : [];
+    if (points.length >= 2) {
+      return;
+    }
+
+    const parentRoomPath = instancePath.slice(0, -1);
+    const room = this.findRoomByPath(parentRoomPath);
+    if (!room || !room.rect) {
+      return;
+    }
+
+    const centerY = room.rect.y + room.rect.height / 2;
+    const margin = Math.min(20, room.rect.width / 4);
+    const start = { x: room.rect.x + margin, y: centerY };
+    const end = { x: room.rect.x + room.rect.width - margin, y: centerY };
+    const defaultPoints = [start, end];
+
+    wall.points = cloneVertices(defaultPoints);
+
+    this.queueFieldUpdate(
+      'wall_geometry',
+      instancePath,
+      stringifyValue(defaultPoints)
+    );
+  }
+
+  ensurePerimeterWalls(room) {
+    if (!this.wallSection) return;
+    const existing = Array.from(this.walls.values()).filter((wall) => wall.roomId === room.id);
+    if (existing.length > 0) {
+      return;
+    }
+
+    const { rect } = room;
+    const edges = [
+      [
+        { x: rect.x, y: rect.y },
+        { x: rect.x + rect.width, y: rect.y },
+      ],
+      [
+        { x: rect.x + rect.width, y: rect.y },
+        { x: rect.x + rect.width, y: rect.y + rect.height },
+      ],
+      [
+        { x: rect.x + rect.width, y: rect.y + rect.height },
+        { x: rect.x, y: rect.y + rect.height },
+      ],
+      [
+        { x: rect.x, y: rect.y + rect.height },
+        { x: rect.x, y: rect.y },
+      ],
+    ];
+
+    edges.forEach((edge) => {
+      this.createWall(room.id, edge);
+    });
+  }
+
+  findRoomByPath(instancePath) {
+    const key = this.formRenderer.formatContextPath(instancePath);
+    for (const room of this.rooms.values()) {
+      if (this.formRenderer.formatContextPath(room.path) === key) {
+        return room;
+      }
+    }
+    return null;
+  }
+
+  findWallByPath(instancePath) {
+    const key = this.formRenderer.formatContextPath(instancePath);
+    for (const wall of this.walls.values()) {
+      if (this.formRenderer.formatContextPath(wall.path) === key) {
+        return wall;
+      }
+    }
+    return null;
+  }
 
 }
