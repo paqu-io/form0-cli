@@ -6,7 +6,7 @@ body {
 }
 
 .container { 
-    max-width: 800px; 
+    max-width: 1000px; 
     margin: 0 auto; 
     background: white; 
     padding: 20px; 
@@ -1181,4 +1181,39 @@ body {
   100% {
     background-color: transparent;
   }
+}
+
+
+.building-plan-floor-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.building-plan-floor-tab {
+  border: 1px solid #b5b5b5;
+  background: #f7f7f7;
+  color: #333;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s ease;
+}
+
+.building-plan-floor-tab:hover {
+  background: #ececec;
+}
+
+.building-plan-floor-tab.active {
+  background: #3567d6;
+  border-color: #2854b2;
+  color: #fff;
+}
+
+.building-plan-floor-placeholder {
+  font-size: 13px;
+  color: #6c6c6c;
+  padding: 4px 0;
 }

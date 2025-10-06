@@ -91,6 +91,8 @@ export class BuildingPlanController {
     this.roomColors = new Map();
     this.listeners = new Set();
     this.floorCount = 0;
+    this.floors = [];
+    this.activeFloorIndex = 0;
 
     this.handleRepeatableChange = this.handleRepeatableChange.bind(this);
     document.addEventListener('form0:repeatable-change', this.handleRepeatableChange);
@@ -124,6 +126,22 @@ export class BuildingPlanController {
     }
 
     this.syncFromState();
+
+    if (detail.sectionKey === this.floorKey) {
+      if (detail.changeType === 'add') {
+        if (typeof detail.instanceIndex === 'number') {
+          this.activeFloorIndex = detail.instanceIndex;
+        } else if (this.floors.length > 0) {
+          this.activeFloorIndex = this.floors.length - 1;
+        }
+      } else if (detail.changeType === 'remove') {
+        this.activeFloorIndex = Math.max(
+          0,
+          Math.min(this.activeFloorIndex, Math.max(0, this.floors.length - 1))
+        );
+      }
+    }
+
     this.emitUpdate();
   }
 
@@ -136,12 +154,12 @@ export class BuildingPlanController {
       throw new Error('Building plan blueprint missing rooms definition');
     }
 
-    const floorInfo = this.ensureFloorInstance();
-    if (!floorInfo) {
+    const activeFloor = this.floors[this.activeFloorIndex];
+    if (!activeFloor) {
       return null;
     }
 
-    const floorPath = this.getFloorPath(floorInfo.index);
+    const floorPath = [...activeFloor.path];
 
     this.formRenderer.addRepeatableInstance(this.roomSection, floorPath);
     const roomInstances = this.formRenderer.getRepeatableInstances(this.roomSection, floorPath) || [];
@@ -163,6 +181,7 @@ export class BuildingPlanController {
     const provisionalRoom = {
       id: roomId,
       path: roomPath,
+      floorIndex: this.activeFloorIndex,
       vertices: roomVerticesValue,
       rect: { ...rectangle },
       color: this.ensureRoomColor(roomId),
@@ -196,8 +215,12 @@ export class BuildingPlanController {
       );
     }
 
-    const deltaX = rectangle.x - roomInfo.rect.x;
-    const deltaY = rectangle.y - roomInfo.rect.y;
+    const oldRect = roomInfo.rect ? { ...roomInfo.rect } : null;
+    roomInfo.rect = { ...rectangle };
+    roomInfo.vertices = verticesFromRect(rectangle);
+
+    const deltaX = oldRect ? rectangle.x - oldRect.x : 0;
+    const deltaY = oldRect ? rectangle.y - oldRect.y : 0;
 
     const relatedWalls = Array.from(this.walls.values()).filter((wall) => wall.roomId === roomId);
     relatedWalls.forEach((wall) => {
@@ -249,6 +272,7 @@ export class BuildingPlanController {
     const provisionalWall = {
       id: wallId,
       roomId: roomId,
+      floorIndex: roomInfo.floorIndex ?? this.activeFloorIndex,
       path: wallPath,
       points: cloneVertices(points),
     };
@@ -340,15 +364,28 @@ export class BuildingPlanController {
   }
 
   getSnapshot() {
+    const activeRooms = Array.from(this.rooms.values()).filter(
+      (room) => room.floorIndex === this.activeFloorIndex
+    );
+    const activeWalls = Array.from(this.walls.values()).filter(
+      (wall) => wall.floorIndex === this.activeFloorIndex
+    );
+
     return {
-      rooms: Array.from(this.rooms.values()).map((room) => ({
+      floors: this.floors.map((floor) => ({
+        id: floor.id,
+        index: floor.index,
+        label: floor.label,
+      })),
+      activeFloorIndex: this.activeFloorIndex,
+      rooms: activeRooms.map((room) => ({
         id: room.id,
         path: room.path,
         vertices: cloneVertices(room.vertices),
         rect: { ...room.rect },
         color: room.color,
       })),
-      walls: Array.from(this.walls.values()).map((wall) => ({
+      walls: activeWalls.map((wall) => ({
         id: wall.id,
         roomId: wall.roomId,
         path: wall.path,
@@ -379,6 +416,24 @@ export class BuildingPlanController {
     });
   }
 
+  setActiveFloor(index) {
+    if (!this.floors || this.floors.length === 0) {
+      return;
+    }
+    const nextIndex = Math.max(0, Math.min(index, this.floors.length - 1));
+    if (nextIndex === this.activeFloorIndex) {
+      return;
+    }
+    this.activeFloorIndex = nextIndex;
+    this.syncFromState();
+    this.emitUpdate();
+  }
+
+  getActiveFloorPath() {
+    const floor = this.floors[this.activeFloorIndex];
+    return floor ? [...floor.path] : [];
+  }
+
   ensureRoomColor(roomId) {
     if (!this.roomColors.has(roomId)) {
       const palette = ['#79b8ff', '#b392f0', '#ffab70', '#ff938a', '#f7c843', '#46d1b8'];
@@ -391,8 +446,10 @@ export class BuildingPlanController {
   syncFromState() {
     this.rooms.clear();
     this.walls.clear();
+    this.floors = [];
 
     if (!this.floorSection || !this.roomSection) {
+      this.floorCount = 0;
       return;
     }
 
@@ -401,18 +458,35 @@ export class BuildingPlanController {
 
     floorInstances.forEach((floorInstance, floorIndex) => {
       const floorPath = [...this.contextPath, { key: this.floorKey, index: floorIndex }];
+      const floorId =
+        floorInstance && floorInstance.id
+          ? floorInstance.id
+          : this.formRenderer.formatContextPath(floorPath);
+      const label = 'Floor #' + (floorIndex + 1);
+
+      this.floors.push({
+        id: floorId,
+        index: floorIndex,
+        label,
+        path: floorPath,
+      });
+
       const roomInstances = this.formRenderer.getRepeatableInstances(this.roomSection, floorPath) || [];
 
       roomInstances.forEach((roomInstance, roomIndex) => {
         const roomPath = [...floorPath, { key: this.roomKey, index: roomIndex }];
         const vertices = parseVertices(roomInstance?.values?.room_vertices);
         const rect = rectFromVertices(vertices);
-        const roomId = roomInstance?.id || `${this.formRenderer.formatContextPath(roomPath)}`;
+        const roomId =
+          roomInstance && roomInstance.id
+            ? roomInstance.id
+            : this.formRenderer.formatContextPath(roomPath);
         const color = this.ensureRoomColor(roomId);
 
         this.rooms.set(roomId, {
           id: roomId,
           path: roomPath,
+          floorIndex,
           vertices,
           rect,
           color,
@@ -425,41 +499,32 @@ export class BuildingPlanController {
         wallInstances.forEach((wallInstance, wallIndex) => {
           const wallPath = [...roomPath, { key: this.wallKey, index: wallIndex }];
           const points = parsePoints(wallInstance?.values?.wall_geometry);
-          const wallId = wallInstance?.id || `${this.formRenderer.formatContextPath(wallPath)}`;
+          const wallId =
+            wallInstance && wallInstance.id
+              ? wallInstance.id
+              : this.formRenderer.formatContextPath(wallPath);
 
           this.walls.set(wallId, {
             id: wallId,
             roomId: roomId,
+            floorIndex,
             path: wallPath,
             points,
           });
         });
       });
     });
+
+    if (this.floors.length === 0) {
+      this.activeFloorIndex = 0;
+    } else if (this.activeFloorIndex >= this.floors.length) {
+      this.activeFloorIndex = this.floors.length - 1;
+    }
   }
 
   hasFloors() {
-    return this.floorCount > 0;
+    return this.floors && this.floors.length > 0;
   }
 
-  ensureFloorInstance() {
-    if (!this.floorSection) {
-      throw new Error('Building plan blueprint is missing floors definition');
-    }
 
-    const instances = this.formRenderer.getRepeatableInstances(this.floorSection, this.contextPath) || [];
-
-    if (instances.length === 0) {
-      return null;
-    }
-
-    return { instances, index: 0 };
-  }
-
-  getFloorPath(index = 0) {
-    if (this.floorKey === null) {
-      return [];
-    }
-    return [...this.contextPath, { key: this.floorKey, index }];
-  }
 }

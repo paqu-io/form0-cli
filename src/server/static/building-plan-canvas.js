@@ -39,6 +39,8 @@ export class BuildingPlanCanvas {
     this.mode = MODE_SELECT;
     this.rooms = [];
     this.walls = [];
+    this.floors = [];
+    this.activeFloorIndex = 0;
     this.hasFloors = false;
     this.selectedRoomId = null;
     this.selectedWallId = null;
@@ -51,6 +53,7 @@ export class BuildingPlanCanvas {
     this.gridSize = DEFAULT_GRID_SIZE;
 
     this.unsubscribe = null;
+    this.floorTabsContainer = null;
 
     this.buildUI();
     this.attachEvents();
@@ -110,8 +113,14 @@ export class BuildingPlanCanvas {
     this.ctx = this.canvas.getContext('2d');
     this.canvasContainer.appendChild(this.canvas);
 
+    this.floorTabsContainer = document.createElement('div');
+    this.floorTabsContainer.className = 'building-plan-floor-tabs';
+    this.container.appendChild(this.floorTabsContainer);
+
     this.container.appendChild(this.toolbar);
     this.container.appendChild(this.canvasContainer);
+
+    this.renderFloorTabs();
 
     this.boundResizeHandler = () => this.resizeCanvas();
     window.addEventListener('resize', this.boundResizeHandler);
@@ -175,17 +184,30 @@ export class BuildingPlanCanvas {
   subscribeToController() {
     if (!this.controller) return;
     this.unsubscribe = this.controller.subscribe((snapshot) => {
+      const prevActiveFloor = this.activeFloorIndex;
+      const prevFloorCount = this.floors ? this.floors.length : 0;
+
       this.rooms = snapshot.rooms || [];
       this.walls = snapshot.walls || [];
-      this.hasFloors = this.controller?.hasFloors?.() || false;
+      this.floors = snapshot.floors || [];
+      this.activeFloorIndex =
+        typeof snapshot.activeFloorIndex === 'number' ? snapshot.activeFloorIndex : 0;
+      this.hasFloors = this.floors.length > 0;
 
-      if (this.selectedRoomId && !this.rooms.find((room) => room.id === this.selectedRoomId)) {
+      if (prevActiveFloor !== this.activeFloorIndex || prevFloorCount !== this.floors.length) {
         this.selectedRoomId = null;
-      }
-      if (this.selectedWallId && !this.walls.find((wall) => wall.id === this.selectedWallId)) {
         this.selectedWallId = null;
+        this.wallDragState = null;
+      } else {
+        if (this.selectedRoomId && !this.rooms.find((room) => room.id === this.selectedRoomId)) {
+          this.selectedRoomId = null;
+        }
+        if (this.selectedWallId && !this.walls.find((wall) => wall.id === this.selectedWallId)) {
+          this.selectedWallId = null;
+        }
       }
 
+      this.renderFloorTabs();
       this.updateCursor();
       this.updateButtonStates();
       this.render();
@@ -651,6 +673,48 @@ export class BuildingPlanCanvas {
       };
       this.drawDraftRoom(snapped);
     }
+  }
+
+  renderFloorTabs() {
+    if (!this.floorTabsContainer) return;
+    this.floorTabsContainer.innerHTML = '';
+
+    if (!this.floors || this.floors.length === 0) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'building-plan-floor-placeholder';
+      placeholder.textContent = 'Add a floor to enable drawing';
+      this.floorTabsContainer.appendChild(placeholder);
+      return;
+    }
+
+    this.floors.forEach((floor) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = floor.label || 'Floor #' + (floor.index + 1);
+      button.className = 'building-plan-floor-tab';
+      if (floor.index === this.activeFloorIndex) {
+        button.classList.add('active');
+      }
+      button.addEventListener('click', () => this.handleFloorTabClick(floor.index));
+      this.floorTabsContainer.appendChild(button);
+    });
+  }
+
+  handleFloorTabClick(index) {
+    if (index === this.activeFloorIndex) {
+      return;
+    }
+    this.selectedRoomId = null;
+    this.selectedWallId = null;
+    this.wallDragState = null;
+    this.activeFloorIndex = index;
+    this.renderFloorTabs();
+    if (this.controller && typeof this.controller.setActiveFloor === 'function') {
+      this.controller.setActiveFloor(index);
+    }
+    this.updateButtonStates();
+    this.updateCursor();
+    this.render();
   }
 
   updateButtonStates() {
