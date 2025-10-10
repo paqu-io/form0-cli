@@ -49,6 +49,55 @@ function parsePoints(rawValue) {
   return parseVertices(rawValue);
 }
 
+function getNodeMeta(meta, nodeKey) {
+  if (!meta) {
+    return null;
+  }
+  if (meta.repeatablesByNodeKey && meta.repeatablesByNodeKey[nodeKey]) {
+    return meta.repeatablesByNodeKey[nodeKey];
+  }
+  if (Array.isArray(meta.repeatables)) {
+    return meta.repeatables.find((entry) => entry && entry.nodeKey === nodeKey) || null;
+  }
+  return null;
+}
+
+function getRepeatableDataName(meta, nodeKey, fallback) {
+  const nodeMeta = getNodeMeta(meta, nodeKey);
+  return (nodeMeta && nodeMeta.dataName) || fallback;
+}
+
+function getRepeatablePreferredKey(meta, nodeKey, fallback = null) {
+  const nodeMeta = getNodeMeta(meta, nodeKey);
+  if (nodeMeta && typeof nodeMeta.preferredKey === 'string' && nodeMeta.preferredKey !== '') {
+    return nodeMeta.preferredKey;
+  }
+  return fallback;
+}
+
+function getFieldDataName(meta, nodeKey, originalDataName) {
+  const nodeMeta = getNodeMeta(meta, nodeKey);
+  if (!nodeMeta) {
+    return originalDataName;
+  }
+  if (
+    nodeMeta.fieldsByOriginalDataName &&
+    nodeMeta.fieldsByOriginalDataName[originalDataName] &&
+    nodeMeta.fieldsByOriginalDataName[originalDataName].dataName
+  ) {
+    return nodeMeta.fieldsByOriginalDataName[originalDataName].dataName;
+  }
+  if (Array.isArray(nodeMeta.fields)) {
+    const entry = nodeMeta.fields.find(
+      (field) => field && field.originalDataName === originalDataName && field.dataName
+    );
+    if (entry) {
+      return entry.dataName;
+    }
+  }
+  return originalDataName;
+}
+
 const ROUND_DECIMALS = 3;
 
 function roundCoordinate(value, decimals = ROUND_DECIMALS) {
@@ -96,17 +145,60 @@ export class BuildingPlanController {
     this.contextPath = Array.isArray(contextPath) ? contextPath : [];
     this.meta = meta;
 
-    this.floorSection = this.getRepeatableByDataName('building_plan_floors', section?.elements || []);
+    this.repeatableDataNames = {
+      floors: getRepeatableDataName(meta, 'floors', 'building_plan_floors'),
+      rooms: getRepeatableDataName(meta, 'rooms', 'building_plan_rooms'),
+      walls: getRepeatableDataName(meta, 'walls', 'room_walls'),
+    };
+
+    this.fieldNames = {
+      roomVertices: getFieldDataName(meta, 'rooms', 'room_vertices'),
+      wallGeometry: getFieldDataName(meta, 'walls', 'wall_geometry'),
+      wallLabel: getFieldDataName(meta, 'walls', 'wall_label'),
+      wallHeight: getFieldDataName(meta, 'walls', 'wall_height_m'),
+      wallThickness: getFieldDataName(meta, 'walls', 'wall_thickness_m'),
+    };
+
+    const sectionElements = Array.isArray(section?.elements) ? section.elements : [];
+    this.floorSection = this.resolveRepeatable(
+      sectionElements,
+      this.repeatableDataNames.floors,
+      'building_plan_floors'
+    );
     this.roomSection = this.floorSection
-      ? this.getRepeatableByDataName('building_plan_rooms', this.floorSection.elements || [])
+      ? this.resolveRepeatable(
+          this.floorSection.elements || [],
+          this.repeatableDataNames.rooms,
+          'building_plan_rooms'
+        )
       : null;
     this.wallSection = this.roomSection
-      ? this.getRepeatableByDataName('room_walls', this.roomSection.elements || [])
+      ? this.resolveRepeatable(
+          this.roomSection.elements || [],
+          this.repeatableDataNames.walls,
+          'room_walls'
+        )
       : null;
 
-    this.floorKey = this.floorSection ? this.formRenderer.getPreferredKey(this.floorSection) : null;
-    this.roomKey = this.roomSection ? this.formRenderer.getPreferredKey(this.roomSection) : null;
-    this.wallKey = this.wallSection ? this.formRenderer.getPreferredKey(this.wallSection) : null;
+    if (this.floorSection) {
+      this.repeatableDataNames.floors = this.floorSection.data_name;
+    }
+    if (this.roomSection) {
+      this.repeatableDataNames.rooms = this.roomSection.data_name;
+    }
+    if (this.wallSection) {
+      this.repeatableDataNames.walls = this.wallSection.data_name;
+    }
+
+    this.floorKey = this.floorSection
+      ? this.formRenderer.getPreferredKey(this.floorSection)
+      : getRepeatablePreferredKey(meta, 'floors', null);
+    this.roomKey = this.roomSection
+      ? this.formRenderer.getPreferredKey(this.roomSection)
+      : getRepeatablePreferredKey(meta, 'rooms', null);
+    this.wallKey = this.wallSection
+      ? this.formRenderer.getPreferredKey(this.wallSection)
+      : getRepeatablePreferredKey(meta, 'walls', null);
 
     this.rooms = new Map();
     this.walls = new Map();
@@ -182,11 +274,23 @@ export class BuildingPlanController {
     return elements.find((el) => el.type === 'RepeatableSection' && el.data_name === dataName) || null;
   }
 
+  resolveRepeatable(elements = [], dataName, fallbackDataName) {
+    const primary = dataName ? this.getRepeatableByDataName(dataName, elements) : null;
+    if (primary) {
+      return primary;
+    }
+    if (fallbackDataName && fallbackDataName !== dataName) {
+      return this.getRepeatableByDataName(fallbackDataName, elements);
+    }
+    return null;
+  }
+
   createRoom(rectangle) {
     if (!this.roomSection) {
       throw new Error('Building plan blueprint missing rooms definition');
     }
 
+    const roomVerticesField = this.fieldNames.roomVertices;
     const activeFloor = this.floors[this.activeFloorIndex];
     if (!activeFloor) {
       return null;
@@ -211,7 +315,7 @@ export class BuildingPlanController {
     if (roomInstance) {
       roomInstance.values = {};
       roomInstance.repeatable = {};
-      roomInstance.values.room_vertices = roomVerticesString;
+      roomInstance.values[roomVerticesField] = roomVerticesString;
     }
 
     const provisionalRoom = {
@@ -228,7 +332,7 @@ export class BuildingPlanController {
     this.ensurePerimeterWalls(provisionalRoom);
 
     this.queueFieldUpdate(
-      'room_vertices',
+      roomVerticesField,
       roomPath,
       roomVerticesString,
       () => {
@@ -245,11 +349,13 @@ export class BuildingPlanController {
     const roomInfo = this.rooms.get(roomId);
     if (!roomInfo) return;
 
+    const roomVerticesField = this.fieldNames.roomVertices;
+    const wallGeometryField = this.fieldNames.wallGeometry;
     const roundedVertices = roundVertices(verticesFromRect(rectangle));
 
     if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
       this.formStateManager.setFieldValueAtContext(
-        'room_vertices',
+        roomVerticesField,
         roomInfo.path,
         stringifyValue(roundedVertices),
         { suppressLogging: true, skipStateUpdate: true }
@@ -284,7 +390,7 @@ export class BuildingPlanController {
       wall.points = cloneVertices(roundedPoints);
       if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
         this.formStateManager.setFieldValueAtContext(
-          'wall_geometry',
+          wallGeometryField,
           wall.path,
           stringifyValue(roundedPoints),
           { suppressLogging: true, skipStateUpdate: true }
@@ -307,6 +413,10 @@ export class BuildingPlanController {
       throw new Error('Building plan blueprint missing walls definition');
     }
 
+    const wallGeometryField = this.fieldNames.wallGeometry;
+    const wallLabelField = this.fieldNames.wallLabel;
+    const wallHeightField = this.fieldNames.wallHeight;
+    const wallThicknessField = this.fieldNames.wallThickness;
     const roomInfo = this.rooms.get(roomId);
     if (!roomInfo) return null;
 
@@ -326,10 +436,10 @@ export class BuildingPlanController {
     if (wallInstance) {
       wallInstance.values = {};
       wallInstance.repeatable = {};
-      wallInstance.values.wall_geometry = wallPointsString;
-      wallInstance.values.wall_label = '';
-      wallInstance.values.wall_height_m = null;
-      wallInstance.values.wall_thickness_m = null;
+      wallInstance.values[wallGeometryField] = wallPointsString;
+      wallInstance.values[wallLabelField] = '';
+      wallInstance.values[wallHeightField] = null;
+      wallInstance.values[wallThicknessField] = null;
     }
 
     const provisionalWall = {
@@ -343,7 +453,7 @@ export class BuildingPlanController {
     this.emitUpdate();
 
     this.queueFieldUpdate(
-      'wall_geometry',
+      wallGeometryField,
       wallPath,
       wallPointsString,
       () => {
@@ -352,9 +462,9 @@ export class BuildingPlanController {
       },
       { triggerEngineUpdate, suspendEngine }
     );
-    this.setFieldValueWithoutState('wall_label', wallPath, '');
-    this.setFieldValueWithoutState('wall_height_m', wallPath, null);
-    this.setFieldValueWithoutState('wall_thickness_m', wallPath, null);
+    this.setFieldValueWithoutState(wallLabelField, wallPath, '');
+    this.setFieldValueWithoutState(wallHeightField, wallPath, null);
+    this.setFieldValueWithoutState(wallThicknessField, wallPath, null);
 
     return provisionalWall;
   }
@@ -452,6 +562,7 @@ export class BuildingPlanController {
   updateWall(wallId, points) {
     const wallInfo = this.walls.get(wallId);
     if (!wallInfo) return;
+    const wallGeometryField = this.fieldNames.wallGeometry;
     const roundedPoints = roundVertices(points);
     wallInfo.points = cloneVertices(roundedPoints);
     if (wallInfo.previewPoints) {
@@ -460,7 +571,7 @@ export class BuildingPlanController {
     this.emitUpdate();
 
     this.queueFieldUpdate(
-      'wall_geometry',
+      wallGeometryField,
       wallInfo.path,
       stringifyValue(roundedPoints),
       () => {
@@ -586,6 +697,9 @@ export class BuildingPlanController {
       return;
     }
 
+    const roomVerticesField = this.fieldNames.roomVertices;
+    const wallGeometryField = this.wallSection ? this.fieldNames.wallGeometry : null;
+
     const floorInstances = this.formRenderer.getRepeatableInstances(this.floorSection, this.contextPath) || [];
     this.floorCount = floorInstances.length;
 
@@ -608,7 +722,7 @@ export class BuildingPlanController {
 
       roomInstances.forEach((roomInstance, roomIndex) => {
         const roomPath = [...floorPath, { key: this.roomKey, index: roomIndex }];
-        const vertices = roundVertices(parseVertices(roomInstance?.values?.room_vertices));
+        const vertices = roundVertices(parseVertices(roomInstance?.values?.[roomVerticesField]));
         const rect = rectFromVertices(vertices);
         const roomId =
           roomInstance && roomInstance.id
@@ -631,7 +745,7 @@ export class BuildingPlanController {
 
         wallInstances.forEach((wallInstance, wallIndex) => {
           const wallPath = [...roomPath, { key: this.wallKey, index: wallIndex }];
-          const points = roundVertices(parsePoints(wallInstance?.values?.wall_geometry));
+          const points = roundVertices(parsePoints(wallInstance?.values?.[wallGeometryField]));
           const wallId =
             wallInstance && wallInstance.id
               ? wallInstance.id
@@ -663,6 +777,7 @@ export class BuildingPlanController {
   autoPopulateRoom(instancePath) {
     const room = this.findRoomByPath(instancePath);
     if (!room) return;
+    const roomVerticesField = this.fieldNames.roomVertices;
     const vertices = Array.isArray(room.vertices) ? room.vertices : [];
     if (vertices.length >= 4) {
       this.ensurePerimeterWalls(room);
@@ -686,7 +801,7 @@ export class BuildingPlanController {
     room.vertices = verticesValue;
 
     this.queueFieldUpdate(
-      'room_vertices',
+      roomVerticesField,
       instancePath,
       verticesString,
       () => {
@@ -795,6 +910,7 @@ export class BuildingPlanController {
   autoPopulateWall(instancePath) {
     const wall = this.findWallByPath(instancePath);
     if (!wall) return;
+    const wallGeometryField = this.fieldNames.wallGeometry;
     const points = Array.isArray(wall.points) ? wall.points : [];
     if (points.length >= 2) {
       return;
@@ -815,7 +931,7 @@ export class BuildingPlanController {
     wall.points = cloneVertices(defaultPoints);
 
     this.queueFieldUpdate(
-      'wall_geometry',
+      wallGeometryField,
       instancePath,
       stringifyValue(defaultPoints),
       null,
@@ -860,6 +976,10 @@ export class BuildingPlanController {
   initializeWallDefaults(room) {
     if (!this.wallSection) return;
     const wallInstances = this.formRenderer.getRepeatableInstances(this.wallSection, room.path) || [];
+    const wallGeometryField = this.fieldNames.wallGeometry;
+    const wallLabelField = this.fieldNames.wallLabel;
+    const wallHeightField = this.fieldNames.wallHeight;
+    const wallThicknessField = this.fieldNames.wallThickness;
 
     wallInstances.forEach((wallInstance, wallIndex) => {
       if (!wallInstance) return;
@@ -874,15 +994,15 @@ export class BuildingPlanController {
       const geometryValue = stringifyValue(roundedPoints);
 
       wallInstance.points = cloneVertices(roundedPoints);
-      wallInstance.values.wall_geometry = geometryValue;
-      wallInstance.values.wall_label = '';
-      wallInstance.values.wall_height_m = null;
-      wallInstance.values.wall_thickness_m = null;
+      wallInstance.values[wallGeometryField] = geometryValue;
+      wallInstance.values[wallLabelField] = '';
+      wallInstance.values[wallHeightField] = null;
+      wallInstance.values[wallThicknessField] = null;
 
-      this.setFieldValueWithoutState('wall_geometry', wallPath, geometryValue);
-      this.setFieldValueWithoutState('wall_label', wallPath, '');
-      this.setFieldValueWithoutState('wall_height_m', wallPath, null);
-      this.setFieldValueWithoutState('wall_thickness_m', wallPath, null);
+      this.setFieldValueWithoutState(wallGeometryField, wallPath, geometryValue);
+      this.setFieldValueWithoutState(wallLabelField, wallPath, '');
+      this.setFieldValueWithoutState(wallHeightField, wallPath, null);
+      this.setFieldValueWithoutState(wallThicknessField, wallPath, null);
     });
   }
 
