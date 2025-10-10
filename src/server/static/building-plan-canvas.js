@@ -125,7 +125,7 @@ export class BuildingPlanCanvas {
     this.toolbar = document.createElement('div');
     this.toolbar.className = 'building-plan-toolbar';
 
-    this.selectButton = this.createToolbarButton('Select / Move', MODE_SELECT);
+    this.selectButton = this.createToolbarButton('Select / Move / Resize', MODE_SELECT);
     this.floorButton = document.createElement('button');
     this.floorButton.type = 'button';
     this.floorButton.className = 'building-plan-toolbar-button';

@@ -156,6 +156,9 @@ export class BuildingPlanController {
         } else if (this.floors.length > 0) {
           this.activeFloorIndex = this.floors.length - 1;
         }
+        if (Array.isArray(detail.instancePath)) {
+          this.resetFloorValues(detail.instancePath);
+        }
       } else if (detail.changeType === 'remove') {
         this.activeFloorIndex = Math.max(
           0,
@@ -191,7 +194,10 @@ export class BuildingPlanController {
 
     const floorPath = [...activeFloor.path];
 
-    this.formRenderer.addRepeatableInstance(this.roomSection, floorPath);
+    this.formRenderer.addRepeatableInstance(this.roomSection, floorPath, {
+      clearNewInstanceValues: true,
+      clearNewInstanceRepeatable: true,
+    });
     const roomInstances = this.formRenderer.getRepeatableInstances(this.roomSection, floorPath) || [];
     const roomIndex = roomInstances.length - 1;
     const roomInstance = roomInstances[roomIndex];
@@ -203,9 +209,8 @@ export class BuildingPlanController {
     const roomVerticesString = stringifyValue(roundedVertices);
 
     if (roomInstance) {
-      if (!roomInstance.values) {
-        roomInstance.values = {};
-      }
+      roomInstance.values = {};
+      roomInstance.repeatable = {};
       roomInstance.values.room_vertices = roomVerticesString;
     }
 
@@ -229,7 +234,8 @@ export class BuildingPlanController {
       () => {
         this.syncFromState();
         this.emitUpdate();
-      }
+      },
+      { suspendEngine: true }
     );
 
     return provisionalRoom;
@@ -296,7 +302,7 @@ export class BuildingPlanController {
     this.emitUpdate();
   }
 
-  createWall(roomId, points) {
+  createWall(roomId, points, { triggerEngineUpdate = true, suspendEngine = false } = {}) {
     if (!this.wallSection) {
       throw new Error('Building plan blueprint missing walls definition');
     }
@@ -304,7 +310,10 @@ export class BuildingPlanController {
     const roomInfo = this.rooms.get(roomId);
     if (!roomInfo) return null;
 
-    this.formRenderer.addRepeatableInstance(this.wallSection, roomInfo.path);
+    this.formRenderer.addRepeatableInstance(this.wallSection, roomInfo.path, {
+      clearNewInstanceValues: true,
+      clearNewInstanceRepeatable: true,
+    });
     const wallInstances = this.formRenderer.getRepeatableInstances(this.wallSection, roomInfo.path) || [];
     const wallIndex = wallInstances.length - 1;
     const wallInstance = wallInstances[wallIndex];
@@ -315,10 +324,12 @@ export class BuildingPlanController {
     const wallPointsString = stringifyValue(roundedPoints);
 
     if (wallInstance) {
-      if (!wallInstance.values) {
-        wallInstance.values = {};
-      }
+      wallInstance.values = {};
+      wallInstance.repeatable = {};
       wallInstance.values.wall_geometry = wallPointsString;
+      wallInstance.values.wall_label = '';
+      wallInstance.values.wall_height_m = null;
+      wallInstance.values.wall_thickness_m = null;
     }
 
     const provisionalWall = {
@@ -338,18 +349,31 @@ export class BuildingPlanController {
       () => {
         this.syncFromState();
         this.emitUpdate();
-      }
+      },
+      { triggerEngineUpdate, suspendEngine }
     );
+    this.setFieldValueWithoutState('wall_label', wallPath, '');
+    this.setFieldValueWithoutState('wall_height_m', wallPath, null);
+    this.setFieldValueWithoutState('wall_thickness_m', wallPath, null);
 
     return provisionalWall;
   }
 
   createFloor() {
     if (!this.floorSection) return;
-    this.formRenderer.addRepeatableInstance(this.floorSection, this.contextPath);
+    this.formRenderer.addRepeatableInstance(this.floorSection, this.contextPath, {
+      clearNewInstanceValues: true,
+      clearNewInstanceRepeatable: true,
+    });
   }
 
-  queueFieldUpdate(fieldName, path, value, afterUpdate = null) {
+  queueFieldUpdate(
+    fieldName,
+    path,
+    value,
+    afterUpdate = null,
+    { triggerEngineUpdate = true, suspendEngine = false } = {}
+  ) {
     if (
       !this.formStateManager ||
       typeof this.formStateManager.setFieldValueAtContext !== 'function' ||
@@ -357,6 +381,29 @@ export class BuildingPlanController {
     ) {
       return;
     }
+
+    const shouldSuspend =
+      suspendEngine &&
+      typeof this.formStateManager.suspendEngineUpdates === 'function' &&
+      typeof this.formStateManager.resumeEngineUpdates === 'function';
+
+    if (shouldSuspend) {
+      this.formStateManager.suspendEngineUpdates();
+    }
+
+    const completeUpdate = () => {
+      let resumeNeeded = shouldSuspend;
+      try {
+        if (typeof afterUpdate === 'function') {
+          afterUpdate();
+        }
+      } finally {
+        if (resumeNeeded) {
+          this.formStateManager.resumeEngineUpdates();
+          resumeNeeded = false;
+        }
+      }
+    };
 
     this.runAfterRender(() => {
       const success = this.formStateManager.setFieldValueAtContext(
@@ -367,22 +414,38 @@ export class BuildingPlanController {
       );
 
       if (success) {
-        this.formStateManager.updateFormState();
-        if (typeof afterUpdate === 'function') {
-          afterUpdate();
+        if (triggerEngineUpdate) {
+          this.formStateManager.updateFormState();
         }
+        completeUpdate();
         return;
       }
 
       if (typeof this.formStateManager.registerPendingFieldCallback === 'function') {
         const contextKey = this.formRenderer.formatContextPath(path);
         this.formStateManager.registerPendingFieldCallback(contextKey, fieldName, () => {
-          this.formStateManager.updateFormState();
-          if (typeof afterUpdate === 'function') {
-            afterUpdate();
+          if (triggerEngineUpdate) {
+            this.formStateManager.updateFormState();
           }
+          completeUpdate();
         });
+        return;
       }
+
+      completeUpdate();
+    });
+  }
+
+  setFieldValueWithoutState(fieldName, path, value) {
+    if (
+      !this.formStateManager ||
+      typeof this.formStateManager.setFieldValueAtContext !== 'function'
+    ) {
+      return;
+    }
+    this.formStateManager.setFieldValueAtContext(fieldName, path, value, {
+      suppressLogging: true,
+      skipStateUpdate: true,
     });
   }
 
@@ -410,6 +473,12 @@ export class BuildingPlanController {
   focusRoom(roomId) {
     const roomInfo = this.rooms.get(roomId);
     if (!roomInfo) return;
+    if (
+      this.formRenderer &&
+      typeof this.formRenderer.ensureRepeatablePathExpanded === 'function'
+    ) {
+      this.formRenderer.ensureRepeatablePathExpanded(roomInfo.path);
+    }
     const container = this.formRenderer.getRepeatableInstanceContainer(roomInfo.path);
     highlightElement(container);
   }
@@ -417,6 +486,12 @@ export class BuildingPlanController {
   focusWall(wallId) {
     const wallInfo = this.walls.get(wallId);
     if (!wallInfo) return;
+    if (
+      this.formRenderer &&
+      typeof this.formRenderer.ensureRepeatablePathExpanded === 'function'
+    ) {
+      this.formRenderer.ensureRepeatablePathExpanded(wallInfo.path);
+    }
     const container = this.formRenderer.getRepeatableInstanceContainer(wallInfo.path);
     highlightElement(container);
   }
@@ -594,6 +669,8 @@ export class BuildingPlanController {
       return;
     }
 
+    this.resetRoomWalls(instancePath);
+
     const roomIndexSegment = instancePath[instancePath.length - 1] || { index: 0 };
     const offset = (roomIndexSegment.index || 0) * 40;
     const rect = {
@@ -614,8 +691,105 @@ export class BuildingPlanController {
       verticesString,
       () => {
         this.ensurePerimeterWalls(room);
-      }
+      },
+      { suspendEngine: true }
     );
+  }
+
+  resetRoomWalls(instancePath) {
+    if (!this.wallSection) {
+      return;
+    }
+
+    const roomPath = Array.isArray(instancePath) ? instancePath : [];
+    const container = this.formRenderer?.getRepeatableStateContainer?.(roomPath);
+
+    if (container && Array.isArray(container[this.wallKey]) && container[this.wallKey].length > 0) {
+      container[this.wallKey] = [];
+      if (typeof this.formRenderer.rebuildRepeatableSection === 'function') {
+        this.formRenderer.rebuildRepeatableSection(this.wallSection, roomPath);
+      }
+    }
+
+    if (
+      this.formStateManager &&
+      typeof this.formStateManager.clearPendingValuesUnderPath === 'function'
+    ) {
+      this.formStateManager.clearPendingValuesUnderPath(roomPath);
+    }
+
+    const removals = [];
+    for (const [wallId, wallInfo] of this.walls.entries()) {
+      if (this.pathsEqual(wallInfo.path.slice(0, -1), roomPath)) {
+        removals.push(wallId);
+      }
+    }
+    removals.forEach((wallId) => this.walls.delete(wallId));
+  }
+
+  resetFloorValues(instancePath) {
+    if (
+      !this.floorSection ||
+      !Array.isArray(instancePath) ||
+      typeof this.formRenderer?.getRepeatableInstances !== 'function'
+    ) {
+      return;
+    }
+
+    const floorInstances = this.formRenderer.getRepeatableInstances(
+      this.floorSection,
+      this.contextPath
+    );
+    const instanceIndex = instancePath[instancePath.length - 1]?.index ?? null;
+    if (instanceIndex == null || !Array.isArray(floorInstances)) {
+      return;
+    }
+
+    const floorInstance = floorInstances[instanceIndex];
+    if (floorInstance) {
+      floorInstance.values = {};
+    }
+
+    const floorFields = (this.floorSection.elements || []).filter((element) =>
+      element &&
+      typeof element === 'object' &&
+      element.type &&
+      element.type !== 'RepeatableSection' &&
+      element.type !== 'Section' &&
+      element.type !== 'BuildingPlanSection'
+    );
+
+    const defaultForField = (field) => {
+      switch (field.type) {
+        case 'NumericField':
+          return null;
+        case 'BooleanField':
+        case 'MultiChoiceField':
+        case 'SingleChoiceField':
+          return null;
+        default:
+          return '';
+      }
+    };
+
+    floorFields.forEach((field) => {
+      const value = defaultForField(field);
+      this.setFieldValueWithoutState(field.data_name, instancePath, value);
+      if (floorInstance && floorInstance.values) {
+        floorInstance.values[field.data_name] = value;
+      }
+    });
+  }
+
+  pathsEqual(a = [], b = []) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (a[i].key !== b[i].key || a[i].index !== b[i].index) {
+        return false;
+      }
+    }
+    return true;
   }
 
   autoPopulateWall(instancePath) {
@@ -643,7 +817,9 @@ export class BuildingPlanController {
     this.queueFieldUpdate(
       'wall_geometry',
       instancePath,
-      stringifyValue(defaultPoints)
+      stringifyValue(defaultPoints),
+      null,
+      { suspendEngine: true }
     );
   }
 
@@ -675,7 +851,38 @@ export class BuildingPlanController {
     ];
 
     edges.forEach((edge) => {
-      this.createWall(room.id, edge);
+      this.createWall(room.id, edge, { suspendEngine: true });
+    });
+
+    this.initializeWallDefaults(room);
+  }
+
+  initializeWallDefaults(room) {
+    if (!this.wallSection) return;
+    const wallInstances = this.formRenderer.getRepeatableInstances(this.wallSection, room.path) || [];
+
+    wallInstances.forEach((wallInstance, wallIndex) => {
+      if (!wallInstance) return;
+
+      if (!wallInstance.values || typeof wallInstance.values !== 'object') {
+        wallInstance.values = {};
+      }
+
+      const wallPath = [...room.path, { key: this.wallKey, index: wallIndex }];
+      const geometryPoints = Array.isArray(wallInstance.points) ? wallInstance.points : [];
+      const roundedPoints = roundVertices(geometryPoints);
+      const geometryValue = stringifyValue(roundedPoints);
+
+      wallInstance.points = cloneVertices(roundedPoints);
+      wallInstance.values.wall_geometry = geometryValue;
+      wallInstance.values.wall_label = '';
+      wallInstance.values.wall_height_m = null;
+      wallInstance.values.wall_thickness_m = null;
+
+      this.setFieldValueWithoutState('wall_geometry', wallPath, geometryValue);
+      this.setFieldValueWithoutState('wall_label', wallPath, '');
+      this.setFieldValueWithoutState('wall_height_m', wallPath, null);
+      this.setFieldValueWithoutState('wall_thickness_m', wallPath, null);
     });
   }
 

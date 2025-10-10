@@ -7,6 +7,11 @@ export class FormStateManager {
     this.preservedValues = {}; // Store values to preserve across schema updates
     this.pendingFieldValues = new Map();
     this.pendingFieldCallbacks = new Map();
+    this.engineUpdateDepth = 0;
+    this.pendingEngineUpdate = false;
+    this.isEngineUpdateRunning = false;
+    this.engineUpdateIntent = 0;
+    this.lastAppliedEngineIntent = 0;
   }
 
   /**
@@ -1015,6 +1020,20 @@ export class FormStateManager {
    * Update form engine and get new state
    */
   async updateFormState() {
+    const intentId = ++this.engineUpdateIntent;
+
+    if (this.engineUpdateDepth > 0) {
+      this.pendingEngineUpdate = true;
+      return;
+    }
+
+    if (this.isEngineUpdateRunning) {
+      this.pendingEngineUpdate = true;
+      return;
+    }
+
+    this.isEngineUpdateRunning = true;
+
     const { values, repeatable } = this.getCurrentFormState();
 
     try {
@@ -1025,9 +1044,19 @@ export class FormStateManager {
       });
 
       const state = await response.json();
-      this.applyFormState(state);
+      if (intentId === this.engineUpdateIntent) {
+        this.applyFormState(state);
+        this.lastAppliedEngineIntent = intentId;
+      }
     } catch (err) {
       console.error('Failed to update form state:', err);
+    } finally {
+      this.isEngineUpdateRunning = false;
+
+      if (this.engineUpdateDepth === 0 && this.pendingEngineUpdate) {
+        this.pendingEngineUpdate = false;
+        await this.updateFormState();
+      }
     }
   }
 
@@ -1623,6 +1652,10 @@ export class FormStateManager {
           `[SETVALUE] Field container not found for "${fieldDataName}" in context "${contextKey}"`
         );
       }
+      if (Array.isArray(contextPath) && contextPath.length > 0) {
+        this.storePendingFieldValue(contextKey, fieldDataName, valueToSet, contextPath);
+        return false;
+      }
       this.storePendingFieldValue(contextKey, fieldDataName, valueToSet, contextPath);
       return false;
     }
@@ -1687,6 +1720,24 @@ export class FormStateManager {
     this.pendingFieldCallbacks.set(pendingKey, callback);
   }
 
+  suspendEngineUpdates() {
+    this.engineUpdateDepth += 1;
+  }
+
+  resumeEngineUpdates() {
+    if (this.engineUpdateDepth > 0) {
+      this.engineUpdateDepth -= 1;
+    }
+
+    if (this.engineUpdateDepth === 0 && this.pendingEngineUpdate) {
+      const shouldUpdate = this.pendingEngineUpdate;
+      this.pendingEngineUpdate = false;
+      if (shouldUpdate) {
+        this.updateFormState();
+      }
+    }
+  }
+
   applyPendingFieldValue(field, contextKey) {
     if (!field || !contextKey) return;
     const pendingKey = this.getPendingKey(contextKey, field.data_name);
@@ -1713,6 +1764,32 @@ export class FormStateManager {
   clearPendingFieldValues() {
     this.pendingFieldValues.clear();
     this.pendingFieldCallbacks.clear();
+  }
+
+  clearPendingValuesUnderPath(contextPath = []) {
+    if (!this.formRenderer || typeof this.formRenderer.formatContextPath !== 'function') {
+      return;
+    }
+    const baseKey = this.formRenderer.formatContextPath(contextPath);
+    const prefix = baseKey === 'root' ? baseKey : `${baseKey}.`;
+
+    const shouldPrune = (pendingKey) => {
+      const separatorIndex = pendingKey.indexOf('::');
+      const keyContext = separatorIndex >= 0 ? pendingKey.slice(0, separatorIndex) : pendingKey;
+      return keyContext === baseKey || keyContext.startsWith(prefix);
+    };
+
+    for (const key of Array.from(this.pendingFieldValues.keys())) {
+      if (shouldPrune(key)) {
+        this.pendingFieldValues.delete(key);
+      }
+    }
+
+    for (const key of Array.from(this.pendingFieldCallbacks.keys())) {
+      if (shouldPrune(key)) {
+        this.pendingFieldCallbacks.delete(key);
+      }
+    }
   }
 
   getPendingKey(contextKey, fieldName) {

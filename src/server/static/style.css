@@ -718,6 +718,7 @@ body {
   outline-offset: 2px;
 }
 
+
 .repeatable-instance {
   border: 1px solid #d7dce5;
   border-radius: 8px;
@@ -731,11 +732,73 @@ body {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+  gap: 8px;
+}
+
+.repeatable-instance-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.repeatable-instance-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.repeatable-instance-toggle {
+  background: transparent;
+  border: none;
+  color: #2d3748;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.repeatable-instance-toggle:hover {
+  background: rgba(45, 55, 72, 0.08);
+}
+
+.repeatable-instance-toggle:focus {
+  outline: 2px solid #3182ce;
+  outline-offset: 2px;
 }
 
 .repeatable-instance-title {
   font-weight: 600;
   color: #2d3748;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.repeatable-instance-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.repeatable-instance.collapsed {
+  padding-bottom: 10px;
+}
+
+.repeatable-instance.collapsed .repeatable-instance-header {
+  margin-bottom: 4px;
+}
+
+.repeatable-instance.collapsed .repeatable-instance-content {
+  display: none;
 }
 
 .repeatable-instance-remove {

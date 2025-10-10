@@ -16,6 +16,8 @@ export class FormRenderer {
     this.buildingPlanRegistry = new Map();
     this.formStateManager = null;
     this.currentBuildingPlanMeta = [];
+    this.repeatableCollapseState = new Map();
+    this.buildingPlanRepeatableDataNames = new Set();
   }
 
   /**
@@ -25,6 +27,7 @@ export class FormRenderer {
     this.fieldInstanceRegistry = new Map();
     this.disposeBuildingPlanControllers();
     this.buildingPlanRegistry = new Map();
+    this.repeatableCollapseState = new Map();
     if (
       this.formStateManager &&
       typeof this.formStateManager.clearPendingFieldValues === 'function'
@@ -270,6 +273,24 @@ export class FormRenderer {
     this.resetFieldRegistry();
     this.repeatableSectionRegistry = new Map();
     this.currentBuildingPlanMeta = Array.isArray(buildingPlanMeta) ? buildingPlanMeta : [];
+    this.refreshBuildingPlanRepeatableMap();
+  }
+
+  refreshBuildingPlanRepeatableMap() {
+    this.buildingPlanRepeatableDataNames = new Set();
+    if (!Array.isArray(this.currentBuildingPlanMeta)) {
+      return;
+    }
+    this.currentBuildingPlanMeta.forEach((meta) => {
+      if (!meta || !Array.isArray(meta.repeatables)) {
+        return;
+      }
+      meta.repeatables.forEach((node) => {
+        if (node && typeof node.dataName === 'string' && node.dataName !== '') {
+          this.buildingPlanRepeatableDataNames.add(node.dataName);
+        }
+      });
+    });
   }
 
   /**
@@ -367,6 +388,24 @@ export class FormRenderer {
 
     if (section) {
       this.applyDefaultsToInstance(section, instance);
+    }
+
+    return instance;
+  }
+
+  sanitizeRepeatableInstance(instance, { clearValues = false, clearNested = false } = {}) {
+    if (!instance || typeof instance !== 'object') {
+      return instance;
+    }
+
+    if (clearValues || !instance.values || typeof instance.values !== 'object') {
+      instance.values = clearValues ? {} : instance.values || {};
+    }
+
+    if (clearNested) {
+      instance.repeatable = {};
+    } else if (!instance.repeatable || typeof instance.repeatable !== 'object') {
+      instance.repeatable = {};
     }
 
     return instance;
@@ -804,12 +843,32 @@ export class FormRenderer {
     instanceDiv.setAttribute('data-created-at-client', createdAtClient);
     instanceDiv.setAttribute('data-updated-at-client', updatedAtClient);
 
+    const instanceLabel = `${section.label || section.data_name} #${index + 1}`;
     const headerRow = document.createElement('div');
     headerRow.className = 'repeatable-instance-header';
+
+    const headerLeft = document.createElement('div');
+    headerLeft.className = 'repeatable-instance-header-left';
+    headerRow.appendChild(headerLeft);
+
+    const toggleButton = document.createElement('button');
+    toggleButton.type = 'button';
+    toggleButton.className = 'repeatable-instance-toggle';
+    toggleButton.dataset.label = instanceLabel;
+    toggleButton.textContent = '▾';
+    toggleButton.setAttribute('aria-expanded', 'true');
+    toggleButton.setAttribute('aria-label', `Collapse ${instanceLabel}`);
+    toggleButton.title = `Collapse ${instanceLabel}`;
+    headerLeft.appendChild(toggleButton);
+
     const headerTitle = document.createElement('div');
     headerTitle.className = 'repeatable-instance-title';
-    headerTitle.textContent = `${section.label || section.data_name} #${index + 1}`;
-    headerRow.appendChild(headerTitle);
+    headerTitle.textContent = instanceLabel;
+    headerLeft.appendChild(headerTitle);
+
+    const headerActions = document.createElement('div');
+    headerActions.className = 'repeatable-instance-header-actions';
+    headerRow.appendChild(headerActions);
 
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
@@ -819,20 +878,82 @@ export class FormRenderer {
     removeButton.addEventListener('click', () => {
       this.removeRepeatableInstance(section, parentContextPath, index);
     });
-    headerRow.appendChild(removeButton);
+    headerActions.appendChild(removeButton);
+
     instanceDiv.appendChild(headerRow);
 
-    this.renderElements(section.elements || section.drilldown_elements || [], instanceDiv, instancePath);
+    const content = document.createElement('div');
+    content.className = 'repeatable-instance-content';
+    const contentId = `repeatable-content-${contextKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    content.id = contentId;
+    toggleButton.setAttribute('aria-controls', contentId);
+    instanceDiv.appendChild(content);
+
+    this.renderElements(section.elements || section.drilldown_elements || [], content, instancePath);
+
+    toggleButton.addEventListener('click', () => {
+      this.toggleRepeatableInstance(instanceDiv);
+    });
+
+    headerLeft.addEventListener('click', (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      const targetElement = event.target instanceof Element ? event.target : null;
+      if (targetElement && targetElement.closest('.repeatable-instance-toggle')) {
+        return;
+      }
+      this.toggleRepeatableInstance(instanceDiv);
+    });
+
+    const isCollapsed = this.repeatableCollapseState.get(contextKey) === true;
+    this.setRepeatableInstanceCollapsed(instanceDiv, isCollapsed, { storeState: false });
 
     instancesContainer.appendChild(instanceDiv);
   }
 
-  addRepeatableInstance(section, contextPath = []) {
-    const snapshotInstances = this.captureRepeatableSnapshot(section, contextPath);
+  addRepeatableInstance(section, contextPath = [], options = {}) {
+    // allow callers to request a fresh instance without inherited values/nested data
+    const {
+      clearNewInstanceValues = false,
+      clearNewInstanceRepeatable = false,
+    } = options || {};
+    const isBuildingPlanRepeatable =
+      section && typeof section.data_name === 'string'
+        ? this.buildingPlanRepeatableDataNames.has(section.data_name)
+        : false;
+    const shouldClearValues = clearNewInstanceValues || isBuildingPlanRepeatable;
+    const shouldClearNested = clearNewInstanceRepeatable || isBuildingPlanRepeatable;
+    let snapshotInstances = this.captureRepeatableSnapshot(section, contextPath);
     const instances = this.getRepeatableInstances(section, contextPath);
     this.mergeSnapshotIntoInstances(instances, snapshotInstances);
     const newInstance = this.createEmptyRepeatableInstance(section);
+    this.sanitizeRepeatableInstance(newInstance, {
+      clearValues: shouldClearValues,
+      clearNested: shouldClearNested,
+    });
     instances.push(newInstance);
+    if (!Array.isArray(snapshotInstances)) {
+      snapshotInstances = [];
+    }
+    const newSnapshot = JSON.parse(JSON.stringify(newInstance));
+    this.sanitizeRepeatableInstance(newSnapshot, {
+      clearValues: shouldClearValues,
+      clearNested: shouldClearNested,
+    });
+    if (snapshotInstances.length === instances.length - 1) {
+      snapshotInstances.push(newSnapshot);
+    } else {
+      snapshotInstances[instances.length - 1] = newSnapshot;
+    }
+    if (
+      this.formStateManager &&
+      typeof this.formStateManager.clearPendingValuesUnderPath === 'function'
+    ) {
+      const newIndex = instances.length - 1;
+      const newPath = [...contextPath, { key: this.getPreferredKey(section), index: newIndex }];
+      this.formStateManager.clearPendingValuesUnderPath(newPath);
+    }
     this.rebuildRepeatableSection(section, contextPath, snapshotInstances);
     this.dispatchRepeatableChange('add', section, contextPath, instances.length - 1, {
       totalInstances: instances.length,
@@ -852,6 +973,15 @@ export class FormRenderer {
       return;
     }
     this.mergeSnapshotIntoInstances(instances, snapshotInstances);
+    const removedPath = [...contextPath, { key: preferredKey, index }];
+    const removedKey = this.formatContextPath(removedPath);
+    this.clearCollapseStateForPath(removedKey);
+    if (
+      this.formStateManager &&
+      typeof this.formStateManager.clearPendingValuesUnderPath === 'function'
+    ) {
+      this.formStateManager.clearPendingValuesUnderPath(removedPath);
+    }
     instances.splice(index, 1);
     if (instances.length === 0) {
       delete parentContainer[preferredKey];
@@ -891,6 +1021,63 @@ export class FormRenderer {
   getRepeatableInstanceContainer(contextPath = []) {
     const contextKey = this.formatContextPath(contextPath);
     return document.querySelector(`[data-repeatable-context="${contextKey}"]`);
+  }
+
+  setRepeatableInstanceCollapsed(instanceDiv, collapsed, { storeState = true } = {}) {
+    if (!instanceDiv) return;
+    const content = instanceDiv.querySelector('.repeatable-instance-content');
+    const toggleButton = instanceDiv.querySelector('.repeatable-instance-toggle');
+    const contextKey = instanceDiv.getAttribute('data-repeatable-context');
+
+    instanceDiv.classList.toggle('collapsed', Boolean(collapsed));
+    if (content) {
+      content.style.display = collapsed ? 'none' : '';
+    }
+
+    if (toggleButton) {
+      const label = toggleButton.getAttribute('data-label') || 'section';
+      const expanded = !collapsed;
+      toggleButton.textContent = expanded ? '▾' : '▸';
+      toggleButton.setAttribute('aria-expanded', String(expanded));
+      toggleButton.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} ${label}`);
+      toggleButton.title = `${expanded ? 'Collapse' : 'Expand'} ${label}`;
+    }
+
+    if (storeState && contextKey) {
+      if (collapsed) {
+        this.repeatableCollapseState.set(contextKey, true);
+      } else {
+        this.repeatableCollapseState.delete(contextKey);
+      }
+    }
+  }
+
+  toggleRepeatableInstance(instanceDiv) {
+    if (!instanceDiv) return;
+    const collapsed = instanceDiv.classList.contains('collapsed');
+    this.setRepeatableInstanceCollapsed(instanceDiv, !collapsed);
+  }
+
+  ensureRepeatablePathExpanded(contextPath = []) {
+    if (!Array.isArray(contextPath)) return;
+    for (let i = 0; i < contextPath.length; i += 1) {
+      const subPath = contextPath.slice(0, i + 1);
+      const container = this.getRepeatableInstanceContainer(subPath);
+      if (container) {
+        this.setRepeatableInstanceCollapsed(container, false);
+      }
+    }
+  }
+
+  clearCollapseStateForPath(contextKey) {
+    if (!contextKey) return;
+    const toDelete = [];
+    this.repeatableCollapseState.forEach((_, key) => {
+      if (key === contextKey || key.startsWith(`${contextKey}.`)) {
+        toDelete.push(key);
+      }
+    });
+    toDelete.forEach((key) => this.repeatableCollapseState.delete(key));
   }
 
   getActiveInstance(contextPath = []) {
