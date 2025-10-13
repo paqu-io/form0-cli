@@ -3117,7 +3117,9 @@ export class FormRenderer {
     let count = 0;
     elements.forEach((element) => {
       if (
-        (element.type === 'Section' || element.type === 'RepeatableSection') &&
+        (element.type === 'Section' ||
+          element.type === 'RepeatableSection' ||
+          element.type === 'BuildingPlanSection') &&
         Array.isArray(element.elements)
       ) {
         count += this.countFields(element.elements || element.drilldown_elements || []);
@@ -3176,7 +3178,9 @@ export class FormRenderer {
           return element;
         }
         if (
-          (element.type === 'Section' || element.type === 'RepeatableSection') &&
+          (element.type === 'Section' ||
+            element.type === 'RepeatableSection' ||
+            element.type === 'BuildingPlanSection') &&
           Array.isArray(element.elements)
         ) {
           const found = searchElements(element.elements || element.drilldown_elements || []);
@@ -3197,7 +3201,9 @@ export class FormRenderer {
       for (const el of elements || []) {
         if (el.key === key) return el;
         if (
-          (el.type === 'Section' || el.type === 'RepeatableSection') &&
+          (el.type === 'Section' ||
+            el.type === 'RepeatableSection' ||
+            el.type === 'BuildingPlanSection') &&
           Array.isArray(el.elements)
         ) {
           const found = search(el.elements || el.drilldown_elements || []);
