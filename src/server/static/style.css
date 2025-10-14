@@ -49,6 +49,24 @@ body {
     cursor: not-allowed;
 }
 
+.secondary-button {
+    background: #f8f9fa;
+    border: 1px solid #ced4da;
+    color: #495057;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.secondary-button:hover {
+    background: #e9ecef;
+}
+
+.secondary-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .form-link-field-actions {
     display: flex;
     gap: 10px;
@@ -467,20 +485,38 @@ body {
 }
 
 .hidden { 
-    display: none; 
+    display: none !important; 
 }
 
 /* Record header and metadata panel */
 .record-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 16px;
   margin: 8px 0 16px;
+}
+
+.record-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.record-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .record-header-title {
   font-size: 18px;
   font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .record-status-pill {
@@ -497,6 +533,89 @@ body {
   padding: 12px;
   margin: 0 0 16px;
   border-left: 4px solid #999;
+}
+
+.settings-button {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 6px;
+  border-radius: 4px;
+}
+
+.settings-button:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.settings-button:focus {
+  outline: none;
+}
+
+.settings-button:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
+
+.settings-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 1200;
+}
+
+.settings-modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  width: min(360px, 90vw);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-modal-header {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.settings-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-modal-body label {
+  font-weight: 500;
+}
+
+.settings-modal-body select {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.settings-modal-body select:focus {
+  outline: none;
+  border-color: #4a90e2;
+}
+
+.settings-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 /* PhotoField and VideoField styling */

@@ -85,6 +85,179 @@ let currentStatusValue = null; // Selected status for metadata panel (not part o
 let createdAtTimestamp = null; // Simple client-side timestamps for preview
 let currentBuildingPlanMeta = [];
 
+const FIELD_KEY_MODE_STORAGE_KEY = 'form0-cli-field-key-mode';
+let currentFieldKeyMode = 'prefer-key';
+let pendingFieldKeyMode = 'prefer-key';
+let settingsPreviouslyFocused = null;
+
+function loadFieldKeyModePreference() {
+  try {
+    const stored = window.localStorage.getItem(FIELD_KEY_MODE_STORAGE_KEY);
+    if (stored === 'data-name') {
+      currentFieldKeyMode = 'data-name';
+      pendingFieldKeyMode = 'data-name';
+    }
+  } catch (err) {
+    // Ignore storage errors (e.g., private browsing)
+  }
+  pendingFieldKeyMode = currentFieldKeyMode;
+}
+
+function persistFieldKeyModePreference(mode) {
+  try {
+    window.localStorage.setItem(FIELD_KEY_MODE_STORAGE_KEY, mode);
+  } catch (err) {
+    // Ignore storage errors (e.g., private browsing)
+  }
+}
+
+const SETTINGS_DIALOG_ID = 'form-settings-dialog';
+let settingsDialog = null;
+let settingsKeyModeSelect = null;
+
+function ensureSettingsDialog() {
+  if (settingsDialog) {
+    if (settingsKeyModeSelect) {
+      settingsKeyModeSelect.value = pendingFieldKeyMode;
+    }
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = SETTINGS_DIALOG_ID;
+  overlay.className = 'settings-modal-overlay hidden';
+
+  const modal = document.createElement('div');
+  modal.className = 'settings-modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-labelledby', 'form-settings-title');
+
+  const header = document.createElement('div');
+  header.className = 'settings-modal-header';
+  header.id = 'form-settings-title';
+  header.textContent = 'Form Settings';
+
+  const body = document.createElement('div');
+  body.className = 'settings-modal-body';
+
+  const keyModeLabel = document.createElement('label');
+  keyModeLabel.setAttribute('for', 'settings-output-keys');
+  keyModeLabel.textContent = 'Structured Output Keys';
+
+  settingsKeyModeSelect = document.createElement('select');
+  settingsKeyModeSelect.id = 'settings-output-keys';
+  settingsKeyModeSelect.className = 'settings-select';
+
+  const keyOption = document.createElement('option');
+  keyOption.value = 'prefer-key';
+  keyOption.textContent = 'Field keys (default)';
+  const dataOption = document.createElement('option');
+  dataOption.value = 'data-name';
+  dataOption.textContent = 'Data names';
+
+  settingsKeyModeSelect.appendChild(keyOption);
+  settingsKeyModeSelect.appendChild(dataOption);
+  settingsKeyModeSelect.value = pendingFieldKeyMode;
+  settingsKeyModeSelect.addEventListener('change', handleSettingsKeyModeChange);
+
+  body.appendChild(keyModeLabel);
+  body.appendChild(settingsKeyModeSelect);
+
+  const footer = document.createElement('div');
+  footer.className = 'settings-modal-footer';
+
+  const saveButton = document.createElement('button');
+  saveButton.type = 'button';
+  saveButton.className = 'primary-button';
+  saveButton.textContent = 'Save';
+  saveButton.addEventListener('click', saveSettingsDialog);
+
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button';
+  closeButton.className = 'secondary-button';
+  closeButton.textContent = 'Close';
+  closeButton.addEventListener('click', closeSettingsDialog);
+
+  footer.appendChild(saveButton);
+  footer.appendChild(closeButton);
+
+  modal.appendChild(header);
+  modal.appendChild(body);
+  modal.appendChild(footer);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  modal.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      closeSettingsDialog();
+    }
+  });
+
+  overlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeSettingsDialog();
+    }
+  });
+
+  settingsDialog = overlay;
+}
+
+function openSettingsDialog() {
+  ensureSettingsDialog();
+  if (!settingsDialog) return;
+  pendingFieldKeyMode = currentFieldKeyMode;
+  if (settingsKeyModeSelect) {
+    settingsKeyModeSelect.value = pendingFieldKeyMode;
+  }
+  settingsPreviouslyFocused =
+    document.activeElement && typeof document.activeElement.focus === 'function'
+      ? document.activeElement
+      : null;
+  settingsDialog.classList.remove('hidden');
+  document.addEventListener('keydown', handleSettingsKeyDown);
+  if (settingsKeyModeSelect) {
+    settingsKeyModeSelect.focus();
+  }
+}
+
+function closeSettingsDialog() {
+  if (!settingsDialog) return;
+  settingsDialog.classList.add('hidden');
+  document.removeEventListener('keydown', handleSettingsKeyDown);
+  pendingFieldKeyMode = currentFieldKeyMode;
+  if (settingsKeyModeSelect) {
+    settingsKeyModeSelect.value = currentFieldKeyMode;
+  }
+  if (settingsPreviouslyFocused) {
+    settingsPreviouslyFocused.focus();
+  }
+  settingsPreviouslyFocused = null;
+}
+
+function handleSettingsKeyModeChange(event) {
+  const selected = event.target.value === 'data-name' ? 'data-name' : 'prefer-key';
+  pendingFieldKeyMode = selected;
+}
+
+function handleSettingsKeyDown(event) {
+  if (event.key === 'Escape') {
+    closeSettingsDialog();
+  }
+}
+
+function saveSettingsDialog() {
+  currentFieldKeyMode = pendingFieldKeyMode;
+  persistFieldKeyModePreference(currentFieldKeyMode);
+  closeSettingsDialog();
+}
+
+
 // Initialize modular components
 const formRenderer = new FormRenderer();
 const formStateManager = new FormStateManager(formRenderer);
@@ -245,6 +418,7 @@ async function loadInitialSchema() {
 
 // Initialize application
 async function initialize() {
+  loadFieldKeyModePreference();
   // Load translations first
   await loadTranslations();
 
@@ -359,6 +533,9 @@ function renderRecordHeaderAndMetadata() {
   header.id = 'record-header';
   header.className = 'record-header';
 
+  const headerLeft = document.createElement('div');
+  headerLeft.className = 'record-header-left';
+
   const statusPill = document.createElement('span');
   statusPill.id = 'record-header-status-pill';
   statusPill.className = 'record-status-pill';
@@ -368,8 +545,22 @@ function renderRecordHeaderAndMetadata() {
   titleEl.className = 'record-header-title';
   titleEl.textContent = '';
 
-  header.appendChild(statusPill);
-  header.appendChild(titleEl);
+  headerLeft.appendChild(statusPill);
+  headerLeft.appendChild(titleEl);
+
+  const headerActions = document.createElement('div');
+  headerActions.className = 'record-header-actions';
+  const settingsButton = document.createElement('button');
+  settingsButton.type = 'button';
+  settingsButton.className = 'settings-button';
+  settingsButton.setAttribute('aria-label', 'Open settings');
+  settingsButton.title = 'Form settings';
+  settingsButton.innerHTML = '&#9881;';
+  settingsButton.addEventListener('click', openSettingsDialog);
+  headerActions.appendChild(settingsButton);
+
+  header.appendChild(headerLeft);
+  header.appendChild(headerActions);
 
   const panel = document.createElement('div');
   panel.id = 'record-metadata-panel';
@@ -841,7 +1032,13 @@ async function handleFormSubmit() {
     const recordResponse = await fetch('/api/create-record', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state, options: { '@status': currentStatusValue } }),
+      body: JSON.stringify({
+        state,
+        options: {
+          '@status': currentStatusValue,
+          fieldKeyMode: currentFieldKeyMode,
+        },
+      }),
     });
 
     if (!recordResponse.ok) {

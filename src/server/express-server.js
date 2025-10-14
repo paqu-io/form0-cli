@@ -62,6 +62,56 @@ function generateUUIDs(state, flattenedFields) {
 }
 
 /**
+ * Regenerate unique IDs for repeatable section instances within a structured record.
+ * Ensures every child record receives a fresh UUID for each submission.
+ * @param {Object} record - Structured record object (mutated in place)
+ */
+function regenerateRepeatableRecordIds(record) {
+  if (!record || !record.form_values) {
+    return;
+  }
+
+  const assignIds = (formValues) => {
+    if (!formValues || typeof formValues !== 'object') {
+      return;
+    }
+
+    Object.values(formValues).forEach((value) => {
+      if (!Array.isArray(value) || value.length === 0) {
+        return;
+      }
+
+      const appearsRepeatable = value.every(
+        (entry) =>
+          entry &&
+          typeof entry === 'object' &&
+          Object.prototype.hasOwnProperty.call(entry, 'form_values')
+      );
+
+      if (!appearsRepeatable) {
+        return;
+      }
+
+      value.forEach((entry) => {
+        if (!entry || typeof entry !== 'object') {
+          return;
+        }
+
+        const newId = uuidv7();
+        entry.id = newId;
+        if (!entry.record_id) {
+          entry.record_id = newId;
+        }
+
+        assignIds(entry.form_values);
+      });
+    });
+  };
+
+  assignIds(record.form_values);
+}
+
+/**
  * Generate record IDs (UUIDv7) for main record and child records
  * Reuses the same tree-building logic as record-transformer.js
  * @param {Array} originalElements - Original nested form elements from schema
@@ -516,6 +566,9 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
         // If client provided @status in options, merge it here so transformer picks it up
         '@status': options['@status'] || undefined,
       });
+
+      // Ensure each repeatable instance receives a fresh UUID so connector inserts remain unique
+      regenerateRepeatableRecordIds(structuredRecord);
 
       res.json({ record: structuredRecord });
     } catch (err) {
