@@ -1,6 +1,8 @@
 const MODE_SELECT = 'select';
 const MODE_DRAW_ROOM = 'draw-room';
 const MODE_DRAW_WALL = 'draw-wall';
+const MODE_DRAW_DOOR = 'draw-door';
+const MODE_DRAW_WINDOW = 'draw-window';
 
 const DEFAULT_GRID_SIZE = 20;
 const SNAP_RADIUS = 10;
@@ -8,6 +10,19 @@ const WALL_HIT_TOLERANCE = 6;
 const ROOM_HANDLE_SIZE = 6;
 const ROOM_HANDLE_HIT_SIZE = 12;
 const WALL_HANDLE_HIT_RADIUS = 8;
+const OPENING_HIT_TOLERANCE = 12;
+const OPENING_HANDLE_RADIUS = 10;
+const DOOR_LINE_WIDTH = 6;
+const WINDOW_LINE_WIDTH = 6;
+const DOOR_COLOR = '#2b8a3e';
+const WINDOW_COLOR = '#1c7ed6';
+const OPENING_SELECTED_COLOR = '#d12d2d';
+const DEFAULT_DOOR_WIDTH_M = 0.9;
+const DEFAULT_DOOR_HEIGHT_M = 2;
+const DEFAULT_WINDOW_WIDTH_M = 1.2;
+const DEFAULT_WINDOW_HEIGHT_M = 1.2;
+const DEFAULT_WINDOW_SILL_HEIGHT_M = 0.9;
+const MIN_OPENING_RATIO = 0.05;
 const ROUND_DECIMALS = 3;
 
 function distance(a, b) {
@@ -33,6 +48,39 @@ function pointToSegmentDistance(point, a, b) {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
+}
+
+function projectScalarToSegment(point, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return 0;
+  return ((point.x - a.x) * dx + (point.y - a.y) * dy) / lenSq;
+}
+
+function getSegmentPoints(points = [], segmentIndex = 0) {
+  if (!Array.isArray(points) || points.length < 2) {
+    return null;
+  }
+  const index = clamp(segmentIndex, 0, points.length - 2);
+  const start = points[index];
+  const end = points[index + 1];
+  if (!start || !end) {
+    return null;
+  }
+  return { start, end };
+}
+
+function lengthToMeters(length, gridSize = DEFAULT_GRID_SIZE) {
+  if (!Number.isFinite(length) || !Number.isFinite(gridSize) || gridSize === 0) {
+    return 0;
+  }
+  return length / gridSize;
+}
+
+function metersToLength(meters, gridSize = DEFAULT_GRID_SIZE) {
+  if (!Number.isFinite(meters)) return 0;
+  return meters * gridSize;
 }
 
 function roundCoordinate(value, decimals = ROUND_DECIMALS) {
@@ -73,14 +121,19 @@ export class BuildingPlanCanvas {
     this.mode = MODE_SELECT;
     this.rooms = [];
     this.walls = [];
+    this.doors = [];
+    this.windows = [];
     this.floors = [];
     this.activeFloorIndex = 0;
     this.hasFloors = false;
     this.selectedRoomId = null;
     this.selectedWallId = null;
+    this.selectedDoorId = null;
+    this.selectedWindowId = null;
 
     this.dragState = null;
     this.wallDragState = null;
+    this.openingDragState = null;
     this.wallDraft = null;
     this.roomDraft = null;
     this.hoverState = null;
@@ -137,6 +190,8 @@ export class BuildingPlanCanvas {
     });
     this.roomButton = this.createToolbarButton('Draw Room', MODE_DRAW_ROOM);
     this.wallButton = this.createToolbarButton('Draw Wall', MODE_DRAW_WALL);
+    this.doorButton = this.createToolbarButton('Place Door', MODE_DRAW_DOOR);
+    this.windowButton = this.createToolbarButton('Place Window', MODE_DRAW_WINDOW);
 
     this.clearButton = document.createElement('button');
     this.clearButton.type = 'button';
@@ -148,6 +203,8 @@ export class BuildingPlanCanvas {
     this.toolbar.appendChild(this.floorButton);
     this.toolbar.appendChild(this.roomButton);
     this.toolbar.appendChild(this.wallButton);
+    this.toolbar.appendChild(this.doorButton);
+    this.toolbar.appendChild(this.windowButton);
     this.toolbar.appendChild(this.clearButton);
 
     this.canvasContainer = document.createElement('div');
@@ -201,14 +258,27 @@ export class BuildingPlanCanvas {
     if (mode === MODE_DRAW_WALL && this.wallButton && this.wallButton.disabled) {
       return;
     }
+    if (mode === MODE_DRAW_DOOR && this.doorButton && this.doorButton.disabled) {
+      return;
+    }
+    if (mode === MODE_DRAW_WINDOW && this.windowButton && this.windowButton.disabled) {
+      return;
+    }
     this.mode = mode;
     this.selectButton.classList.toggle('active', mode === MODE_SELECT);
     this.roomButton.classList.toggle('active', mode === MODE_DRAW_ROOM);
     this.wallButton.classList.toggle('active', mode === MODE_DRAW_WALL);
+    if (this.doorButton) {
+      this.doorButton.classList.toggle('active', mode === MODE_DRAW_DOOR);
+    }
+    if (this.windowButton) {
+      this.windowButton.classList.toggle('active', mode === MODE_DRAW_WINDOW);
+    }
     this.wallDraft = null;
     this.roomDraft = null;
     this.dragState = null;
     this.wallDragState = null;
+    this.openingDragState = null;
     this.hoverState = null;
     this.updateCursor();
     this.updateButtonStates();
@@ -235,6 +305,8 @@ export class BuildingPlanCanvas {
 
       this.rooms = snapshot.rooms || [];
       this.walls = snapshot.walls || [];
+      this.doors = snapshot.doors || [];
+      this.windows = snapshot.windows || [];
       this.floors = snapshot.floors || [];
       this.activeFloorIndex =
         typeof snapshot.activeFloorIndex === 'number' ? snapshot.activeFloorIndex : 0;
@@ -244,12 +316,24 @@ export class BuildingPlanCanvas {
         this.selectedRoomId = null;
         this.selectedWallId = null;
         this.wallDragState = null;
+        this.selectedDoorId = null;
+        this.selectedWindowId = null;
+        this.openingDragState = null;
       } else {
         if (this.selectedRoomId && !this.rooms.find((room) => room.id === this.selectedRoomId)) {
           this.selectedRoomId = null;
         }
         if (this.selectedWallId && !this.walls.find((wall) => wall.id === this.selectedWallId)) {
           this.selectedWallId = null;
+        }
+        if (this.selectedDoorId && !this.doors.find((door) => door.id === this.selectedDoorId)) {
+          this.selectedDoorId = null;
+        }
+        if (
+          this.selectedWindowId &&
+          !this.windows.find((window) => window.id === this.selectedWindowId)
+        ) {
+          this.selectedWindowId = null;
         }
       }
 
@@ -285,6 +369,15 @@ export class BuildingPlanCanvas {
       return;
     }
 
+    if (this.openingDragState) {
+      if (this.openingDragState.handle === 'move') {
+        this.canvas.style.cursor = 'grabbing';
+      } else {
+        this.canvas.style.cursor = 'ew-resize';
+      }
+      return;
+    }
+
     const hover = this.hoverState;
     if (hover && hover.type === 'room-handle') {
       this.canvas.style.cursor = this.getCursorForHandle(hover.handle);
@@ -292,6 +385,14 @@ export class BuildingPlanCanvas {
     }
     if (hover && hover.type === 'wall-handle') {
       this.canvas.style.cursor = 'crosshair';
+      return;
+    }
+    if (hover && hover.type === 'opening-handle') {
+      this.canvas.style.cursor = hover.handle === 'center' ? 'grab' : 'ew-resize';
+      return;
+    }
+    if (hover && hover.type === 'opening') {
+      this.canvas.style.cursor = 'grab';
       return;
     }
 
@@ -308,7 +409,10 @@ export class BuildingPlanCanvas {
   clearSelection() {
     this.selectedRoomId = null;
     this.selectedWallId = null;
+    this.selectedDoorId = null;
+    this.selectedWindowId = null;
     this.wallDragState = null;
+    this.openingDragState = null;
     this.hoverState = null;
     this.rooms.forEach((room) => {
       if (room.previewRect) delete room.previewRect;
@@ -316,6 +420,20 @@ export class BuildingPlanCanvas {
     this.walls.forEach((wall) => {
       if (wall.previewPoints) delete wall.previewPoints;
     });
+    if (Array.isArray(this.doors)) {
+      this.doors.forEach((door) => {
+        if (door.preview && door.preview.points) {
+          delete door.preview;
+        }
+      });
+    }
+    if (Array.isArray(this.windows)) {
+      this.windows.forEach((window) => {
+        if (window.preview && window.preview.points) {
+          delete window.preview;
+        }
+      });
+    }
     this.updateCursor();
     this.updateButtonStates();
     this.render();
@@ -323,6 +441,23 @@ export class BuildingPlanCanvas {
 
   handleMouseDown(event) {
     const point = this.getCanvasPoint(event);
+
+    if (this.mode === MODE_DRAW_DOOR || this.mode === MODE_DRAW_WINDOW) {
+      const wallHit = this.findWallNearPoint(point);
+      if (wallHit && wallHit.wall) {
+        const created = this.placeOpening(
+          this.mode === MODE_DRAW_DOOR ? 'door' : 'window',
+          wallHit
+        );
+        if (created && created.wallId && typeof this.controller?.focusWall === 'function') {
+          this.controller.focusWall(created.wallId);
+        }
+        this.updateButtonStates();
+        this.updateCursor();
+        this.render();
+      }
+      return;
+    }
 
     if (this.mode === MODE_SELECT) {
       const roomHandleHit = this.findRoomHandle(point);
@@ -332,6 +467,8 @@ export class BuildingPlanCanvas {
         if (rect) {
           this.selectedRoomId = room.id;
           this.selectedWallId = null;
+          this.selectedDoorId = null;
+          this.selectedWindowId = null;
           this.dragState = {
             type: 'resize',
             roomId: room.id,
@@ -358,6 +495,8 @@ export class BuildingPlanCanvas {
             : clonePoints(wall.points);
         this.selectedRoomId = wall.roomId;
         this.selectedWallId = wall.id;
+        this.selectedDoorId = null;
+        this.selectedWindowId = null;
         this.wallDragState = {
           type: 'resize',
           wallId: wall.id,
@@ -372,6 +511,66 @@ export class BuildingPlanCanvas {
         this.updateCursor();
         this.render();
         return;
+      }
+
+      const openingHandleHit = this.findOpeningHandle(point);
+      if (openingHandleHit) {
+        const { type, openingId, handle, geometry } = openingHandleHit;
+        if (type === 'door') {
+          this.selectedDoorId = openingId;
+          this.selectedWindowId = null;
+        } else {
+          this.selectedWindowId = openingId;
+          this.selectedDoorId = null;
+        }
+        this.selectedWallId = geometry.wall?.id || null;
+        const dragHandle = handle === 'center' ? 'move' : handle;
+        this.openingDragState = {
+          type,
+          handle: dragHandle,
+          openingId,
+          pointerStart: point,
+          originalStart: geometry.startRatio,
+          originalEnd: geometry.endRatio,
+          originalSegmentIndex: geometry.segmentIndex,
+          spanRatio: geometry.spanRatio,
+          moved: false,
+        };
+        this.setHoverState(null);
+        const focusFn =
+          type === 'door' ? this.controller?.focusDoor : this.controller?.focusWindow;
+        if (typeof focusFn === 'function') {
+          focusFn.call(this.controller, openingId);
+        }
+        this.updateButtonStates();
+        this.updateCursor();
+        this.render();
+        return;
+      }
+
+      const openingHit = this.findOpeningNearPoint(point);
+      if (openingHit) {
+        const { type, openingId, geometry } = openingHit;
+        const isSelected =
+          (type === 'door' && this.selectedDoorId === openingId) ||
+          (type === 'window' && this.selectedWindowId === openingId);
+        if (isSelected) {
+          this.openingDragState = {
+            type,
+            handle: 'move',
+            openingId,
+            pointerStart: point,
+            originalStart: geometry.startRatio,
+            originalEnd: geometry.endRatio,
+            originalSegmentIndex: geometry.segmentIndex,
+            spanRatio: geometry.spanRatio,
+            moved: false,
+          };
+          this.setHoverState(null);
+          this.updateCursor();
+          this.render();
+          return;
+        }
       }
     }
 
@@ -400,7 +599,8 @@ export class BuildingPlanCanvas {
       return;
     }
 
-    const wall = this.findWallNearPoint(point);
+    const wallHit = this.findWallNearPoint(point);
+    const wall = wallHit ? wallHit.wall : null;
     const room = this.findRoomAtPoint(point);
 
     if (this.mode === MODE_SELECT && wall) {
@@ -428,6 +628,8 @@ export class BuildingPlanCanvas {
     if (room) {
       this.selectedRoomId = room.id;
       this.selectedWallId = null;
+      this.selectedDoorId = null;
+      this.selectedWindowId = null;
       this.dragState = {
         type: 'move',
         roomId: room.id,
@@ -452,6 +654,7 @@ export class BuildingPlanCanvas {
       this.mode === MODE_SELECT &&
       !this.dragState &&
       !this.wallDragState &&
+      !this.openingDragState &&
       !this.roomDraft &&
       !this.wallDraft
     ) {
@@ -471,7 +674,26 @@ export class BuildingPlanCanvas {
             wallId: wallHandle.wall.id,
           });
         } else {
-          this.setHoverState(null);
+          const openingHandle = this.findOpeningHandle(point);
+          if (openingHandle) {
+            this.setHoverState({
+              type: 'opening-handle',
+              handle: openingHandle.handle,
+              openingType: openingHandle.type,
+              openingId: openingHandle.openingId,
+            });
+          } else {
+            const openingHit = this.findOpeningNearPoint(point);
+            if (openingHit) {
+              this.setHoverState({
+                type: 'opening',
+                openingType: openingHit.type,
+                openingId: openingHit.openingId,
+              });
+            } else {
+              this.setHoverState(null);
+            }
+          }
         }
       }
     }
@@ -583,6 +805,74 @@ export class BuildingPlanCanvas {
       this.render();
       return;
     }
+
+    if (this.mode === MODE_SELECT && this.openingDragState) {
+      const state = this.openingDragState;
+      const opening = this.getOpeningById(state.type, state.openingId);
+      if (!opening) return;
+      const wall = this.walls.find((w) => w.id === opening.wallId);
+      if (!wall) return;
+
+      const renderedPoints = this.getRenderedWallPoints(wall);
+      if (!Array.isArray(renderedPoints) || renderedPoints.length < 2) return;
+
+      if (state.handle === 'move') {
+        let segmentIndex = state.originalSegmentIndex;
+        let centerRatio;
+        const wallHit = this.findWallNearPoint(point);
+        if (wallHit && wallHit.wall && wallHit.wall.id === wall.id) {
+          segmentIndex = wallHit.segmentIndex;
+          centerRatio = clamp(wallHit.ratio, 0, 1);
+        } else {
+          const segment = getSegmentPoints(renderedPoints, segmentIndex);
+          if (!segment) return;
+          centerRatio = clamp(projectScalarToSegment(point, segment.start, segment.end), 0, 1);
+        }
+        const minCenter = state.spanRatio / 2;
+        const maxCenter = 1 - state.spanRatio / 2;
+        const clampedCenter = clamp(centerRatio, minCenter, maxCenter);
+        const startRatio = clamp(clampedCenter - state.spanRatio / 2, 0, 1 - state.spanRatio);
+        const endRatio = clamp(startRatio + state.spanRatio, 0, 1);
+        state.preview = {
+          startRatio,
+          endRatio,
+          segmentIndex,
+        };
+        state.moved = true;
+      } else {
+        const segment = getSegmentPoints(renderedPoints, state.originalSegmentIndex);
+        if (!segment) return;
+        const ratio = clamp(projectScalarToSegment(point, segment.start, segment.end), 0, 1);
+        let startRatio = state.originalStart;
+        let endRatio = state.originalEnd;
+        if (state.handle === 'start') {
+          const maxStart = Math.max(0, endRatio - MIN_OPENING_RATIO);
+          startRatio = clamp(ratio, 0, maxStart);
+          if (endRatio - startRatio < MIN_OPENING_RATIO) {
+            startRatio = Math.max(0, endRatio - MIN_OPENING_RATIO);
+          }
+        } else {
+          endRatio = clamp(ratio, Math.max(startRatio + MIN_OPENING_RATIO, 0), 1);
+          if (endRatio - startRatio < MIN_OPENING_RATIO) {
+            endRatio = Math.min(1, startRatio + MIN_OPENING_RATIO);
+          }
+        }
+        const spanRatio = clamp(endRatio - startRatio, MIN_OPENING_RATIO, 1);
+        state.preview = {
+          startRatio,
+          endRatio,
+          segmentIndex: state.originalSegmentIndex,
+        };
+        state.spanRatio = spanRatio;
+        state.moved =
+          state.moved ||
+          Math.abs(startRatio - state.originalStart) > 0.0005 ||
+          Math.abs(endRatio - state.originalEnd) > 0.0005;
+      }
+
+      this.render();
+      return;
+    }
   }
 
   handleMouseUp(event) {
@@ -664,6 +954,36 @@ export class BuildingPlanCanvas {
       this.render();
       return;
     }
+
+    if (this.mode === MODE_SELECT && this.openingDragState) {
+      const state = this.openingDragState;
+      const opening = this.getOpeningById(state.type, state.openingId);
+      if (opening && state.preview && state.moved) {
+        const geometry = this.getOpeningGeometry(opening, state.preview);
+        if (geometry) {
+          const widthMeters = roundCoordinate(geometry.computedWidthMeters);
+          const updates = {
+            segmentIndex: geometry.segmentIndex,
+            startRatio: geometry.startRatio,
+            endRatio: geometry.endRatio,
+            width: widthMeters,
+          };
+          if (state.type === 'door') {
+            updates.height = opening.height;
+            this.controller?.updateDoor?.(opening.id, updates);
+          } else {
+            updates.height = opening.height;
+            updates.distanceFromFloor = opening.distanceFromFloor;
+            this.controller?.updateWindow?.(opening.id, updates);
+          }
+        }
+      }
+      this.openingDragState = null;
+      this.updateCursor();
+      this.updateButtonStates();
+      this.render();
+      return;
+    }
   }
 
   handleMouseLeave() {
@@ -683,6 +1003,7 @@ export class BuildingPlanCanvas {
         }
         this.wallDragState = null;
       }
+      this.openingDragState = null;
       this.setHoverState(null);
     }
     this.updateCursor();
@@ -857,20 +1178,37 @@ export class BuildingPlanCanvas {
   }
 
   findWallNearPoint(point) {
-    let candidate = null;
-    let best = WALL_HIT_TOLERANCE;
+    let bestMatch = null;
+    let bestDistance = WALL_HIT_TOLERANCE;
 
     this.walls.forEach((wall) => {
       const renderedPoints = this.getRenderedWallPoints(wall);
-      if (!Array.isArray(renderedPoints) || renderedPoints.length < 2) return;
-      const distanceToSegment = pointToSegmentDistance(point, renderedPoints[0], renderedPoints[1]);
-      if (distanceToSegment < best) {
-        best = distanceToSegment;
-        candidate = wall;
+      if (!Array.isArray(renderedPoints) || renderedPoints.length < 2) {
+        return;
+      }
+
+      for (let index = 0; index < renderedPoints.length - 1; index += 1) {
+        const start = renderedPoints[index];
+        const end = renderedPoints[index + 1];
+        const distanceToSegment = pointToSegmentDistance(point, start, end);
+        if (distanceToSegment < bestDistance) {
+          const ratio = clamp(projectScalarToSegment(point, start, end), 0, 1);
+          bestDistance = distanceToSegment;
+          bestMatch = {
+            wall,
+            segmentIndex: index,
+            distance: distanceToSegment,
+            ratio,
+            closestPoint: {
+              x: start.x + (end.x - start.x) * ratio,
+              y: start.y + (end.y - start.y) * ratio,
+            },
+          };
+        }
       }
     });
 
-    return candidate;
+    return bestMatch;
   }
 
   findWallHandle(point) {
@@ -911,7 +1249,9 @@ export class BuildingPlanCanvas {
       prev.type === nextState.type &&
       prev.handle === nextState.handle &&
       prev.wallId === nextState.wallId &&
-      prev.roomId === nextState.roomId;
+      prev.roomId === nextState.roomId &&
+      prev.openingId === nextState.openingId &&
+      prev.openingType === nextState.openingType;
     if (same) return;
     if (!prev && !nextState) return;
     this.hoverState = nextState || null;
@@ -1022,6 +1362,9 @@ export class BuildingPlanCanvas {
 
     this.walls.forEach((wall) => this.drawWall(wall));
 
+    this.doors.forEach((door) => this.drawOpening(door, 'door'));
+    this.windows.forEach((window) => this.drawOpening(window, 'window'));
+
     if (this.wallDraft && this.wallDraft.start && this.wallDraft.end) {
       this.drawDraftWall(this.wallDraft.start, this.wallDraft.end);
     }
@@ -1083,6 +1426,7 @@ export class BuildingPlanCanvas {
   updateButtonStates() {
     const hasFloors = this.hasFloors;
     const hasSelectedRoom = Boolean(this.selectedRoomId);
+    const hasWalls = Array.isArray(this.walls) && this.walls.length > 0;
 
     if (this.floorButton) {
       const canCreateFloor = Boolean(this.controller && typeof this.controller.createFloor === 'function');
@@ -1105,6 +1449,28 @@ export class BuildingPlanCanvas {
         this.wallButton.title = 'Select a room to draw walls';
       } else {
         this.wallButton.title = 'Draw a wall for the selected room';
+      }
+    }
+
+    if (this.doorButton) {
+      this.doorButton.disabled = !hasFloors || !hasWalls;
+      if (!hasFloors) {
+        this.doorButton.title = 'Add a floor to enable door placement';
+      } else if (!hasWalls) {
+        this.doorButton.title = 'Draw or select a wall to place doors';
+      } else {
+        this.doorButton.title = 'Click a wall to place a door';
+      }
+    }
+
+    if (this.windowButton) {
+      this.windowButton.disabled = !hasFloors || !hasWalls;
+      if (!hasFloors) {
+        this.windowButton.title = 'Add a floor to enable window placement';
+      } else if (!hasWalls) {
+        this.windowButton.title = 'Draw or select a wall to place windows';
+      } else {
+        this.windowButton.title = 'Click a wall to place a window';
       }
     }
   }
@@ -1246,6 +1612,303 @@ export class BuildingPlanCanvas {
       });
       ctx.restore();
     }
+  }
+
+  getOpeningCollection(type) {
+    if (type === 'door') return Array.isArray(this.doors) ? this.doors : [];
+    if (type === 'window') return Array.isArray(this.windows) ? this.windows : [];
+    return [];
+  }
+
+  getOpeningById(type, id) {
+    if (!id) return null;
+    const collection = this.getOpeningCollection(type);
+    return collection.find((entry) => entry && entry.id === id) || null;
+  }
+
+  getOpeningGeometry(opening, overrides = {}) {
+    if (!opening) return null;
+    const wall = this.walls.find((entry) => entry.id === opening.wallId);
+    if (!wall) return null;
+
+    const wallPoints = this.getRenderedWallPoints(wall);
+    if (!Array.isArray(wallPoints) || wallPoints.length < 2) {
+      return null;
+    }
+
+    const segmentIndexRaw =
+      overrides.segmentIndex !== undefined ? overrides.segmentIndex : opening.segmentIndex || 0;
+    const segment = getSegmentPoints(wallPoints, segmentIndexRaw);
+    if (!segment) {
+      return null;
+    }
+
+    const startRatioRaw =
+      overrides.startRatio !== undefined ? overrides.startRatio : opening.startRatio || 0;
+    const endRatioRaw =
+      overrides.endRatio !== undefined ? overrides.endRatio : opening.endRatio || 0;
+
+    const startRatio = clamp(startRatioRaw, 0, 1);
+    const endRatio = clamp(Math.max(endRatioRaw, startRatio), 0, 1);
+    const spanRatio = clamp(endRatio - startRatio, 0, 1);
+
+    const segmentLength = distance(segment.start, segment.end);
+    const widthPixels = segmentLength * spanRatio;
+    const computedWidthMeters = lengthToMeters(widthPixels, this.gridSize);
+    const widthMeters = Number.isFinite(opening.width)
+      ? opening.width
+      : computedWidthMeters;
+
+    const startPoint = {
+      x: segment.start.x + (segment.end.x - segment.start.x) * startRatio,
+      y: segment.start.y + (segment.end.y - segment.start.y) * startRatio,
+    };
+    const endPoint = {
+      x: segment.start.x + (segment.end.x - segment.start.x) * endRatio,
+      y: segment.start.y + (segment.end.y - segment.start.y) * endRatio,
+    };
+    const centerPoint = {
+      x: (startPoint.x + endPoint.x) / 2,
+      y: (startPoint.y + endPoint.y) / 2,
+    };
+
+    const unit = segmentLength === 0
+      ? { x: 0, y: 0 }
+      : {
+          x: (segment.end.x - segment.start.x) / segmentLength,
+          y: (segment.end.y - segment.start.y) / segmentLength,
+        };
+    const perpendicular = { x: -unit.y, y: unit.x };
+
+    return {
+      opening,
+      wall,
+      segmentIndex: clamp(segmentIndexRaw, 0, wallPoints.length - 2),
+      startRatio,
+      endRatio,
+      spanRatio,
+      segmentLength,
+      widthPixels,
+      widthMeters,
+      computedWidthMeters,
+      startPoint,
+      endPoint,
+      centerPoint,
+      unit,
+      perpendicular,
+    };
+  }
+
+  drawOpening(opening, type) {
+    let overrides;
+    if (
+      this.openingDragState &&
+      this.openingDragState.type === type &&
+      this.openingDragState.openingId === opening.id &&
+      this.openingDragState.preview
+    ) {
+      overrides = this.openingDragState.preview;
+    }
+    const geometry = this.getOpeningGeometry(opening, overrides);
+    if (!geometry) return;
+
+    const ctx = this.ctx;
+    const isDoor = type === 'door';
+    const isSelected = isDoor
+      ? this.selectedDoorId === opening.id
+      : this.selectedWindowId === opening.id;
+    const strokeColor = isSelected ? OPENING_SELECTED_COLOR : isDoor ? DOOR_COLOR : WINDOW_COLOR;
+    const lineWidth = isDoor ? DOOR_LINE_WIDTH : WINDOW_LINE_WIDTH;
+
+    ctx.save();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(geometry.startPoint.x, geometry.startPoint.y);
+    ctx.lineTo(geometry.endPoint.x, geometry.endPoint.y);
+    ctx.stroke();
+    ctx.restore();
+
+    if (isSelected) {
+      this.drawOpeningHandles(geometry);
+    }
+  }
+
+  drawOpeningHandles(geometry) {
+    const ctx = this.ctx;
+    const handles = [geometry.startPoint, geometry.endPoint];
+    ctx.save();
+    ctx.fillStyle = OPENING_SELECTED_COLOR;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    handles.forEach((handlePoint) => {
+      ctx.beginPath();
+      ctx.arc(handlePoint.x, handlePoint.y, OPENING_HANDLE_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+    const center = geometry.centerPoint;
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = OPENING_SELECTED_COLOR;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, OPENING_HANDLE_RADIUS - 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  findOpeningHandle(point) {
+    const priority = [];
+    if (this.selectedDoorId) {
+      const door = this.getOpeningById('door', this.selectedDoorId);
+      if (door) priority.push({ type: 'door', opening: door });
+    }
+    if (this.selectedWindowId) {
+      const window = this.getOpeningById('window', this.selectedWindowId);
+      if (window) priority.push({ type: 'window', opening: window });
+    }
+    this.doors.forEach((door) => {
+      if (!priority.find((entry) => entry.opening.id === door.id)) {
+        priority.push({ type: 'door', opening: door });
+      }
+    });
+    this.windows.forEach((window) => {
+      if (!priority.find((entry) => entry.opening.id === window.id)) {
+        priority.push({ type: 'window', opening: window });
+      }
+    });
+
+    for (let i = 0; i < priority.length; i += 1) {
+      const { type, opening } = priority[i];
+      const geometry = this.getOpeningGeometry(opening);
+      if (!geometry) continue;
+      const startDist = distance(point, geometry.startPoint);
+      if (startDist <= OPENING_HANDLE_RADIUS) {
+        return { type, openingId: opening.id, handle: 'start', geometry };
+      }
+      const endDist = distance(point, geometry.endPoint);
+      if (endDist <= OPENING_HANDLE_RADIUS) {
+        return { type, openingId: opening.id, handle: 'end', geometry };
+      }
+      const centerDist = distance(point, geometry.centerPoint);
+      if (centerDist <= OPENING_HANDLE_RADIUS) {
+        return { type, openingId: opening.id, handle: 'center', geometry };
+      }
+    }
+
+    return null;
+  }
+
+  findOpeningNearPoint(point) {
+    const candidates = [];
+    if (this.selectedDoorId) {
+      const door = this.getOpeningById('door', this.selectedDoorId);
+      if (door) candidates.push({ type: 'door', opening: door });
+    }
+    if (this.selectedWindowId) {
+      const window = this.getOpeningById('window', this.selectedWindowId);
+      if (window) candidates.push({ type: 'window', opening: window });
+    }
+    this.doors.forEach((door) => {
+      if (!candidates.find((entry) => entry.opening.id === door.id)) {
+        candidates.push({ type: 'door', opening: door });
+      }
+    });
+    this.windows.forEach((window) => {
+      if (!candidates.find((entry) => entry.opening.id === window.id)) {
+        candidates.push({ type: 'window', opening: window });
+      }
+    });
+
+    let bestMatch = null;
+    let bestDistance = OPENING_HIT_TOLERANCE;
+
+    candidates.forEach(({ type, opening }) => {
+      const geometry = this.getOpeningGeometry(opening);
+      if (!geometry || geometry.segmentLength === 0) return;
+      const dist = pointToSegmentDistance(point, geometry.startPoint, geometry.endPoint);
+      if (dist < bestDistance) {
+        bestDistance = dist;
+        bestMatch = { type, openingId: opening.id, geometry };
+      }
+    });
+
+    return bestMatch;
+  }
+
+  placeOpening(type, wallHit) {
+    const wall = wallHit?.wall;
+    if (!wall) return null;
+
+    const renderedPoints = this.getRenderedWallPoints(wall);
+    const segment = getSegmentPoints(renderedPoints, wallHit.segmentIndex || 0);
+    if (!segment) return null;
+
+    const segmentLength = distance(segment.start, segment.end);
+    if (segmentLength === 0) return null;
+
+    const defaultWidthMeters = type === 'door' ? DEFAULT_DOOR_WIDTH_M : DEFAULT_WINDOW_WIDTH_M;
+    const defaultHeightMeters = type === 'door' ? DEFAULT_DOOR_HEIGHT_M : DEFAULT_WINDOW_HEIGHT_M;
+    const defaultDistanceFromFloor =
+      type === 'window' ? DEFAULT_WINDOW_SILL_HEIGHT_M : undefined;
+
+    const desiredSpanPixels = metersToLength(defaultWidthMeters, this.gridSize);
+    let spanRatio = desiredSpanPixels / segmentLength;
+    if (!Number.isFinite(spanRatio) || spanRatio <= 0) {
+      spanRatio = MIN_OPENING_RATIO;
+    }
+    spanRatio = clamp(spanRatio, MIN_OPENING_RATIO, 0.9);
+    const appliedWidthMeters = lengthToMeters(segmentLength * spanRatio, this.gridSize);
+
+    const rawCenter = wallHit.ratio || 0.5;
+    const minCenter = spanRatio / 2;
+    const maxCenter = 1 - spanRatio / 2;
+    const centerRatio = clamp(rawCenter, minCenter, maxCenter);
+    const startRatio = clamp(centerRatio - spanRatio / 2, 0, 1 - spanRatio);
+    const endRatio = clamp(startRatio + spanRatio, 0, 1);
+
+    if (type === 'door' && this.controller && typeof this.controller.createDoor === 'function') {
+      const result = this.controller.createDoor(wall.id, {
+        segmentIndex: wallHit.segmentIndex || 0,
+        startRatio,
+        endRatio,
+        width: appliedWidthMeters,
+        height: defaultHeightMeters,
+      });
+      if (result) {
+        this.selectedDoorId = result.id;
+        this.selectedWindowId = null;
+        this.selectedWallId = wall.id;
+        if (typeof this.controller.focusDoor === 'function') {
+          this.controller.focusDoor(result.id);
+        }
+      }
+      return result;
+    }
+
+    if (type === 'window' && this.controller && typeof this.controller.createWindow === 'function') {
+      const result = this.controller.createWindow(wall.id, {
+        segmentIndex: wallHit.segmentIndex || 0,
+        startRatio,
+        endRatio,
+        width: appliedWidthMeters,
+        height: defaultHeightMeters,
+        distanceFromFloor: defaultDistanceFromFloor,
+      });
+      if (result) {
+        this.selectedWindowId = result.id;
+        this.selectedDoorId = null;
+        this.selectedWallId = wall.id;
+        if (typeof this.controller.focusWindow === 'function') {
+          this.controller.focusWindow(result.id);
+        }
+      }
+      return result;
+    }
+
+    return null;
   }
 
   drawDraftWall(start, end) {
