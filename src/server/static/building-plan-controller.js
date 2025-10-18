@@ -121,6 +121,10 @@ const DEFAULT_DOOR_HEIGHT = 2;
 const DEFAULT_WINDOW_WIDTH = 1.2;
 const DEFAULT_WINDOW_HEIGHT = 1.2;
 const DEFAULT_WINDOW_SILL_HEIGHT = 0.9;
+const DEFAULT_COLUMN_WIDTH = 0.3;
+const DEFAULT_COLUMN_HEIGHT = 3;
+const DEFAULT_BEAM_WIDTH = 0.25;
+const DEFAULT_BEAM_HEIGHT = 0.4;
 
 function roundCoordinate(value, decimals = ROUND_DECIMALS) {
   if (!Number.isFinite(value)) {
@@ -140,6 +144,13 @@ function roundPoint(point, decimals = ROUND_DECIMALS) {
 
 function roundVertices(vertices, decimals = ROUND_DECIMALS) {
   return Array.isArray(vertices) ? vertices.map((point) => roundPoint(point, decimals)) : [];
+}
+
+function distanceBetweenPoints(a, b) {
+  if (!a || !b) return 0;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 function stringifyValue(value) {
@@ -171,6 +182,8 @@ export class BuildingPlanController {
       floors: getRepeatableDataName(meta, 'floors', 'building_plan_floors'),
       rooms: getRepeatableDataName(meta, 'rooms', 'building_plan_rooms'),
       walls: getRepeatableDataName(meta, 'walls', 'room_walls'),
+      columns: getRepeatableDataName(meta, 'columns', 'room_columns'),
+      beams: getRepeatableDataName(meta, 'beams', 'room_beams'),
       doors: getRepeatableDataName(meta, 'doors', 'wall_doors'),
       windows: getRepeatableDataName(meta, 'windows', 'wall_windows'),
     };
@@ -181,6 +194,29 @@ export class BuildingPlanController {
       wallLabel: getFieldDataName(meta, 'walls', 'wall_label'),
       wallHeight: getFieldDataName(meta, 'walls', 'wall_height_m'),
       wallThickness: getFieldDataName(meta, 'walls', 'wall_thickness_m'),
+      column: {
+        label: getFieldDataName(meta, 'columns', 'column_identifier'),
+        width: getFieldDataName(meta, 'columns', 'column_cross_section_width_m'),
+        height: getFieldDataName(meta, 'columns', 'column_cross_section_height_m'),
+        vertical: getFieldDataName(meta, 'columns', 'column_height_m'),
+        centerU: getFieldDataName(meta, 'columns', 'column_center_u'),
+        centerV: getFieldDataName(meta, 'columns', 'column_center_v'),
+        wallSegmentIndex: getFieldDataName(meta, 'columns', 'column_wall_segment_index'),
+        wallRatio: getFieldDataName(meta, 'columns', 'column_wall_ratio'),
+      },
+      beam: {
+        label: getFieldDataName(meta, 'beams', 'beam_identifier'),
+        width: getFieldDataName(meta, 'beams', 'beam_cross_section_width_m'),
+        height: getFieldDataName(meta, 'beams', 'beam_cross_section_height_m'),
+        length: getFieldDataName(meta, 'beams', 'beam_length_m'),
+        startU: getFieldDataName(meta, 'beams', 'beam_start_u'),
+        startV: getFieldDataName(meta, 'beams', 'beam_start_v'),
+        endU: getFieldDataName(meta, 'beams', 'beam_end_u'),
+        endV: getFieldDataName(meta, 'beams', 'beam_end_v'),
+        wallSegmentIndex: getFieldDataName(meta, 'beams', 'beam_wall_segment_index'),
+        startRatio: getFieldDataName(meta, 'beams', 'beam_start_ratio'),
+        endRatio: getFieldDataName(meta, 'beams', 'beam_end_ratio'),
+      },
       door: {
         label: getFieldDataName(meta, 'doors', 'door_label'),
         width: getFieldDataName(meta, 'doors', 'door_width_m'),
@@ -222,6 +258,20 @@ export class BuildingPlanController {
           'room_walls'
         )
       : null;
+    this.columnSection = this.roomSection
+      ? this.resolveRepeatable(
+          this.roomSection.elements || [],
+          this.repeatableDataNames.columns,
+          'room_columns'
+        )
+      : null;
+    this.beamSection = this.roomSection
+      ? this.resolveRepeatable(
+          this.roomSection.elements || [],
+          this.repeatableDataNames.beams,
+          'room_beams'
+        )
+      : null;
     this.doorSection = this.wallSection
       ? this.resolveRepeatable(
           this.wallSection.elements || [],
@@ -246,6 +296,12 @@ export class BuildingPlanController {
     if (this.wallSection) {
       this.repeatableDataNames.walls = this.wallSection.data_name;
     }
+    if (this.columnSection) {
+      this.repeatableDataNames.columns = this.columnSection.data_name;
+    }
+    if (this.beamSection) {
+      this.repeatableDataNames.beams = this.beamSection.data_name;
+    }
     if (this.doorSection) {
       this.repeatableDataNames.doors = this.doorSection.data_name;
     }
@@ -262,6 +318,12 @@ export class BuildingPlanController {
     this.wallKey = this.wallSection
       ? this.formRenderer.getPreferredKey(this.wallSection)
       : getRepeatablePreferredKey(meta, 'walls', null);
+    this.columnKey = this.columnSection
+      ? this.formRenderer.getPreferredKey(this.columnSection)
+      : getRepeatablePreferredKey(meta, 'columns', null);
+    this.beamKey = this.beamSection
+      ? this.formRenderer.getPreferredKey(this.beamSection)
+      : getRepeatablePreferredKey(meta, 'beams', null);
     this.doorKey = this.doorSection
       ? this.formRenderer.getPreferredKey(this.doorSection)
       : getRepeatablePreferredKey(meta, 'doors', null);
@@ -271,6 +333,8 @@ export class BuildingPlanController {
 
     this.rooms = new Map();
     this.walls = new Map();
+    this.columns = new Map();
+    this.beams = new Map();
     this.doors = new Map();
     this.windows = new Map();
     this.roomColors = new Map();
@@ -306,7 +370,15 @@ export class BuildingPlanController {
     if (!detail) return;
 
     const relevantKeys = new Set(
-      [this.roomKey, this.wallKey, this.floorKey, this.doorKey, this.windowKey].filter(
+      [
+        this.roomKey,
+        this.wallKey,
+        this.columnKey,
+        this.beamKey,
+        this.floorKey,
+        this.doorKey,
+        this.windowKey,
+      ].filter(
         (value) => typeof value === 'string' && value !== ''
       )
     );
@@ -339,6 +411,10 @@ export class BuildingPlanController {
         this.autoPopulateRoom(detail.instancePath);
       } else if (detail.sectionKey === this.wallKey) {
         this.autoPopulateWall(detail.instancePath);
+      } else if (detail.sectionKey === this.columnKey) {
+        this.autoPopulateColumn(detail.instancePath);
+      } else if (detail.sectionKey === this.beamKey) {
+        this.autoPopulateBeam(detail.instancePath);
       } else if (detail.sectionKey === this.doorKey) {
         this.autoPopulateDoor(detail.instancePath);
       } else if (detail.sectionKey === this.windowKey) {
@@ -526,9 +602,12 @@ export class BuildingPlanController {
       roomId: roomId,
       floorIndex: roomInfo.floorIndex ?? this.activeFloorIndex,
       path: wallPath,
+      index: wallIndex,
       points: cloneVertices(roundedPoints),
       doors: [],
       windows: [],
+      label: '',
+      displayLabel: `W#${wallIndex + 1}`,
     };
     this.walls.set(wallId, provisionalWall);
     this.emitUpdate();
@@ -548,6 +627,470 @@ export class BuildingPlanController {
     this.setFieldValueWithoutState(wallThicknessField, wallPath, null);
 
     return provisionalWall;
+  }
+
+  createColumn(
+    roomId,
+    {
+      centerU = 0.5,
+      centerV = 0.5,
+      width = DEFAULT_COLUMN_WIDTH,
+      height = DEFAULT_COLUMN_WIDTH,
+      vertical = DEFAULT_COLUMN_HEIGHT,
+      wallSegmentIndex = -1,
+      wallRatio = 0,
+      label = '',
+      triggerEngineUpdate = true,
+    } = {}
+  ) {
+    if (!this.columnSection) {
+      console.warn('[BuildingPlan] Column repeatable definition missing');
+      return null;
+    }
+    const roomInfo = this.rooms.get(roomId);
+    if (!roomInfo) {
+      console.warn('[BuildingPlan] Cannot create column: room not found', roomId);
+      return null;
+    }
+
+    this.formRenderer.addRepeatableInstance(this.columnSection, roomInfo.path, {
+      clearNewInstanceValues: true,
+      clearNewInstanceRepeatable: true,
+    });
+    const columnInstances = this.formRenderer.getRepeatableInstances(this.columnSection, roomInfo.path) || [];
+    const columnIndex = columnInstances.length - 1;
+    const columnInstance = columnInstances[columnIndex];
+    const columnPath = [...roomInfo.path, { key: this.columnKey, index: columnIndex }];
+    const columnId = columnInstance?.id || `${this.formRenderer.formatContextPath(columnPath)}`;
+    const columnFields = this.fieldNames.column;
+
+    const sanitizedCenterU = clamp(roundCoordinate(toNumber(centerU, 0.5)), 0, 1);
+    const sanitizedCenterV = clamp(roundCoordinate(toNumber(centerV, 0.5)), 0, 1);
+    const sanitizedWidth = roundCoordinate(toNumber(width, DEFAULT_COLUMN_WIDTH));
+    const sanitizedHeight = roundCoordinate(toNumber(height, DEFAULT_COLUMN_WIDTH));
+    const sanitizedVertical = roundCoordinate(toNumber(vertical, DEFAULT_COLUMN_HEIGHT));
+    const sanitizedSegment = toInteger(wallSegmentIndex, -1);
+    const sanitizedRatio = clamp(roundCoordinate(toNumber(wallRatio, 0)), 0, 1);
+    const resolvedLabel =
+      label && String(label).trim() !== ''
+        ? String(label).trim()
+        : `C#${columnInstances.length}`;
+
+    if (columnInstance) {
+      columnInstance.values = columnInstance.values || {};
+      columnInstance.values[columnFields.label] = resolvedLabel;
+      columnInstance.values[columnFields.width] = sanitizedWidth;
+      columnInstance.values[columnFields.height] = sanitizedHeight;
+      columnInstance.values[columnFields.vertical] = sanitizedVertical;
+      columnInstance.values[columnFields.centerU] = sanitizedCenterU;
+      columnInstance.values[columnFields.centerV] = sanitizedCenterV;
+      columnInstance.values[columnFields.wallSegmentIndex] = sanitizedSegment;
+      columnInstance.values[columnFields.wallRatio] = sanitizedRatio;
+    }
+
+    const provisionalColumn = {
+      id: columnId,
+      roomId,
+      floorIndex: roomInfo.floorIndex,
+      path: columnPath,
+      index: columnIndex,
+      width: sanitizedWidth,
+      height: sanitizedHeight,
+      vertical: sanitizedVertical,
+      centerU: sanitizedCenterU,
+      centerV: sanitizedCenterV,
+      wallSegmentIndex: sanitizedSegment,
+      wallRatio: sanitizedRatio,
+      label: resolvedLabel,
+      displayLabel: resolvedLabel,
+    };
+
+    this.columns.set(columnId, provisionalColumn);
+    this.emitUpdate();
+
+    this.setFieldValueWithoutState(columnFields.label, columnPath, resolvedLabel);
+    this.setFieldValueWithoutState(columnFields.width, columnPath, sanitizedWidth);
+    this.setFieldValueWithoutState(columnFields.height, columnPath, sanitizedHeight);
+    this.setFieldValueWithoutState(columnFields.vertical, columnPath, sanitizedVertical);
+    this.setFieldValueWithoutState(columnFields.centerV, columnPath, sanitizedCenterV);
+    this.setFieldValueWithoutState(columnFields.wallSegmentIndex, columnPath, sanitizedSegment);
+    this.setFieldValueWithoutState(columnFields.wallRatio, columnPath, sanitizedRatio);
+
+    this.queueFieldUpdate(
+      columnFields.centerU,
+      columnPath,
+      sanitizedCenterU,
+      () => {
+        this.syncFromState();
+        this.emitUpdate();
+      },
+      { triggerEngineUpdate }
+    );
+
+    return provisionalColumn;
+  }
+
+  updateColumn(
+    columnId,
+    updates = {},
+    { triggerEngineUpdate = true } = {}
+  ) {
+    const columnInfo = this.columns.get(columnId);
+    if (!columnInfo || !this.columnSection) {
+      return;
+    }
+
+    const columnFields = this.fieldNames.column;
+    const columnPath = columnInfo.path;
+    const parentPath = columnPath.slice(0, -1);
+    const columnIndex = columnPath[columnPath.length - 1]?.index ?? null;
+    const instances =
+      this.formRenderer.getRepeatableInstances(this.columnSection, parentPath) || [];
+    const columnInstance = columnIndex != null ? instances[columnIndex] : null;
+    if (columnInstance) {
+      columnInstance.values = columnInstance.values || {};
+    }
+
+    const nextWidth =
+      updates.width != null ? roundCoordinate(toNumber(updates.width, columnInfo.width)) : columnInfo.width;
+    const nextHeight =
+      updates.height != null
+        ? roundCoordinate(toNumber(updates.height, columnInfo.height))
+        : columnInfo.height;
+    const nextVertical =
+      updates.vertical != null
+        ? roundCoordinate(toNumber(updates.vertical, columnInfo.vertical))
+        : columnInfo.vertical;
+    const nextCenterU = updates.centerU != null
+      ? clamp(roundCoordinate(toNumber(updates.centerU, columnInfo.centerU)), 0, 1)
+      : columnInfo.centerU;
+    const nextCenterV = updates.centerV != null
+      ? clamp(roundCoordinate(toNumber(updates.centerV, columnInfo.centerV)), 0, 1)
+      : columnInfo.centerV;
+    const nextSegment = updates.wallSegmentIndex != null
+      ? toInteger(updates.wallSegmentIndex, columnInfo.wallSegmentIndex)
+      : columnInfo.wallSegmentIndex;
+    const nextRatio = updates.wallRatio != null
+      ? clamp(roundCoordinate(toNumber(updates.wallRatio, columnInfo.wallRatio)), 0, 1)
+      : columnInfo.wallRatio;
+    const nextLabel =
+      updates.label != null && String(updates.label).trim() !== ''
+        ? String(updates.label).trim()
+        : columnInfo.label;
+
+    columnInfo.width = nextWidth;
+    columnInfo.height = nextHeight;
+    columnInfo.vertical = nextVertical;
+    columnInfo.centerU = nextCenterU;
+    columnInfo.centerV = nextCenterV;
+    columnInfo.wallSegmentIndex = nextSegment;
+    columnInfo.wallRatio = nextRatio;
+    columnInfo.label = nextLabel;
+    columnInfo.displayLabel =
+      nextLabel && nextLabel.trim() !== ''
+        ? nextLabel
+        : `C#${(columnInfo.index ?? 0) + 1}`;
+
+    if (columnInstance) {
+      columnInstance.values[columnFields.label] = nextLabel;
+      columnInstance.values[columnFields.width] = nextWidth;
+      columnInstance.values[columnFields.height] = nextHeight;
+      columnInstance.values[columnFields.vertical] = nextVertical;
+      columnInstance.values[columnFields.centerU] = nextCenterU;
+      columnInstance.values[columnFields.centerV] = nextCenterV;
+      columnInstance.values[columnFields.wallSegmentIndex] = nextSegment;
+      columnInstance.values[columnFields.wallRatio] = nextRatio;
+    }
+
+    this.setFieldValueWithoutState(columnFields.label, columnPath, nextLabel);
+    this.setFieldValueWithoutState(columnFields.width, columnPath, nextWidth);
+    this.setFieldValueWithoutState(columnFields.height, columnPath, nextHeight);
+    this.setFieldValueWithoutState(columnFields.vertical, columnPath, nextVertical);
+    this.setFieldValueWithoutState(columnFields.centerV, columnPath, nextCenterV);
+    this.setFieldValueWithoutState(columnFields.wallSegmentIndex, columnPath, nextSegment);
+    this.setFieldValueWithoutState(columnFields.wallRatio, columnPath, nextRatio);
+
+    this.queueFieldUpdate(
+      columnFields.centerU,
+      columnPath,
+      nextCenterU,
+      () => {
+        this.syncFromState();
+        this.emitUpdate();
+      },
+      { triggerEngineUpdate }
+    );
+  }
+
+  removeColumn(columnId) {
+    if (!this.columnSection) return;
+    const columnInfo = this.columns.get(columnId);
+    if (!columnInfo) return;
+    const parentPath = columnInfo.path.slice(0, -1);
+    const indexDescriptor = columnInfo.path[columnInfo.path.length - 1];
+    if (!indexDescriptor) return;
+    this.formRenderer.removeRepeatableInstance(this.columnSection, parentPath, indexDescriptor.index);
+  }
+
+  createBeam(
+    roomId,
+    {
+      startU = 0.2,
+      startV = 0.3,
+      endU = 0.8,
+      endV = 0.3,
+      width = DEFAULT_BEAM_WIDTH,
+      height = DEFAULT_BEAM_HEIGHT,
+      wallSegmentIndex = -1,
+      startRatio = 0,
+      endRatio = 0,
+      label = '',
+      triggerEngineUpdate = true,
+    } = {}
+  ) {
+    if (!this.beamSection) {
+      console.warn('[BuildingPlan] Beam repeatable definition missing');
+      return null;
+    }
+    const roomInfo = this.rooms.get(roomId);
+    if (!roomInfo || !roomInfo.rect) {
+      console.warn('[BuildingPlan] Cannot create beam: room not found', roomId);
+      return null;
+    }
+
+    this.formRenderer.addRepeatableInstance(this.beamSection, roomInfo.path, {
+      clearNewInstanceValues: true,
+      clearNewInstanceRepeatable: true,
+    });
+    const beamInstances = this.formRenderer.getRepeatableInstances(this.beamSection, roomInfo.path) || [];
+    const beamIndex = beamInstances.length - 1;
+    const beamInstance = beamInstances[beamIndex];
+    const beamPath = [...roomInfo.path, { key: this.beamKey, index: beamIndex }];
+    const beamId = beamInstance?.id || `${this.formRenderer.formatContextPath(beamPath)}`;
+    const beamFields = this.fieldNames.beam;
+
+    const sanitizedStartU = clamp(roundCoordinate(toNumber(startU, 0.2)), 0, 1);
+    const sanitizedStartV = clamp(roundCoordinate(toNumber(startV, 0.3)), 0, 1);
+    const sanitizedEndU = clamp(roundCoordinate(toNumber(endU, 0.8)), 0, 1);
+    const sanitizedEndV = clamp(roundCoordinate(toNumber(endV, sanitizedStartV)), 0, 1);
+    const sanitizedWidth = roundCoordinate(toNumber(width, DEFAULT_BEAM_WIDTH));
+    const sanitizedHeight = roundCoordinate(toNumber(height, DEFAULT_BEAM_HEIGHT));
+    const sanitizedSegment = toInteger(wallSegmentIndex, -1);
+    const sanitizedStartRatio = clamp(roundCoordinate(toNumber(startRatio, 0)), 0, 1);
+    const sanitizedEndRatio = clamp(roundCoordinate(toNumber(endRatio, 0)), 0, 1);
+    const resolvedLabel =
+      label && String(label).trim() !== ''
+        ? String(label).trim()
+        : `B#${beamInstances.length}`;
+
+    const startPoint = {
+      x: roomInfo.rect.x + sanitizedStartU * roomInfo.rect.width,
+      y: roomInfo.rect.y + sanitizedStartV * roomInfo.rect.height,
+    };
+    const endPoint = {
+      x: roomInfo.rect.x + sanitizedEndU * roomInfo.rect.width,
+      y: roomInfo.rect.y + sanitizedEndV * roomInfo.rect.height,
+    };
+    const lengthMeters = roundCoordinate(distanceBetweenPoints(startPoint, endPoint));
+
+    if (beamInstance) {
+      beamInstance.values = beamInstance.values || {};
+      beamInstance.values[beamFields.label] = resolvedLabel;
+      beamInstance.values[beamFields.width] = sanitizedWidth;
+      beamInstance.values[beamFields.height] = sanitizedHeight;
+      beamInstance.values[beamFields.startU] = sanitizedStartU;
+      beamInstance.values[beamFields.startV] = sanitizedStartV;
+      beamInstance.values[beamFields.endU] = sanitizedEndU;
+      beamInstance.values[beamFields.endV] = sanitizedEndV;
+      beamInstance.values[beamFields.wallSegmentIndex] = sanitizedSegment;
+      beamInstance.values[beamFields.startRatio] = sanitizedStartRatio;
+      beamInstance.values[beamFields.endRatio] = sanitizedEndRatio;
+      beamInstance.values[beamFields.length] = lengthMeters;
+    }
+
+    const provisionalBeam = {
+      id: beamId,
+      roomId,
+      floorIndex: roomInfo.floorIndex,
+      path: beamPath,
+      index: beamIndex,
+      width: sanitizedWidth,
+      height: sanitizedHeight,
+      startU: sanitizedStartU,
+      startV: sanitizedStartV,
+      endU: sanitizedEndU,
+      endV: sanitizedEndV,
+      wallSegmentIndex: sanitizedSegment,
+      startRatio: sanitizedStartRatio,
+      endRatio: sanitizedEndRatio,
+      length: lengthMeters,
+      label: resolvedLabel,
+      displayLabel: resolvedLabel,
+    };
+
+    this.beams.set(beamId, provisionalBeam);
+    this.emitUpdate();
+
+    this.setFieldValueWithoutState(beamFields.label, beamPath, resolvedLabel);
+    this.setFieldValueWithoutState(beamFields.width, beamPath, sanitizedWidth);
+    this.setFieldValueWithoutState(beamFields.height, beamPath, sanitizedHeight);
+    this.setFieldValueWithoutState(beamFields.startU, beamPath, sanitizedStartU);
+    this.setFieldValueWithoutState(beamFields.startV, beamPath, sanitizedStartV);
+    this.setFieldValueWithoutState(beamFields.endU, beamPath, sanitizedEndU);
+    this.setFieldValueWithoutState(beamFields.endV, beamPath, sanitizedEndV);
+    this.setFieldValueWithoutState(beamFields.wallSegmentIndex, beamPath, sanitizedSegment);
+    this.setFieldValueWithoutState(beamFields.startRatio, beamPath, sanitizedStartRatio);
+    this.setFieldValueWithoutState(beamFields.endRatio, beamPath, sanitizedEndRatio);
+    this.setFieldValueWithoutState(beamFields.length, beamPath, lengthMeters);
+
+    this.queueFieldUpdate(
+      beamFields.startU,
+      beamPath,
+      sanitizedStartU,
+      () => {
+        this.syncFromState();
+        this.emitUpdate();
+      },
+      { triggerEngineUpdate }
+    );
+
+    return provisionalBeam;
+  }
+
+  updateBeam(
+    beamId,
+    updates = {},
+    { triggerEngineUpdate = true } = {}
+  ) {
+    const beamInfo = this.beams.get(beamId);
+    if (!beamInfo || !this.beamSection) {
+      return;
+    }
+
+    const beamFields = this.fieldNames.beam;
+    const beamPath = beamInfo.path;
+    const parentPath = beamPath.slice(0, -1);
+    const beamIndex = beamPath[beamPath.length - 1]?.index ?? null;
+    const instances = this.formRenderer.getRepeatableInstances(this.beamSection, parentPath) || [];
+    const beamInstance = beamIndex != null ? instances[beamIndex] : null;
+    if (beamInstance) {
+      beamInstance.values = beamInstance.values || {};
+    }
+
+    const nextWidth =
+      updates.width != null ? roundCoordinate(toNumber(updates.width, beamInfo.width)) : beamInfo.width;
+    const nextHeight =
+      updates.height != null ? roundCoordinate(toNumber(updates.height, beamInfo.height)) : beamInfo.height;
+    const nextStartU =
+      updates.startU != null
+        ? clamp(roundCoordinate(toNumber(updates.startU, beamInfo.startU)), 0, 1)
+        : beamInfo.startU;
+    const nextStartV =
+      updates.startV != null
+        ? clamp(roundCoordinate(toNumber(updates.startV, beamInfo.startV)), 0, 1)
+        : beamInfo.startV;
+    const nextEndU =
+      updates.endU != null
+        ? clamp(roundCoordinate(toNumber(updates.endU, beamInfo.endU)), 0, 1)
+        : beamInfo.endU;
+    const nextEndV =
+      updates.endV != null
+        ? clamp(roundCoordinate(toNumber(updates.endV, beamInfo.endV)), 0, 1)
+        : beamInfo.endV;
+    const nextSegment =
+      updates.wallSegmentIndex != null
+        ? toInteger(updates.wallSegmentIndex, beamInfo.wallSegmentIndex)
+        : beamInfo.wallSegmentIndex;
+    const nextStartRatio =
+      updates.startRatio != null
+        ? clamp(roundCoordinate(toNumber(updates.startRatio, beamInfo.startRatio)), 0, 1)
+        : beamInfo.startRatio;
+    const nextEndRatio =
+      updates.endRatio != null
+        ? clamp(roundCoordinate(toNumber(updates.endRatio, beamInfo.endRatio)), 0, 1)
+        : beamInfo.endRatio;
+    const nextLabel =
+      updates.label != null && String(updates.label).trim() !== ''
+        ? String(updates.label).trim()
+        : beamInfo.label;
+
+    const roomInfo = this.rooms.get(beamInfo.roomId);
+    const startPoint = roomInfo
+      ? {
+          x: roomInfo.rect.x + nextStartU * roomInfo.rect.width,
+          y: roomInfo.rect.y + nextStartV * roomInfo.rect.height,
+        }
+      : { x: 0, y: 0 };
+    const endPoint = roomInfo
+      ? {
+          x: roomInfo.rect.x + nextEndU * roomInfo.rect.width,
+          y: roomInfo.rect.y + nextEndV * roomInfo.rect.height,
+        }
+      : { x: 0, y: 0 };
+    const nextLength = roundCoordinate(distanceBetweenPoints(startPoint, endPoint));
+
+    beamInfo.width = nextWidth;
+    beamInfo.height = nextHeight;
+    beamInfo.startU = nextStartU;
+    beamInfo.startV = nextStartV;
+    beamInfo.endU = nextEndU;
+    beamInfo.endV = nextEndV;
+    beamInfo.wallSegmentIndex = nextSegment;
+    beamInfo.startRatio = nextStartRatio;
+    beamInfo.endRatio = nextEndRatio;
+    beamInfo.length = nextLength;
+    beamInfo.label = nextLabel;
+    beamInfo.displayLabel =
+      nextLabel && nextLabel.trim() !== ''
+        ? nextLabel
+        : `B#${(beamInfo.index ?? 0) + 1}`;
+
+    if (beamInstance) {
+      beamInstance.values[beamFields.label] = nextLabel;
+      beamInstance.values[beamFields.width] = nextWidth;
+      beamInstance.values[beamFields.height] = nextHeight;
+      beamInstance.values[beamFields.startU] = nextStartU;
+      beamInstance.values[beamFields.startV] = nextStartV;
+      beamInstance.values[beamFields.endU] = nextEndU;
+      beamInstance.values[beamFields.endV] = nextEndV;
+      beamInstance.values[beamFields.wallSegmentIndex] = nextSegment;
+      beamInstance.values[beamFields.startRatio] = nextStartRatio;
+      beamInstance.values[beamFields.endRatio] = nextEndRatio;
+      beamInstance.values[beamFields.length] = nextLength;
+    }
+
+    this.setFieldValueWithoutState(beamFields.label, beamPath, nextLabel);
+    this.setFieldValueWithoutState(beamFields.width, beamPath, nextWidth);
+    this.setFieldValueWithoutState(beamFields.height, beamPath, nextHeight);
+    this.setFieldValueWithoutState(beamFields.startU, beamPath, nextStartU);
+    this.setFieldValueWithoutState(beamFields.startV, beamPath, nextStartV);
+    this.setFieldValueWithoutState(beamFields.endU, beamPath, nextEndU);
+    this.setFieldValueWithoutState(beamFields.endV, beamPath, nextEndV);
+    this.setFieldValueWithoutState(beamFields.wallSegmentIndex, beamPath, nextSegment);
+    this.setFieldValueWithoutState(beamFields.startRatio, beamPath, nextStartRatio);
+    this.setFieldValueWithoutState(beamFields.endRatio, beamPath, nextEndRatio);
+    this.setFieldValueWithoutState(beamFields.length, beamPath, nextLength);
+
+    this.queueFieldUpdate(
+      beamFields.startU,
+      beamPath,
+      nextStartU,
+      () => {
+        this.syncFromState();
+        this.emitUpdate();
+      },
+      { triggerEngineUpdate }
+    );
+  }
+
+  removeBeam(beamId) {
+    if (!this.beamSection) return;
+    const beamInfo = this.beams.get(beamId);
+    if (!beamInfo) return;
+    const parentPath = beamInfo.path.slice(0, -1);
+    const indexDescriptor = beamInfo.path[beamInfo.path.length - 1];
+    if (!indexDescriptor) return;
+    this.formRenderer.removeRepeatableInstance(this.beamSection, parentPath, indexDescriptor.index);
   }
 
   createDoor(
@@ -599,7 +1142,7 @@ export class BuildingPlanController {
     const sanitizedWidth = roundCoordinate(toNumber(width, DEFAULT_DOOR_WIDTH));
     const sanitizedHeight = roundCoordinate(toNumber(height, DEFAULT_DOOR_HEIGHT));
     const resolvedLabel =
-      label && String(label).trim() !== '' ? String(label).trim() : `Door #${doorIndex + 1}`;
+      label && String(label).trim() !== '' ? String(label).trim() : `D#${doorIndex + 1}`;
 
     if (doorInstance) {
       doorInstance.values = doorInstance.values || {};
@@ -710,7 +1253,7 @@ export class BuildingPlanController {
       toNumber(distanceFromFloor, DEFAULT_WINDOW_SILL_HEIGHT)
     );
     const resolvedLabel =
-      label && String(label).trim() !== '' ? String(label).trim() : `Window #${windowIndex + 1}`;
+      label && String(label).trim() !== '' ? String(label).trim() : `W#${windowIndex + 1}`;
 
     if (windowInstance) {
       windowInstance.values = windowInstance.values || {};
@@ -1097,6 +1640,32 @@ export class BuildingPlanController {
     highlightElement(container);
   }
 
+  focusColumn(columnId) {
+    const columnInfo = this.columns.get(columnId);
+    if (!columnInfo) return;
+    if (
+      this.formRenderer &&
+      typeof this.formRenderer.ensureRepeatablePathExpanded === 'function'
+    ) {
+      this.formRenderer.ensureRepeatablePathExpanded(columnInfo.path);
+    }
+    const container = this.formRenderer.getRepeatableInstanceContainer(columnInfo.path);
+    highlightElement(container);
+  }
+
+  focusBeam(beamId) {
+    const beamInfo = this.beams.get(beamId);
+    if (!beamInfo) return;
+    if (
+      this.formRenderer &&
+      typeof this.formRenderer.ensureRepeatablePathExpanded === 'function'
+    ) {
+      this.formRenderer.ensureRepeatablePathExpanded(beamInfo.path);
+    }
+    const container = this.formRenderer.getRepeatableInstanceContainer(beamInfo.path);
+    highlightElement(container);
+  }
+
   focusDoor(doorId) {
     const doorInfo = this.doors.get(doorId);
     if (!doorInfo) return;
@@ -1130,6 +1699,12 @@ export class BuildingPlanController {
     const activeWalls = Array.from(this.walls.values()).filter(
       (wall) => wall.floorIndex === this.activeFloorIndex
     );
+    const activeColumns = Array.from(this.columns.values()).filter(
+      (column) => column.floorIndex === this.activeFloorIndex
+    );
+    const activeBeams = Array.from(this.beams.values()).filter(
+      (beam) => beam.floorIndex === this.activeFloorIndex
+    );
     const activeDoors = Array.from(this.doors.values()).filter(
       (door) => door.floorIndex === this.activeFloorIndex
     );
@@ -1147,17 +1722,54 @@ export class BuildingPlanController {
       rooms: activeRooms.map((room) => ({
         id: room.id,
         path: room.path,
+        index: room.index,
         vertices: cloneVertices(room.vertices),
         rect: { ...room.rect },
         color: room.color,
+        displayLabel: room.displayLabel || (typeof room.index === 'number' ? `R#${room.index + 1}` : null),
       })),
       walls: activeWalls.map((wall) => ({
         id: wall.id,
         roomId: wall.roomId,
         path: wall.path,
+        index: wall.index,
         points: cloneVertices(wall.points),
         doors: Array.isArray(wall.doors) ? [...wall.doors] : [],
         windows: Array.isArray(wall.windows) ? [...wall.windows] : [],
+        displayLabel: wall.displayLabel || wall.label || null,
+      })),
+      columns: activeColumns.map((column) => ({
+        id: column.id,
+        roomId: column.roomId,
+        path: column.path,
+        index: column.index,
+        width: column.width,
+        height: column.height,
+        vertical: column.vertical,
+        centerU: column.centerU,
+        centerV: column.centerV,
+        wallSegmentIndex: column.wallSegmentIndex,
+        wallRatio: column.wallRatio,
+        label: column.label,
+        displayLabel: column.displayLabel || column.label || null,
+      })),
+      beams: activeBeams.map((beam) => ({
+        id: beam.id,
+        roomId: beam.roomId,
+        path: beam.path,
+        index: beam.index,
+        width: beam.width,
+        height: beam.height,
+        startU: beam.startU,
+        startV: beam.startV,
+        endU: beam.endU,
+        endV: beam.endV,
+        wallSegmentIndex: beam.wallSegmentIndex,
+        startRatio: beam.startRatio,
+        endRatio: beam.endRatio,
+        length: beam.length,
+        label: beam.label,
+        displayLabel: beam.displayLabel || beam.label || null,
       })),
       doors: activeDoors.map((door) => ({
         id: door.id,
@@ -1241,6 +1853,8 @@ export class BuildingPlanController {
   syncFromState() {
     this.rooms.clear();
     this.walls.clear();
+    this.columns.clear();
+    this.beams.clear();
     this.doors.clear();
     this.windows.clear();
     this.floors = [];
@@ -1252,6 +1866,7 @@ export class BuildingPlanController {
 
     const roomVerticesField = this.fieldNames.roomVertices;
     const wallGeometryField = this.wallSection ? this.fieldNames.wallGeometry : null;
+    const wallLabelField = this.wallSection ? this.fieldNames.wallLabel : null;
     const doorFields = this.doorSection ? this.fieldNames.door : null;
     const windowFields = this.windowSection ? this.fieldNames.window : null;
 
@@ -1289,12 +1904,249 @@ export class BuildingPlanController {
           id: roomId,
           path: roomPath,
           floorIndex,
+          index: roomIndex,
           vertices,
           rect,
           color,
+          displayLabel: `R#${roomIndex + 1}`,
         });
 
-        if (!this.wallSection) return;
+        const columnFields = this.columnSection ? this.fieldNames.column : null;
+        const beamFields = this.beamSection ? this.fieldNames.beam : null;
+
+        if (this.columnSection && columnFields) {
+          const columnInstances =
+            this.formRenderer.getRepeatableInstances(this.columnSection, roomPath) || [];
+          columnInstances.forEach((columnInstance, columnIndex) => {
+            const columnPath = [...roomPath, { key: this.columnKey, index: columnIndex }];
+            const columnId =
+              columnInstance && columnInstance.id
+                ? columnInstance.id
+                : this.formRenderer.formatContextPath(columnPath);
+            if (!columnInstance.values || typeof columnInstance.values !== 'object') {
+              columnInstance.values = {};
+            }
+            const values = columnInstance.values;
+            const width = roundCoordinate(
+              toNumber(values[columnFields.width], DEFAULT_COLUMN_WIDTH)
+            );
+            const height = roundCoordinate(
+              toNumber(values[columnFields.height], DEFAULT_COLUMN_WIDTH)
+            );
+            const vertical = roundCoordinate(
+              toNumber(values[columnFields.vertical], DEFAULT_COLUMN_HEIGHT)
+            );
+            const centerU = clamp(
+              roundCoordinate(toNumber(values[columnFields.centerU], 0.5)),
+              0,
+              1
+            );
+            const centerV = clamp(
+              roundCoordinate(toNumber(values[columnFields.centerV], 0.5)),
+              0,
+              1
+            );
+            const wallSegmentIndex = toInteger(values[columnFields.wallSegmentIndex], -1);
+            const wallRatio = clamp(
+              roundCoordinate(toNumber(values[columnFields.wallRatio], 0)),
+              0,
+              1
+            );
+            const labelValue =
+              typeof values[columnFields.label] === 'string' ? values[columnFields.label] : '';
+
+            if (values[columnFields.centerU] !== centerU) {
+              values[columnFields.centerU] = centerU;
+              this.setFieldValueWithoutState(columnFields.centerU, columnPath, centerU);
+            }
+            if (values[columnFields.centerV] !== centerV) {
+              values[columnFields.centerV] = centerV;
+              this.setFieldValueWithoutState(columnFields.centerV, columnPath, centerV);
+            }
+            if (values[columnFields.wallSegmentIndex] !== wallSegmentIndex) {
+              values[columnFields.wallSegmentIndex] = wallSegmentIndex;
+              this.setFieldValueWithoutState(
+                columnFields.wallSegmentIndex,
+                columnPath,
+                wallSegmentIndex
+              );
+            }
+            if (values[columnFields.wallRatio] !== wallRatio) {
+              values[columnFields.wallRatio] = wallRatio;
+              this.setFieldValueWithoutState(columnFields.wallRatio, columnPath, wallRatio);
+            }
+
+            const displayLabel =
+              typeof labelValue === 'string' && labelValue.trim() !== ''
+                ? labelValue
+                : `C#${columnIndex + 1}`;
+
+            if (
+              !values[columnFields.label] ||
+              (typeof values[columnFields.label] === 'string' &&
+                values[columnFields.label].trim() === '')
+            ) {
+              values[columnFields.label] = displayLabel;
+            }
+
+            this.columns.set(columnId, {
+              id: columnId,
+              roomId,
+              floorIndex,
+              path: columnPath,
+              index: columnIndex,
+              width,
+              height,
+              vertical,
+              centerU,
+              centerV,
+              wallSegmentIndex,
+              wallRatio,
+              label: displayLabel,
+              displayLabel,
+            });
+          });
+        }
+
+        if (this.beamSection && beamFields) {
+          const beamInstances =
+            this.formRenderer.getRepeatableInstances(this.beamSection, roomPath) || [];
+          beamInstances.forEach((beamInstance, beamIndex) => {
+            const beamPath = [...roomPath, { key: this.beamKey, index: beamIndex }];
+            const beamId =
+              beamInstance && beamInstance.id
+                ? beamInstance.id
+                : this.formRenderer.formatContextPath(beamPath);
+            if (!beamInstance.values || typeof beamInstance.values !== 'object') {
+              beamInstance.values = {};
+            }
+            const values = beamInstance.values;
+
+            const width = roundCoordinate(
+              toNumber(values[beamFields.width], DEFAULT_BEAM_WIDTH)
+            );
+            const height = roundCoordinate(
+              toNumber(values[beamFields.height], DEFAULT_BEAM_HEIGHT)
+            );
+            const startU = clamp(
+              roundCoordinate(toNumber(values[beamFields.startU], 0.2)),
+              0,
+              1
+            );
+            const startV = clamp(
+              roundCoordinate(toNumber(values[beamFields.startV], 0.2)),
+              0,
+              1
+            );
+            const endU = clamp(
+              roundCoordinate(toNumber(values[beamFields.endU], 0.8)),
+              0,
+              1
+            );
+            const endV = clamp(
+              roundCoordinate(toNumber(values[beamFields.endV], 0.2)),
+              0,
+              1
+            );
+            const wallSegmentIndex = toInteger(values[beamFields.wallSegmentIndex], -1);
+            const startRatio = clamp(
+              roundCoordinate(toNumber(values[beamFields.startRatio], 0)),
+              0,
+              1
+            );
+            const endRatio = clamp(
+              roundCoordinate(toNumber(values[beamFields.endRatio], 0)),
+              0,
+              1
+            );
+            const labelValue =
+              typeof values[beamFields.label] === 'string' ? values[beamFields.label] : '';
+
+            const startPoint = {
+              x: rect.x + startU * rect.width,
+              y: rect.y + startV * rect.height,
+            };
+            const endPoint = {
+              x: rect.x + endU * rect.width,
+              y: rect.y + endV * rect.height,
+            };
+            const lengthMeters = roundCoordinate(distanceBetweenPoints(startPoint, endPoint));
+
+            if (values[beamFields.startU] !== startU) {
+              values[beamFields.startU] = startU;
+              this.setFieldValueWithoutState(beamFields.startU, beamPath, startU);
+            }
+            if (values[beamFields.startV] !== startV) {
+              values[beamFields.startV] = startV;
+              this.setFieldValueWithoutState(beamFields.startV, beamPath, startV);
+            }
+            if (values[beamFields.endU] !== endU) {
+              values[beamFields.endU] = endU;
+              this.setFieldValueWithoutState(beamFields.endU, beamPath, endU);
+            }
+            if (values[beamFields.endV] !== endV) {
+              values[beamFields.endV] = endV;
+              this.setFieldValueWithoutState(beamFields.endV, beamPath, endV);
+            }
+            if (values[beamFields.wallSegmentIndex] !== wallSegmentIndex) {
+              values[beamFields.wallSegmentIndex] = wallSegmentIndex;
+              this.setFieldValueWithoutState(
+                beamFields.wallSegmentIndex,
+                beamPath,
+                wallSegmentIndex
+              );
+            }
+            if (values[beamFields.startRatio] !== startRatio) {
+              values[beamFields.startRatio] = startRatio;
+              this.setFieldValueWithoutState(beamFields.startRatio, beamPath, startRatio);
+            }
+            if (values[beamFields.endRatio] !== endRatio) {
+              values[beamFields.endRatio] = endRatio;
+              this.setFieldValueWithoutState(beamFields.endRatio, beamPath, endRatio);
+            }
+            if (values[beamFields.length] !== lengthMeters) {
+              values[beamFields.length] = lengthMeters;
+              this.setFieldValueWithoutState(beamFields.length, beamPath, lengthMeters);
+            }
+
+            const displayLabel =
+              typeof labelValue === 'string' && labelValue.trim() !== ''
+                ? labelValue
+                : `B#${beamIndex + 1}`;
+
+            if (
+              !values[beamFields.label] ||
+              (typeof values[beamFields.label] === 'string' &&
+                values[beamFields.label].trim() === '')
+            ) {
+              values[beamFields.label] = displayLabel;
+            }
+
+            this.beams.set(beamId, {
+              id: beamId,
+              roomId,
+              floorIndex,
+              path: beamPath,
+              index: beamIndex,
+              width,
+              height,
+              startU,
+              startV,
+              endU,
+              endV,
+              wallSegmentIndex,
+              startRatio,
+              endRatio,
+              length: lengthMeters,
+              label: displayLabel,
+              displayLabel,
+            });
+          });
+        }
+
+        if (!this.wallSection || !wallGeometryField) {
+          return;
+        }
 
         const wallInstances = this.formRenderer.getRepeatableInstances(this.wallSection, roomPath) || [];
 
@@ -1306,14 +2158,26 @@ export class BuildingPlanController {
               ? wallInstance.id
               : this.formRenderer.formatContextPath(wallPath);
 
+          const wallLabelValue =
+            wallLabelField && wallInstance?.values
+              ? wallInstance.values[wallLabelField]
+              : '';
+          const displayLabel =
+            typeof wallLabelValue === 'string' && wallLabelValue.trim() !== ''
+              ? wallLabelValue
+              : `W#${wallIndex + 1}`;
+
           const wallEntry = {
             id: wallId,
             roomId,
             floorIndex,
             path: wallPath,
+            index: wallIndex,
             points,
             doors: [],
             windows: [],
+            label: displayLabel,
+            displayLabel,
           };
 
           this.walls.set(wallId, wallEntry);
@@ -1475,8 +2339,8 @@ export class BuildingPlanController {
             });
           }
         });
-      });
-    });
+      }); // end roomInstances.forEach
+    }); // end floorInstances.forEach
 
     if (this.floors.length === 0) {
       this.activeFloorIndex = 0;
@@ -1655,6 +2519,83 @@ export class BuildingPlanController {
     );
   }
 
+  autoPopulateColumn(instancePath) {
+    if (!this.columnSection) return;
+    const columnFields = this.fieldNames.column;
+    if (!columnFields) return;
+    const roomPath = instancePath.slice(0, -1);
+    const room = this.findRoomByPath(roomPath);
+    if (!room || !room.rect) return;
+
+    const columnInstances = this.formRenderer.getRepeatableInstances(this.columnSection, roomPath) || [];
+    const instanceIndex = instancePath[instancePath.length - 1]?.index ?? columnInstances.length - 1;
+    const normalizedOffset = (instanceIndex % 3) / 3;
+    const centerU = roundCoordinate(clamp(0.25 + normalizedOffset * 0.5, 0.1, 0.9));
+    const centerV = roundCoordinate(clamp(0.3 + ((instanceIndex % 2) * 0.3), 0.1, 0.9));
+    const label = `C#${columnInstances.length}`;
+
+    this.setFieldValueWithoutState(columnFields.label, instancePath, label);
+    this.setFieldValueWithoutState(columnFields.width, instancePath, DEFAULT_COLUMN_WIDTH);
+    this.setFieldValueWithoutState(columnFields.height, instancePath, DEFAULT_COLUMN_WIDTH);
+    this.setFieldValueWithoutState(columnFields.vertical, instancePath, DEFAULT_COLUMN_HEIGHT);
+    this.setFieldValueWithoutState(columnFields.centerU, instancePath, centerU);
+    this.setFieldValueWithoutState(columnFields.centerV, instancePath, centerV);
+    this.setFieldValueWithoutState(columnFields.wallSegmentIndex, instancePath, -1);
+    this.setFieldValueWithoutState(columnFields.wallRatio, instancePath, 0);
+
+    if (this.formStateManager && typeof this.formStateManager.updateFormState === 'function') {
+      this.formStateManager.updateFormState();
+    }
+    this.syncFromState();
+    this.emitUpdate();
+  }
+
+  autoPopulateBeam(instancePath) {
+    if (!this.beamSection) return;
+    const beamFields = this.fieldNames.beam;
+    if (!beamFields) return;
+    const roomPath = instancePath.slice(0, -1);
+    const room = this.findRoomByPath(roomPath);
+    if (!room || !room.rect) return;
+
+    const beamInstances = this.formRenderer.getRepeatableInstances(this.beamSection, roomPath) || [];
+    const instanceIndex = instancePath[instancePath.length - 1]?.index ?? beamInstances.length - 1;
+    const baseY = 0.3 + (instanceIndex % 3) * 0.15;
+    const startU = roundCoordinate(0.2);
+    const endU = roundCoordinate(0.8);
+    const startV = roundCoordinate(clamp(baseY, 0.1, 0.9));
+    const endV = startV;
+    const label = `B#${beamInstances.length}`;
+
+    const startPoint = {
+      x: room.rect.x + startU * room.rect.width,
+      y: room.rect.y + startV * room.rect.height,
+    };
+    const endPoint = {
+      x: room.rect.x + endU * room.rect.width,
+      y: room.rect.y + endV * room.rect.height,
+    };
+    const lengthMeters = roundCoordinate(distanceBetweenPoints(startPoint, endPoint));
+
+    this.setFieldValueWithoutState(beamFields.label, instancePath, label);
+    this.setFieldValueWithoutState(beamFields.width, instancePath, DEFAULT_BEAM_WIDTH);
+    this.setFieldValueWithoutState(beamFields.height, instancePath, DEFAULT_BEAM_HEIGHT);
+    this.setFieldValueWithoutState(beamFields.startU, instancePath, startU);
+    this.setFieldValueWithoutState(beamFields.startV, instancePath, startV);
+    this.setFieldValueWithoutState(beamFields.endU, instancePath, endU);
+    this.setFieldValueWithoutState(beamFields.endV, instancePath, endV);
+    this.setFieldValueWithoutState(beamFields.wallSegmentIndex, instancePath, -1);
+    this.setFieldValueWithoutState(beamFields.startRatio, instancePath, 0);
+    this.setFieldValueWithoutState(beamFields.endRatio, instancePath, 0);
+    this.setFieldValueWithoutState(beamFields.length, instancePath, lengthMeters);
+
+    if (this.formStateManager && typeof this.formStateManager.updateFormState === 'function') {
+      this.formStateManager.updateFormState();
+    }
+    this.syncFromState();
+    this.emitUpdate();
+  }
+
   autoPopulateDoor(instancePath) {
     if (!this.doorSection) return;
     if (!Array.isArray(instancePath) || instancePath.length === 0) return;
@@ -1666,7 +2607,7 @@ export class BuildingPlanController {
     if (!wall) return;
 
     const siblings = this.formRenderer.getRepeatableInstances(this.doorSection, wallPath) || [];
-    const defaultLabel = `Door #${siblings.length}`;
+    const defaultLabel = `D#${siblings.length}`;
     const segmentCap = Math.max(0, (wall.points || []).length - 2);
     const defaultSegment = Math.max(0, Math.min(segmentCap, Math.floor(segmentCap / 2)));
     const defaultStart = 0.35;
@@ -1698,7 +2639,7 @@ export class BuildingPlanController {
     if (!wall) return;
 
     const siblings = this.formRenderer.getRepeatableInstances(this.windowSection, wallPath) || [];
-    const defaultLabel = `Window #${siblings.length}`;
+    const defaultLabel = `W#${siblings.length}`;
     const segmentCap = Math.max(0, (wall.points || []).length - 2);
     const defaultSegment = Math.max(0, Math.min(segmentCap, Math.floor(segmentCap / 2)));
     const defaultStart = 0.35;
@@ -1826,6 +2767,26 @@ export class BuildingPlanController {
     for (const window of this.windows.values()) {
       if (this.formRenderer.formatContextPath(window.path) === key) {
         return window;
+      }
+    }
+    return null;
+  }
+
+  findColumnByPath(instancePath) {
+    const key = this.formRenderer.formatContextPath(instancePath);
+    for (const column of this.columns.values()) {
+      if (this.formRenderer.formatContextPath(column.path) === key) {
+        return column;
+      }
+    }
+    return null;
+  }
+
+  findBeamByPath(instancePath) {
+    const key = this.formRenderer.formatContextPath(instancePath);
+    for (const beam of this.beams.values()) {
+      if (this.formRenderer.formatContextPath(beam.path) === key) {
+        return beam;
       }
     }
     return null;

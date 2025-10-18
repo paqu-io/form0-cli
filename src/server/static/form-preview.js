@@ -86,9 +86,24 @@ let createdAtTimestamp = null; // Simple client-side timestamps for preview
 let currentBuildingPlanMeta = [];
 
 const FIELD_KEY_MODE_STORAGE_KEY = 'form0-cli-field-key-mode';
+const LABEL_VISIBILITY_STORAGE_KEY = 'form0-cli-label-visibility';
+const DEFAULT_LABEL_VISIBILITY = {
+  rooms: true,
+  walls: true,
+  doors: true,
+  windows: true,
+  columns: true,
+  beams: true,
+};
+
 let currentFieldKeyMode = 'prefer-key';
 let pendingFieldKeyMode = 'prefer-key';
+
+let currentLabelVisibility = { ...DEFAULT_LABEL_VISIBILITY };
+let pendingLabelVisibility = { ...DEFAULT_LABEL_VISIBILITY };
+
 let settingsPreviouslyFocused = null;
+let settingsLabelCheckboxes = {};
 
 function loadFieldKeyModePreference() {
   try {
@@ -108,6 +123,40 @@ function persistFieldKeyModePreference(mode) {
     window.localStorage.setItem(FIELD_KEY_MODE_STORAGE_KEY, mode);
   } catch (err) {
     // Ignore storage errors (e.g., private browsing)
+  }
+}
+
+function loadLabelVisibilityPreference() {
+  try {
+    const stored = window.localStorage.getItem(LABEL_VISIBILITY_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed === 'object') {
+        currentLabelVisibility = { ...DEFAULT_LABEL_VISIBILITY, ...parsed };
+      }
+    }
+  } catch (err) {
+    currentLabelVisibility = { ...DEFAULT_LABEL_VISIBILITY };
+  }
+  pendingLabelVisibility = { ...currentLabelVisibility };
+  Object.entries(settingsLabelCheckboxes).forEach(([key, checkbox]) => {
+    if (checkbox) {
+      checkbox.checked = pendingLabelVisibility[key] !== false;
+    }
+  });
+  if (typeof formRenderer?.setLabelVisibilitySettings === 'function') {
+    formRenderer.setLabelVisibilitySettings(currentLabelVisibility);
+  }
+}
+
+function persistLabelVisibilityPreference(visibility) {
+  try {
+    window.localStorage.setItem(
+      LABEL_VISIBILITY_STORAGE_KEY,
+      JSON.stringify(visibility)
+    );
+  } catch (err) {
+    // Ignore storage errors
   }
 }
 
@@ -164,6 +213,60 @@ function ensureSettingsDialog() {
   body.appendChild(keyModeLabel);
   body.appendChild(settingsKeyModeSelect);
 
+  const labelGroup = document.createElement('div');
+  labelGroup.className = 'settings-group';
+
+  const labelGroupTitle = document.createElement('div');
+  labelGroupTitle.className = 'settings-group-title';
+  labelGroupTitle.textContent = 'Building Plan Labels';
+  labelGroup.appendChild(labelGroupTitle);
+
+  const labelDescription = document.createElement('div');
+  labelDescription.className = 'settings-group-description';
+  labelDescription.textContent = 'Toggle helper badges for each element type.';
+  labelGroup.appendChild(labelDescription);
+
+  const labelList = document.createElement('div');
+  labelList.className = 'settings-checkbox-list';
+
+  const labelOptions = [
+    { key: 'rooms', label: 'Rooms' },
+    { key: 'walls', label: 'Walls' },
+    { key: 'doors', label: 'Doors' },
+    { key: 'windows', label: 'Windows' },
+    { key: 'columns', label: 'Columns' },
+    { key: 'beams', label: 'Beams' },
+  ];
+
+  settingsLabelCheckboxes = {};
+
+  labelOptions.forEach(({ key, label }) => {
+    const checkboxId = `settings-label-${key}`;
+    const wrapper = document.createElement('label');
+    wrapper.className = 'settings-checkbox-item';
+    wrapper.setAttribute('for', checkboxId);
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = checkboxId;
+    checkbox.checked = pendingLabelVisibility[key] !== false;
+    checkbox.addEventListener('change', (event) => {
+      pendingLabelVisibility[key] = event.target.checked;
+    });
+
+    const span = document.createElement('span');
+    span.textContent = label;
+
+    wrapper.appendChild(checkbox);
+    wrapper.appendChild(span);
+    labelList.appendChild(wrapper);
+
+    settingsLabelCheckboxes[key] = checkbox;
+  });
+
+  labelGroup.appendChild(labelList);
+  body.appendChild(labelGroup);
+
   const footer = document.createElement('div');
   footer.className = 'settings-modal-footer';
 
@@ -215,6 +318,11 @@ function openSettingsDialog() {
   if (settingsKeyModeSelect) {
     settingsKeyModeSelect.value = pendingFieldKeyMode;
   }
+  Object.entries(settingsLabelCheckboxes).forEach(([key, checkbox]) => {
+    if (checkbox) {
+      checkbox.checked = pendingLabelVisibility[key] !== false;
+    }
+  });
   settingsPreviouslyFocused =
     document.activeElement && typeof document.activeElement.focus === 'function'
       ? document.activeElement
@@ -234,6 +342,12 @@ function closeSettingsDialog() {
   if (settingsKeyModeSelect) {
     settingsKeyModeSelect.value = currentFieldKeyMode;
   }
+  pendingLabelVisibility = { ...currentLabelVisibility };
+  Object.entries(settingsLabelCheckboxes).forEach(([key, checkbox]) => {
+    if (checkbox) {
+      checkbox.checked = pendingLabelVisibility[key] !== false;
+    }
+  });
   if (settingsPreviouslyFocused) {
     settingsPreviouslyFocused.focus();
   }
@@ -254,6 +368,18 @@ function handleSettingsKeyDown(event) {
 function saveSettingsDialog() {
   currentFieldKeyMode = pendingFieldKeyMode;
   persistFieldKeyModePreference(currentFieldKeyMode);
+
+  Object.entries(settingsLabelCheckboxes).forEach(([key, checkbox]) => {
+    if (checkbox) {
+      pendingLabelVisibility[key] = checkbox.checked;
+    }
+  });
+  currentLabelVisibility = { ...pendingLabelVisibility };
+  persistLabelVisibilityPreference(currentLabelVisibility);
+  if (typeof formRenderer.setLabelVisibilitySettings === 'function') {
+    formRenderer.setLabelVisibilitySettings(currentLabelVisibility);
+  }
+
   closeSettingsDialog();
 }
 
@@ -263,6 +389,8 @@ const formRenderer = new FormRenderer();
 const formStateManager = new FormStateManager(formRenderer);
 formRenderer.setStateManager(formStateManager);
 const operationProcessor = new OperationProcessor(formStateManager);
+
+loadLabelVisibilityPreference();
 
 /**
  * Trigger a form event
@@ -419,6 +547,7 @@ async function loadInitialSchema() {
 // Initialize application
 async function initialize() {
   loadFieldKeyModePreference();
+  loadLabelVisibilityPreference();
   // Load translations first
   await loadTranslations();
 

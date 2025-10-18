@@ -6,7 +6,7 @@ body {
 }
 
 .container { 
-    max-width: 1000px; 
+    max-width: 1250px; 
     margin: 0 auto; 
     background: white; 
     padding: 20px; 
@@ -610,6 +610,43 @@ body {
 .settings-modal-body select:focus {
   outline: none;
   border-color: #4a90e2;
+}
+
+.settings-group {
+  padding: 10px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.settings-group-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.settings-group-description {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.settings-checkbox-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.settings-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.settings-checkbox-item input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
 }
 
 .settings-modal-footer {

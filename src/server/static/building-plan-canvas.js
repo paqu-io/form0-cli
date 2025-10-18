@@ -3,6 +3,8 @@ const MODE_DRAW_ROOM = 'draw-room';
 const MODE_DRAW_WALL = 'draw-wall';
 const MODE_DRAW_DOOR = 'draw-door';
 const MODE_DRAW_WINDOW = 'draw-window';
+const MODE_DRAW_COLUMN = 'draw-column';
+const MODE_DRAW_BEAM = 'draw-beam';
 
 const DEFAULT_GRID_SIZE = 20;
 const SNAP_RADIUS = 10;
@@ -16,14 +18,37 @@ const DOOR_LINE_WIDTH = 6;
 const WINDOW_LINE_WIDTH = 6;
 const DOOR_COLOR = '#2b8a3e';
 const WINDOW_COLOR = '#1c7ed6';
+const COLUMN_COLOR = '#f59f00';
+const BEAM_COLOR = '#7048e8';
+const LABEL_BACKGROUND = '#ffffff';
+const LABEL_BORDER = '#2f3640';
+const LABEL_TEXT_COLOR = '#2f3640';
+const LABEL_FONT = '12px Inter, sans-serif';
+const LABEL_PADDING_X = 6;
+const LABEL_PADDING_Y = 4;
 const OPENING_SELECTED_COLOR = '#d12d2d';
+const STRUCTURAL_SELECTED_COLOR = '#d12d2d';
+const STRUCTURAL_SNAP_TOLERANCE = 14;
 const DEFAULT_DOOR_WIDTH_M = 0.9;
 const DEFAULT_DOOR_HEIGHT_M = 2;
 const DEFAULT_WINDOW_WIDTH_M = 1.2;
 const DEFAULT_WINDOW_HEIGHT_M = 1.2;
 const DEFAULT_WINDOW_SILL_HEIGHT_M = 0.9;
+const DEFAULT_COLUMN_WIDTH_M = 0.3;
+const DEFAULT_COLUMN_HEIGHT_M = 0.3;
+const DEFAULT_COLUMN_VERTICAL_HEIGHT_M = 3;
+const DEFAULT_BEAM_WIDTH_M = 0.25;
+const DEFAULT_BEAM_HEIGHT_M = 0.4;
 const MIN_OPENING_RATIO = 0.05;
 const ROUND_DECIMALS = 3;
+const DEFAULT_LABEL_SETTINGS = {
+  rooms: true,
+  walls: true,
+  doors: true,
+  windows: true,
+  columns: true,
+  beams: true,
+};
 
 function distance(a, b) {
   const dx = a.x - b.x;
@@ -83,6 +108,67 @@ function metersToLength(meters, gridSize = DEFAULT_GRID_SIZE) {
   return meters * gridSize;
 }
 
+function getRoomRatios(point, rect) {
+  if (!rect || rect.width === 0 || rect.height === 0) {
+    return { u: 0, v: 0 };
+  }
+  return {
+    u: clamp((point.x - rect.x) / rect.width, 0, 1),
+    v: clamp((point.y - rect.y) / rect.height, 0, 1),
+  };
+}
+
+function clampPointToRoom(point, rect) {
+  if (!rect) return { x: point.x, y: point.y };
+  return {
+    x: clamp(point.x, rect.x, rect.x + rect.width),
+    y: clamp(point.y, rect.y, rect.y + rect.height),
+  };
+}
+
+function pointInRect(point, rect) {
+  if (!rect) return false;
+  return (
+    point.x >= rect.x &&
+    point.x <= rect.x + rect.width &&
+    point.y >= rect.y &&
+    point.y <= rect.y + rect.height
+  );
+}
+
+function inflateRect(rect, amount) {
+  return {
+    x: rect.x - amount,
+    y: rect.y - amount,
+    width: rect.width + amount * 2,
+    height: rect.height + amount * 2,
+  };
+}
+
+function formatShortLabel(label, prefix, fallbackNumber = null, longPrefix = null) {
+  const upperPrefix = prefix ? String(prefix).toUpperCase() : '';
+  const expected = (longPrefix || prefix || '').toLowerCase();
+  if (typeof label === 'string' && label.trim() !== '') {
+    const trimmed = label.trim();
+    const lowerTrimmed = trimmed.toLowerCase();
+    const hashMatch = trimmed.match(/#\s*(\d+)/);
+    if (hashMatch && upperPrefix) {
+      return `${upperPrefix}#${hashMatch[1]}`;
+    }
+    if (expected && lowerTrimmed.startsWith(expected)) {
+      const numberMatch = trimmed.match(/(\d+)/);
+      if (numberMatch && upperPrefix) {
+        return `${upperPrefix}#${numberMatch[1]}`;
+      }
+    }
+    return trimmed;
+  }
+  if (fallbackNumber != null && upperPrefix) {
+    return `${upperPrefix}#${fallbackNumber}`;
+  }
+  return label || null;
+}
+
 function roundCoordinate(value, decimals = ROUND_DECIMALS) {
   if (!Number.isFinite(value)) {
     return 0;
@@ -114,15 +200,18 @@ function roundPoints(points, decimals = ROUND_DECIMALS) {
 }
 
 export class BuildingPlanCanvas {
-  constructor({ container, controller }) {
+  constructor({ container, controller, labelSettings = {} }) {
     this.container = container;
     this.controller = controller;
+    this.labelSettings = { ...DEFAULT_LABEL_SETTINGS, ...labelSettings };
 
     this.mode = MODE_SELECT;
     this.rooms = [];
     this.walls = [];
     this.doors = [];
     this.windows = [];
+    this.columns = [];
+    this.beams = [];
     this.floors = [];
     this.activeFloorIndex = 0;
     this.hasFloors = false;
@@ -130,12 +219,17 @@ export class BuildingPlanCanvas {
     this.selectedWallId = null;
     this.selectedDoorId = null;
     this.selectedWindowId = null;
+    this.selectedColumnId = null;
+    this.selectedBeamId = null;
 
     this.dragState = null;
     this.wallDragState = null;
     this.openingDragState = null;
+    this.columnDragState = null;
+    this.beamDragState = null;
     this.wallDraft = null;
     this.roomDraft = null;
+    this.beamDraft = null;
     this.hoverState = null;
 
     this.gridSize = DEFAULT_GRID_SIZE;
@@ -171,6 +265,25 @@ export class BuildingPlanCanvas {
     }
   }
 
+  setLabelSettings(settings = {}) {
+    const next = { ...DEFAULT_LABEL_SETTINGS, ...settings };
+    const changed = Object.keys(DEFAULT_LABEL_SETTINGS).some(
+      (key) => this.labelSettings[key] !== next[key]
+    );
+    this.labelSettings = next;
+    if (changed) {
+      this.render();
+    }
+  }
+
+  shouldShowLabel(type) {
+    if (!this.labelSettings) return true;
+    if (Object.prototype.hasOwnProperty.call(this.labelSettings, type)) {
+      return Boolean(this.labelSettings[type]);
+    }
+    return true;
+  }
+
   buildUI() {
     this.container.innerHTML = '';
     this.container.classList.add('building-plan-canvas-wrapper');
@@ -190,6 +303,8 @@ export class BuildingPlanCanvas {
     });
     this.roomButton = this.createToolbarButton('Draw Room', MODE_DRAW_ROOM);
     this.wallButton = this.createToolbarButton('Draw Wall', MODE_DRAW_WALL);
+    this.columnButton = this.createToolbarButton('Place Column', MODE_DRAW_COLUMN);
+    this.beamButton = this.createToolbarButton('Draw Beam', MODE_DRAW_BEAM);
     this.doorButton = this.createToolbarButton('Place Door', MODE_DRAW_DOOR);
     this.windowButton = this.createToolbarButton('Place Window', MODE_DRAW_WINDOW);
 
@@ -203,6 +318,8 @@ export class BuildingPlanCanvas {
     this.toolbar.appendChild(this.floorButton);
     this.toolbar.appendChild(this.roomButton);
     this.toolbar.appendChild(this.wallButton);
+    this.toolbar.appendChild(this.columnButton);
+    this.toolbar.appendChild(this.beamButton);
     this.toolbar.appendChild(this.doorButton);
     this.toolbar.appendChild(this.windowButton);
     this.toolbar.appendChild(this.clearButton);
@@ -258,6 +375,12 @@ export class BuildingPlanCanvas {
     if (mode === MODE_DRAW_WALL && this.wallButton && this.wallButton.disabled) {
       return;
     }
+    if (mode === MODE_DRAW_COLUMN && this.columnButton && this.columnButton.disabled) {
+      return;
+    }
+    if (mode === MODE_DRAW_BEAM && this.beamButton && this.beamButton.disabled) {
+      return;
+    }
     if (mode === MODE_DRAW_DOOR && this.doorButton && this.doorButton.disabled) {
       return;
     }
@@ -268,6 +391,12 @@ export class BuildingPlanCanvas {
     this.selectButton.classList.toggle('active', mode === MODE_SELECT);
     this.roomButton.classList.toggle('active', mode === MODE_DRAW_ROOM);
     this.wallButton.classList.toggle('active', mode === MODE_DRAW_WALL);
+    if (this.columnButton) {
+      this.columnButton.classList.toggle('active', mode === MODE_DRAW_COLUMN);
+    }
+    if (this.beamButton) {
+      this.beamButton.classList.toggle('active', mode === MODE_DRAW_BEAM);
+    }
     if (this.doorButton) {
       this.doorButton.classList.toggle('active', mode === MODE_DRAW_DOOR);
     }
@@ -276,9 +405,12 @@ export class BuildingPlanCanvas {
     }
     this.wallDraft = null;
     this.roomDraft = null;
+    this.beamDraft = null;
     this.dragState = null;
     this.wallDragState = null;
     this.openingDragState = null;
+    this.columnDragState = null;
+    this.beamDragState = null;
     this.hoverState = null;
     this.updateCursor();
     this.updateButtonStates();
@@ -305,6 +437,8 @@ export class BuildingPlanCanvas {
 
       this.rooms = snapshot.rooms || [];
       this.walls = snapshot.walls || [];
+      this.columns = snapshot.columns || [];
+      this.beams = snapshot.beams || [];
       this.doors = snapshot.doors || [];
       this.windows = snapshot.windows || [];
       this.floors = snapshot.floors || [];
@@ -334,6 +468,15 @@ export class BuildingPlanCanvas {
           !this.windows.find((window) => window.id === this.selectedWindowId)
         ) {
           this.selectedWindowId = null;
+        }
+        if (
+          this.selectedColumnId &&
+          !this.columns.find((column) => column.id === this.selectedColumnId)
+        ) {
+          this.selectedColumnId = null;
+        }
+        if (this.selectedBeamId && !this.beams.find((beam) => beam.id === this.selectedBeamId)) {
+          this.selectedBeamId = null;
         }
       }
 
@@ -369,6 +512,20 @@ export class BuildingPlanCanvas {
       return;
     }
 
+    if (this.columnDragState) {
+      this.canvas.style.cursor = 'grabbing';
+      return;
+    }
+
+    if (this.beamDragState) {
+      if (this.beamDragState.mode && this.beamDragState.mode.startsWith('resize')) {
+        this.canvas.style.cursor = 'ew-resize';
+      } else {
+        this.canvas.style.cursor = 'grabbing';
+      }
+      return;
+    }
+
     if (this.openingDragState) {
       if (this.openingDragState.handle === 'move') {
         this.canvas.style.cursor = 'grabbing';
@@ -395,6 +552,18 @@ export class BuildingPlanCanvas {
       this.canvas.style.cursor = 'grab';
       return;
     }
+    if (hover && hover.type === 'column') {
+      this.canvas.style.cursor = 'grab';
+      return;
+    }
+    if (hover && hover.type === 'beam-handle') {
+      this.canvas.style.cursor = 'ew-resize';
+      return;
+    }
+    if (hover && hover.type === 'beam') {
+      this.canvas.style.cursor = 'grab';
+      return;
+    }
 
     this.canvas.style.cursor = 'grab';
   }
@@ -411,8 +580,13 @@ export class BuildingPlanCanvas {
     this.selectedWallId = null;
     this.selectedDoorId = null;
     this.selectedWindowId = null;
+    this.selectedColumnId = null;
+    this.selectedBeamId = null;
     this.wallDragState = null;
     this.openingDragState = null;
+    this.columnDragState = null;
+    this.beamDragState = null;
+    this.beamDraft = null;
     this.hoverState = null;
     this.rooms.forEach((room) => {
       if (room.previewRect) delete room.previewRect;
@@ -434,6 +608,20 @@ export class BuildingPlanCanvas {
         }
       });
     }
+    if (Array.isArray(this.columns)) {
+      this.columns.forEach((column) => {
+        if (column.preview) {
+          delete column.preview;
+        }
+      });
+    }
+    if (Array.isArray(this.beams)) {
+      this.beams.forEach((beam) => {
+        if (beam.preview) {
+          delete beam.preview;
+        }
+      });
+    }
     this.updateCursor();
     this.updateButtonStates();
     this.render();
@@ -441,6 +629,68 @@ export class BuildingPlanCanvas {
 
   handleMouseDown(event) {
     const point = this.getCanvasPoint(event);
+
+    if (this.mode === MODE_DRAW_COLUMN) {
+      const room = this.findRoomAtPoint(point);
+      if (!room) {
+        return;
+      }
+      const roomRect = this.getRoomRect(room.id);
+      if (!roomRect) {
+        return;
+      }
+      let placementPoint = clampPointToRoom(point, roomRect);
+      let wallSegmentIndex = -1;
+      let wallRatio = 0;
+      const wallSnap = this.snapPointToWall(placementPoint, room.id);
+      if (wallSnap) {
+        placementPoint = wallSnap.point;
+        wallSegmentIndex = wallSnap.segmentIndex;
+        wallRatio = wallSnap.ratio;
+      }
+      const ratios = getRoomRatios(placementPoint, roomRect);
+      const created = this.controller?.createColumn?.(room.id, {
+        centerU: ratios.u,
+        centerV: ratios.v,
+        wallSegmentIndex,
+        wallRatio,
+        width: DEFAULT_COLUMN_WIDTH_M,
+        height: DEFAULT_COLUMN_HEIGHT_M,
+        vertical: DEFAULT_COLUMN_VERTICAL_HEIGHT_M,
+      });
+      if (created) {
+        this.selectedColumnId = created.id;
+        this.selectedBeamId = null;
+        this.selectedWallId = null;
+        this.selectedDoorId = null;
+        this.selectedWindowId = null;
+        if (typeof this.controller?.focusColumn === 'function') {
+          this.controller.focusColumn(created.id);
+        }
+      }
+      this.render();
+      return;
+    }
+
+    if (this.mode === MODE_DRAW_BEAM) {
+      const room = this.findRoomAtPoint(point);
+      if (!room) {
+        return;
+      }
+      const roomRect = this.getRoomRect(room.id);
+      if (!roomRect) {
+        return;
+      }
+      const startPoint = clampPointToRoom(point, roomRect);
+      this.beamDraft = {
+        roomId: room.id,
+        start: startPoint,
+        current: startPoint,
+      };
+      this.updateBeamDraft(startPoint);
+      this.render();
+      return;
+    }
 
     if (this.mode === MODE_DRAW_DOOR || this.mode === MODE_DRAW_WINDOW) {
       const wallHit = this.findWallNearPoint(point);
@@ -507,6 +757,111 @@ export class BuildingPlanCanvas {
         };
         this.setHoverState(null);
         this.controller?.focusWall(wall.id);
+        this.updateButtonStates();
+        this.updateCursor();
+        this.render();
+        return;
+      }
+
+      const columnHit = this.findColumnHit(point);
+      if (columnHit) {
+        const { column } = columnHit;
+        this.selectedColumnId = column.id;
+        this.selectedBeamId = null;
+        this.selectedWallId = null;
+        this.selectedDoorId = null;
+        this.selectedWindowId = null;
+        const center = column._renderCenter || { x: point.x, y: point.y };
+        this.columnDragState = {
+          columnId: column.id,
+          pointerStart: point,
+          offsetX: center.x - point.x,
+          offsetY: center.y - point.y,
+          moved: false,
+        };
+        this.setHoverState(null);
+        if (typeof this.controller?.focusColumn === 'function') {
+          this.controller.focusColumn(column.id);
+        }
+        this.updateButtonStates();
+        this.updateCursor();
+        this.render();
+        return;
+      }
+
+      const beamHandleHit = this.findBeamHandle(point);
+      if (beamHandleHit) {
+        const { beam, handle } = beamHandleHit;
+        this.selectedBeamId = beam.id;
+        this.selectedColumnId = null;
+        this.selectedWallId = null;
+        this.selectedDoorId = null;
+        this.selectedWindowId = null;
+        this.beamDragState = {
+          beamId: beam.id,
+          mode: handle === 'start' ? 'resize-start' : 'resize-end',
+          handle,
+          pointerStart: point,
+          roomId: beam.roomId,
+          original: {
+            startPoint: beam._renderStart ? { ...beam._renderStart } : null,
+            endPoint: beam._renderEnd ? { ...beam._renderEnd } : null,
+            startU: beam.startU,
+            startV: beam.startV,
+            endU: beam.endU,
+            endV: beam.endV,
+            width: beam.width,
+            height: beam.height,
+            wallSegmentIndex: beam.wallSegmentIndex,
+            startRatio: beam.startRatio,
+            endRatio: beam.endRatio,
+          },
+        };
+        this.setHoverState(null);
+        if (typeof this.controller?.focusBeam === 'function') {
+          this.controller.focusBeam(beam.id);
+        }
+        this.updateButtonStates();
+        this.updateCursor();
+        this.render();
+        return;
+      }
+
+      const beamHit = this.findBeamHit(point);
+      if (beamHit) {
+        const { beam } = beamHit;
+        this.selectedBeamId = beam.id;
+        this.selectedColumnId = null;
+        this.selectedWallId = null;
+        this.selectedDoorId = null;
+        this.selectedWindowId = null;
+        const roomRect = this.getRoomRect(beam.roomId);
+        const startPoint = beam._renderStart;
+        const endPoint = beam._renderEnd;
+        this.beamDragState = {
+          beamId: beam.id,
+          mode: 'move',
+          pointerStart: point,
+          roomId: beam.roomId,
+          original: {
+            startPoint: startPoint ? { ...startPoint } : null,
+            endPoint: endPoint ? { ...endPoint } : null,
+            startU: beam.startU,
+            startV: beam.startV,
+            endU: beam.endU,
+            endV: beam.endV,
+            width: beam.width,
+            height: beam.height,
+            wallSegmentIndex: beam.wallSegmentIndex,
+            startRatio: beam.startRatio,
+            endRatio: beam.endRatio,
+          },
+          roomRect,
+        };
+        this.setHoverState(null);
+        if (typeof this.controller?.focusBeam === 'function') {
+          this.controller.focusBeam(beam.id);
+        }
         this.updateButtonStates();
         this.updateCursor();
         this.render();
@@ -674,24 +1029,51 @@ export class BuildingPlanCanvas {
             wallId: wallHandle.wall.id,
           });
         } else {
-          const openingHandle = this.findOpeningHandle(point);
-          if (openingHandle) {
+          const columnHit = this.findColumnHit(point);
+          if (columnHit) {
             this.setHoverState({
-              type: 'opening-handle',
-              handle: openingHandle.handle,
-              openingType: openingHandle.type,
-              openingId: openingHandle.openingId,
+              type: 'column',
+              columnId: columnHit.column.id,
+              hit: columnHit.type,
             });
           } else {
-            const openingHit = this.findOpeningNearPoint(point);
-            if (openingHit) {
+            const beamHandle = this.findBeamHandle(point);
+            if (beamHandle) {
               this.setHoverState({
-                type: 'opening',
-                openingType: openingHit.type,
-                openingId: openingHit.openingId,
+                type: 'beam-handle',
+                beamId: beamHandle.beam.id,
+                handle: beamHandle.handle,
               });
             } else {
-              this.setHoverState(null);
+              const beamHit = this.findBeamHit(point);
+              if (beamHit) {
+                this.setHoverState({
+                  type: 'beam',
+                  beamId: beamHit.beam.id,
+                  hit: beamHit.type,
+                });
+              } else {
+                const openingHandle = this.findOpeningHandle(point);
+                if (openingHandle) {
+                  this.setHoverState({
+                    type: 'opening-handle',
+                    handle: openingHandle.handle,
+                    openingType: openingHandle.type,
+                    openingId: openingHandle.openingId,
+                  });
+                } else {
+                  const openingHit = this.findOpeningNearPoint(point);
+                  if (openingHit) {
+                    this.setHoverState({
+                      type: 'opening',
+                      openingType: openingHit.type,
+                      openingId: openingHit.openingId,
+                    });
+                  } else {
+                    this.setHoverState(null);
+                  }
+                }
+              }
             }
           }
         }
@@ -708,6 +1090,12 @@ export class BuildingPlanCanvas {
       const room = this.rooms.find((r) => r.id === this.wallDraft.roomId);
       if (!room) return;
       this.wallDraft.end = this.snapToRoomEdges(point, room);
+      this.render();
+      return;
+    }
+
+    if (this.mode === MODE_DRAW_BEAM && this.beamDraft) {
+      this.updateBeamDraft(point);
       this.render();
       return;
     }
@@ -873,6 +1261,106 @@ export class BuildingPlanCanvas {
       this.render();
       return;
     }
+
+    if (this.mode === MODE_SELECT && this.columnDragState) {
+      const state = this.columnDragState;
+      const column = this.columns.find((c) => c.id === state.columnId);
+      if (!column) return;
+      const roomRect = this.getRoomRect(column.roomId);
+      if (!roomRect) return;
+
+      const center = {
+        x: point.x + state.offsetX,
+        y: point.y + state.offsetY,
+      };
+      let clamped = clampPointToRoom(center, roomRect);
+      let wallSegmentIndex = -1;
+      let wallRatio = 0;
+      const wallSnap = this.snapPointToWall(clamped, column.roomId);
+      if (wallSnap) {
+        clamped = wallSnap.point;
+        wallSegmentIndex = wallSnap.segmentIndex;
+        wallRatio = wallSnap.ratio;
+      }
+      const ratios = getRoomRatios(clamped, roomRect);
+      column.preview = {
+        centerU: ratios.u,
+        centerV: ratios.v,
+        wallSegmentIndex,
+        wallRatio,
+      };
+      state.moved = true;
+      this.render();
+      return;
+    }
+
+    if (this.mode === MODE_SELECT && this.beamDragState) {
+      const state = this.beamDragState;
+      const beam = this.beams.find((b) => b.id === state.beamId);
+      if (!beam) return;
+      const roomRect = this.getRoomRect(state.roomId || beam.roomId);
+      if (!roomRect) return;
+
+      let startPoint;
+      let endPoint;
+
+      if (state.mode === 'move') {
+        const originalStartPoint =
+          state.original.startPoint || {
+            x: roomRect.x + state.original.startU * roomRect.width,
+            y: roomRect.y + state.original.startV * roomRect.height,
+          };
+        const originalEndPoint =
+          state.original.endPoint || {
+            x: roomRect.x + state.original.endU * roomRect.width,
+            y: roomRect.y + state.original.endV * roomRect.height,
+          };
+        const deltaX = point.x - state.pointerStart.x;
+        const deltaY = point.y - state.pointerStart.y;
+        startPoint = {
+          x: originalStartPoint.x + deltaX,
+          y: originalStartPoint.y + deltaY,
+        };
+        endPoint = {
+          x: originalEndPoint.x + deltaX,
+          y: originalEndPoint.y + deltaY,
+        };
+        startPoint = clampPointToRoom(startPoint, roomRect);
+        endPoint = clampPointToRoom(endPoint, roomRect);
+      } else if (state.mode === 'resize-start') {
+        const originalEndPoint = {
+          x: roomRect.x + state.original.endU * roomRect.width,
+          y: roomRect.y + state.original.endV * roomRect.height,
+        };
+        startPoint = clampPointToRoom(point, roomRect);
+        endPoint = originalEndPoint;
+      } else if (state.mode === 'resize-end') {
+        const originalStartPoint = {
+          x: roomRect.x + state.original.startU * roomRect.width,
+          y: roomRect.y + state.original.startV * roomRect.height,
+        };
+        startPoint = originalStartPoint;
+        endPoint = clampPointToRoom(point, roomRect);
+      } else {
+        return;
+      }
+
+      const preview = this.computeBeamPreview(beam.roomId, startPoint, endPoint);
+      if (preview) {
+        beam.preview = preview;
+        if (!state.moved) {
+          const diff = Math.abs(preview.startU - beam.startU) +
+            Math.abs(preview.startV - beam.startV) +
+            Math.abs(preview.endU - beam.endU) +
+            Math.abs(preview.endV - beam.endV);
+          if (diff > 0.0005) {
+            state.moved = true;
+          }
+        }
+      }
+      this.render();
+      return;
+    }
   }
 
   handleMouseUp(event) {
@@ -919,6 +1407,44 @@ export class BuildingPlanCanvas {
       this.updateCursor();
       this.updateButtonStates();
       this.render();
+      return;
+    }
+
+    if (this.mode === MODE_DRAW_BEAM && this.beamDraft) {
+      const draft = this.beamDraft;
+      if (draft.preview) {
+        const preview = draft.preview;
+        const startPoint = preview.startPoint;
+        const endPoint = preview.endPoint;
+        const length = startPoint && endPoint ? distance(startPoint, endPoint) : 0;
+        if (length > 5) {
+          const created = this.controller?.createBeam?.(draft.roomId, {
+            startU: preview.startU,
+            startV: preview.startV,
+            endU: preview.endU,
+            endV: preview.endV,
+            wallSegmentIndex: preview.wallSegmentIndex,
+            startRatio: preview.startRatio,
+            endRatio: preview.endRatio,
+            width: DEFAULT_BEAM_WIDTH_M,
+            height: DEFAULT_BEAM_HEIGHT_M,
+          });
+          if (created) {
+            this.selectedBeamId = created.id;
+            this.selectedColumnId = null;
+            this.selectedDoorId = null;
+            this.selectedWindowId = null;
+            this.selectedWallId = null;
+            if (typeof this.controller?.focusBeam === 'function') {
+              this.controller.focusBeam(created.id);
+            }
+          }
+        }
+      }
+      this.beamDraft = null;
+      this.render();
+      this.updateCursor();
+      this.updateButtonStates();
       return;
     }
 
@@ -984,6 +1510,57 @@ export class BuildingPlanCanvas {
       this.render();
       return;
     }
+
+    if (this.mode === MODE_SELECT && this.columnDragState) {
+      const state = this.columnDragState;
+      const column = this.columns.find((c) => c.id === state.columnId);
+      if (column) {
+        const preview = column.preview;
+        if (preview && state.moved) {
+          this.controller?.updateColumn?.(column.id, {
+            centerU: preview.centerU,
+            centerV: preview.centerV,
+            wallSegmentIndex: preview.wallSegmentIndex,
+            wallRatio: preview.wallRatio,
+          });
+        }
+        if (column.preview) {
+          delete column.preview;
+        }
+      }
+      this.columnDragState = null;
+      this.updateCursor();
+      this.updateButtonStates();
+      this.render();
+      return;
+    }
+
+    if (this.mode === MODE_SELECT && this.beamDragState) {
+      const state = this.beamDragState;
+      const beam = this.beams.find((b) => b.id === state.beamId);
+      if (beam) {
+        const preview = beam.preview;
+        if (preview && state.moved) {
+          this.controller?.updateBeam?.(beam.id, {
+            startU: preview.startU,
+            startV: preview.startV,
+            endU: preview.endU,
+            endV: preview.endV,
+            wallSegmentIndex: preview.wallSegmentIndex,
+            startRatio: preview.startRatio,
+            endRatio: preview.endRatio,
+          });
+        }
+        if (beam.preview) {
+          delete beam.preview;
+        }
+      }
+      this.beamDragState = null;
+      this.updateCursor();
+      this.updateButtonStates();
+      this.render();
+      return;
+    }
   }
 
   handleMouseLeave() {
@@ -992,6 +1569,9 @@ export class BuildingPlanCanvas {
     }
     if (this.mode === MODE_DRAW_WALL) {
       this.wallDraft = null;
+    }
+    if (this.mode === MODE_DRAW_BEAM) {
+      this.beamDraft = null;
     }
     if (this.mode === MODE_SELECT) {
       this.rooms.forEach((r) => delete r.previewRect);
@@ -1002,6 +1582,20 @@ export class BuildingPlanCanvas {
           delete wall.previewPoints;
         }
         this.wallDragState = null;
+      }
+      if (this.columnDragState) {
+        const column = this.columns.find((c) => c.id === this.columnDragState.columnId);
+        if (column && column.preview) {
+          delete column.preview;
+        }
+        this.columnDragState = null;
+      }
+      if (this.beamDragState) {
+        const beam = this.beams.find((b) => b.id === this.beamDragState.beamId);
+        if (beam && beam.preview) {
+          delete beam.preview;
+        }
+        this.beamDragState = null;
       }
       this.openingDragState = null;
       this.setHoverState(null);
@@ -1131,6 +1725,9 @@ export class BuildingPlanCanvas {
   findRoomAtPoint(point) {
     for (let i = this.rooms.length - 1; i >= 0; i -= 1) {
       const room = this.rooms[i];
+      if (room._labelRect && pointInRect(point, room._labelRect)) {
+        return room;
+      }
       const rect = room.previewRect || room.rect;
       if (!rect) continue;
       if (
@@ -1140,6 +1737,130 @@ export class BuildingPlanCanvas {
         point.y <= rect.y + rect.height
       ) {
         return room;
+      }
+    }
+    return null;
+  }
+
+  getRoomById(roomId) {
+    return this.rooms.find((room) => room.id === roomId) || null;
+  }
+
+  getRoomRect(roomId) {
+    const room = this.getRoomById(roomId);
+    if (!room) return null;
+    return room.previewRect || room.rect || null;
+  }
+
+  computeBeamPreview(roomId, startPoint, endPoint) {
+    const roomRect = this.getRoomRect(roomId);
+    if (!roomRect) return null;
+
+    let start = clampPointToRoom(startPoint, roomRect);
+    let end = clampPointToRoom(endPoint, roomRect);
+
+    const startSnap = this.snapPointToWall(start, roomId);
+    if (startSnap) {
+      start = startSnap.point;
+    }
+    const endSnap = this.snapPointToWall(end, roomId);
+    if (endSnap) {
+      end = endSnap.point;
+    }
+
+    const startRatios = getRoomRatios(start, roomRect);
+    const endRatios = getRoomRatios(end, roomRect);
+
+    let wallSegmentIndex = -1;
+    let startRatio = 0;
+    let endRatio = 1;
+
+    if (
+      startSnap &&
+      endSnap &&
+      startSnap.wallId === endSnap.wallId &&
+      startSnap.segmentIndex === endSnap.segmentIndex
+    ) {
+      wallSegmentIndex = startSnap.segmentIndex;
+      startRatio = startSnap.ratio;
+      endRatio = endSnap.ratio;
+    }
+
+    return {
+      startU: startRatios.u,
+      startV: startRatios.v,
+      endU: endRatios.u,
+      endV: endRatios.v,
+      wallSegmentIndex,
+      startRatio,
+      endRatio,
+      startPoint: start,
+      endPoint: end,
+    };
+  }
+
+  updateBeamDraft(point) {
+    if (!this.beamDraft) return;
+    const roomRect = this.getRoomRect(this.beamDraft.roomId);
+    if (!roomRect) return;
+    const current = clampPointToRoom(point, roomRect);
+    const preview = this.computeBeamPreview(this.beamDraft.roomId, this.beamDraft.start, current);
+    this.beamDraft.current = current;
+    this.beamDraft.preview = preview;
+  }
+
+  findColumnHit(point) {
+    const tolerance = OPENING_HIT_TOLERANCE;
+    for (let i = this.columns.length - 1; i >= 0; i -= 1) {
+      const column = this.columns[i];
+      if (!column) continue;
+      const rect = column._renderRect ? inflateRect(column._renderRect, tolerance / 2) : null;
+      const labelRect = column._labelRect;
+      if (labelRect && pointInRect(point, labelRect)) {
+        return { type: 'label', column };
+      }
+      if (rect && pointInRect(point, rect)) {
+        return { type: 'body', column };
+      }
+    }
+    return null;
+  }
+
+  findBeamHandle(point) {
+    const tolerance = OPENING_HANDLE_RADIUS + 2;
+    if (!Array.isArray(this.beams)) return null;
+    for (let i = 0; i < this.beams.length; i += 1) {
+      const beam = this.beams[i];
+      if (!beam) continue;
+      const start = beam._renderStart;
+      const end = beam._renderEnd;
+      if (start && distance(point, start) <= tolerance) {
+        return { beam, handle: 'start' };
+      }
+      if (end && distance(point, end) <= tolerance) {
+        return { beam, handle: 'end' };
+      }
+    }
+    return null;
+  }
+
+  findBeamHit(point) {
+    const tolerance = OPENING_HIT_TOLERANCE;
+    if (!Array.isArray(this.beams)) return null;
+    for (let i = this.beams.length - 1; i >= 0; i -= 1) {
+      const beam = this.beams[i];
+      if (!beam) continue;
+      const start = beam._renderStart;
+      const end = beam._renderEnd;
+      if (start && end) {
+        const dist = pointToSegmentDistance(point, start, end);
+        if (dist <= tolerance) {
+          return { type: 'segment', beam };
+        }
+      }
+      const labelRect = beam._labelRect;
+      if (labelRect && pointInRect(point, labelRect)) {
+        return { type: 'label', beam };
       }
     }
     return null;
@@ -1177,13 +1898,35 @@ export class BuildingPlanCanvas {
     return null;
   }
 
-  findWallNearPoint(point) {
+  findWallNearPoint(point, roomId = null) {
     let bestMatch = null;
     let bestDistance = WALL_HIT_TOLERANCE;
 
     this.walls.forEach((wall) => {
+      if (roomId && wall.roomId !== roomId) {
+        return;
+      }
       const renderedPoints = this.getRenderedWallPoints(wall);
       if (!Array.isArray(renderedPoints) || renderedPoints.length < 2) {
+        return;
+      }
+
+      if (wall._labelRect && pointInRect(point, wall._labelRect)) {
+        const start = renderedPoints[0];
+        const end = renderedPoints[renderedPoints.length - 1] || start;
+        bestDistance = 0;
+        bestMatch = {
+          wall,
+          segmentIndex: 0,
+          distance: 0,
+          ratio: 0.5,
+          closestPoint: start && end
+            ? {
+                x: (start.x + end.x) / 2,
+                y: (start.y + end.y) / 2,
+              }
+            : { x: point.x, y: point.y },
+        };
         return;
       }
 
@@ -1251,7 +1994,9 @@ export class BuildingPlanCanvas {
       prev.wallId === nextState.wallId &&
       prev.roomId === nextState.roomId &&
       prev.openingId === nextState.openingId &&
-      prev.openingType === nextState.openingType;
+      prev.openingType === nextState.openingType &&
+      prev.columnId === nextState.columnId &&
+      prev.beamId === nextState.beamId;
     if (same) return;
     if (!prev && !nextState) return;
     this.hoverState = nextState || null;
@@ -1362,11 +2107,18 @@ export class BuildingPlanCanvas {
 
     this.walls.forEach((wall) => this.drawWall(wall));
 
+    this.beams.forEach((beam) => this.drawBeam(beam));
+    this.columns.forEach((column) => this.drawColumn(column));
+
     this.doors.forEach((door) => this.drawOpening(door, 'door'));
     this.windows.forEach((window) => this.drawOpening(window, 'window'));
 
     if (this.wallDraft && this.wallDraft.start && this.wallDraft.end) {
       this.drawDraftWall(this.wallDraft.start, this.wallDraft.end);
+    }
+
+    if (this.beamDraft && this.beamDraft.preview) {
+      this.drawDraftBeam(this.beamDraft);
     }
 
     if (this.roomDraft) {
@@ -1381,6 +2133,208 @@ export class BuildingPlanCanvas {
     }
   }
 
+  computeLabelRect(text, anchor, { position = 'top', paddingX = LABEL_PADDING_X, paddingY = LABEL_PADDING_Y } = {}) {
+    if (!this.ctx || !text) return null;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.font = LABEL_FONT;
+    const metrics = ctx.measureText(text);
+    const textHeight = (metrics.actualBoundingBoxAscent || 8) + (metrics.actualBoundingBoxDescent || 4);
+    const width = metrics.width + paddingX * 2;
+    const height = textHeight + paddingY * 2;
+    let x = anchor.x - width / 2;
+    let y = anchor.y - height;
+    if (position === 'bottom') {
+      y = anchor.y;
+    } else if (position === 'center') {
+      y = anchor.y - height / 2;
+    }
+    ctx.restore();
+    return { x, y, width, height };
+  }
+
+  drawLabelBadge(text, anchor, options = {}) {
+    if (!this.ctx || !text) return null;
+    const ctx = this.ctx;
+    const rect = this.computeLabelRect(text, anchor, options);
+    if (!rect) return null;
+    ctx.save();
+    ctx.font = LABEL_FONT;
+    ctx.fillStyle = LABEL_BACKGROUND;
+    ctx.strokeStyle = LABEL_BORDER;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(rect.x, rect.y, rect.width, rect.height);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = LABEL_TEXT_COLOR;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, rect.x + rect.width / 2, rect.y + rect.height / 2);
+    ctx.restore();
+    return rect;
+  }
+
+  getColumnRenderInfo(column) {
+    const roomRect = this.getRoomRect(column.roomId);
+    if (!roomRect || roomRect.width === 0 || roomRect.height === 0) {
+      return null;
+    }
+    const preview = column.preview || null;
+    const centerU = preview ? preview.centerU : column.centerU;
+    const centerV = preview ? preview.centerV : column.centerV;
+    const widthMeters = preview && preview.width != null ? preview.width : column.width;
+    const heightMeters = preview && preview.height != null ? preview.height : column.height;
+    const wallSegmentIndex = preview && preview.wallSegmentIndex != null ? preview.wallSegmentIndex : column.wallSegmentIndex;
+    const wallRatio = preview && preview.wallRatio != null ? preview.wallRatio : column.wallRatio;
+
+    const center = {
+      x: roomRect.x + centerU * roomRect.width,
+      y: roomRect.y + centerV * roomRect.height,
+    };
+    const widthPx = Math.max(10, metersToLength(widthMeters || DEFAULT_COLUMN_WIDTH_M, this.gridSize));
+    const heightPx = Math.max(10, metersToLength(heightMeters || DEFAULT_COLUMN_HEIGHT_M, this.gridSize));
+    const rect = {
+      x: center.x - widthPx / 2,
+      y: center.y - heightPx / 2,
+      width: widthPx,
+      height: heightPx,
+    };
+    const baseLabel = column.displayLabel || column.label;
+    const label = formatShortLabel(
+      baseLabel,
+      'C',
+      typeof column.index === 'number' ? column.index + 1 : null,
+      'column'
+    );
+    const labelAnchor = { x: center.x, y: rect.y - 6 };
+
+    column._renderRect = rect;
+    column._renderCenter = center;
+    column._wallAttachment = { segmentIndex: wallSegmentIndex, ratio: wallRatio };
+
+    return { center, rect, label, labelAnchor, widthPx, heightPx };
+  }
+
+  drawColumn(column) {
+    column._renderRect = null;
+    column._labelRect = null;
+    const info = this.getColumnRenderInfo(column);
+    if (!info) return;
+    const ctx = this.ctx;
+    const isSelected = this.selectedColumnId === column.id;
+    ctx.save();
+    ctx.fillStyle = COLUMN_COLOR;
+    ctx.beginPath();
+    ctx.rect(info.rect.x, info.rect.y, info.rect.width, info.rect.height);
+    ctx.fill();
+    if (isSelected) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = STRUCTURAL_SELECTED_COLOR;
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    if (this.shouldShowLabel('columns') && info.label) {
+      const labelRect = this.drawLabelBadge(info.label, info.labelAnchor, { position: 'top' });
+      if (labelRect) {
+        column._labelRect = labelRect;
+      }
+    } else {
+      column._labelRect = null;
+    }
+  }
+
+  getBeamRenderInfo(beam) {
+    const roomRect = this.getRoomRect(beam.roomId);
+    if (!roomRect || roomRect.width === 0 || roomRect.height === 0) {
+      return null;
+    }
+    const preview = beam.preview || null;
+    const startU = preview ? preview.startU : beam.startU;
+    const startV = preview ? preview.startV : beam.startV;
+    const endU = preview ? preview.endU : beam.endU;
+    const endV = preview ? preview.endV : beam.endV;
+    const widthMeters = preview && preview.width != null ? preview.width : beam.width;
+    const heightMeters = preview && preview.height != null ? preview.height : beam.height;
+
+    const startPoint = {
+      x: roomRect.x + startU * roomRect.width,
+      y: roomRect.y + startV * roomRect.height,
+    };
+    const endPoint = {
+      x: roomRect.x + endU * roomRect.width,
+      y: roomRect.y + endV * roomRect.height,
+    };
+    const centerPoint = {
+      x: (startPoint.x + endPoint.x) / 2,
+      y: (startPoint.y + endPoint.y) / 2,
+    };
+    const lineWidth = Math.max(4, metersToLength(heightMeters || DEFAULT_BEAM_HEIGHT_M, this.gridSize));
+    const baseLabel = beam.displayLabel || beam.label;
+    const label = formatShortLabel(
+      baseLabel,
+      'B',
+      typeof beam.index === 'number' ? beam.index + 1 : null,
+      'beam'
+    );
+    const labelAnchor = { x: centerPoint.x, y: centerPoint.y - lineWidth - 6 };
+    beam._renderStart = startPoint;
+    beam._renderEnd = endPoint;
+
+    return { startPoint, endPoint, centerPoint, lineWidth, label, labelAnchor };
+  }
+
+  drawBeam(beam) {
+    beam._labelRect = null;
+    const info = this.getBeamRenderInfo(beam);
+    if (!info) return;
+    const ctx = this.ctx;
+    const isSelected = this.selectedBeamId === beam.id;
+    ctx.save();
+    ctx.strokeStyle = isSelected ? STRUCTURAL_SELECTED_COLOR : BEAM_COLOR;
+    ctx.lineWidth = info.lineWidth;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(info.startPoint.x, info.startPoint.y);
+    ctx.lineTo(info.endPoint.x, info.endPoint.y);
+    ctx.stroke();
+
+    if (isSelected) {
+      ctx.fillStyle = STRUCTURAL_SELECTED_COLOR;
+      ctx.beginPath();
+      ctx.arc(info.startPoint.x, info.startPoint.y, OPENING_HANDLE_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(info.endPoint.x, info.endPoint.y, OPENING_HANDLE_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    if (this.shouldShowLabel('beams') && info.label) {
+      const labelRect = this.drawLabelBadge(info.label, info.labelAnchor, { position: 'top' });
+      if (labelRect) {
+        beam._labelRect = labelRect;
+      }
+    } else {
+      beam._labelRect = null;
+    }
+  }
+
+  drawDraftBeam(draft) {
+    if (!draft || !draft.preview) return;
+    const preview = draft.preview;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = BEAM_COLOR;
+    ctx.lineWidth = Math.max(4, metersToLength(DEFAULT_BEAM_HEIGHT_M, this.gridSize));
+    ctx.beginPath();
+    ctx.moveTo(preview.startPoint.x, preview.startPoint.y);
+    ctx.lineTo(preview.endPoint.x, preview.endPoint.y);
+    ctx.stroke();
+    ctx.restore();
+  }
   renderFloorTabs() {
     if (!this.floorTabsContainer) return;
     this.floorTabsContainer.innerHTML = '';
@@ -1449,6 +2403,28 @@ export class BuildingPlanCanvas {
         this.wallButton.title = 'Select a room to draw walls';
       } else {
         this.wallButton.title = 'Draw a wall for the selected room';
+      }
+    }
+
+    if (this.columnButton) {
+      this.columnButton.disabled = !hasFloors || !hasSelectedRoom;
+      if (!hasFloors) {
+        this.columnButton.title = 'Add a floor to enable column placement';
+      } else if (!hasSelectedRoom) {
+        this.columnButton.title = 'Select a room to place columns';
+      } else {
+        this.columnButton.title = 'Click inside a room to place a column';
+      }
+    }
+
+    if (this.beamButton) {
+      this.beamButton.disabled = !hasFloors || !hasSelectedRoom;
+      if (!hasFloors) {
+        this.beamButton.title = 'Add a floor to enable beam drawing';
+      } else if (!hasSelectedRoom) {
+        this.beamButton.title = 'Select a room to draw beams';
+      } else {
+        this.beamButton.title = 'Click and drag inside a room to draw a beam';
       }
     }
 
@@ -1535,6 +2511,8 @@ export class BuildingPlanCanvas {
     const rect = room.previewRect || room.rect;
     if (!rect) return;
 
+    room._labelRect = null;
+
     const isSelected = this.selectedRoomId === room.id;
 
     ctx.save();
@@ -1569,6 +2547,27 @@ export class BuildingPlanCanvas {
     }
 
     ctx.restore();
+
+    if (this.shouldShowLabel('rooms')) {
+      const rawLabel =
+        room.displayLabel ||
+        (typeof room.index === 'number' ? `R#${room.index + 1}` : null);
+      const labelText = formatShortLabel(
+        rawLabel,
+        'R',
+        typeof room.index === 'number' ? room.index + 1 : null,
+        'room'
+      );
+      if (labelText) {
+        const labelAnchor = { x: rect.x + rect.width / 2, y: rect.y - 6 };
+        const labelRect = this.drawLabelBadge(labelText, labelAnchor, { position: 'top' });
+        if (labelRect) {
+          room._labelRect = labelRect;
+        }
+      }
+    } else {
+      room._labelRect = null;
+    }
   }
 
   drawDraftRoom(rect) {
@@ -1586,14 +2585,20 @@ export class BuildingPlanCanvas {
     const points = this.getRenderedWallPoints(wall);
     if (!Array.isArray(points) || points.length < 2) return;
     const start = points[0];
-    const end = points[1];
+    const end = points[points.length - 1] || points[0];
+
+    wall._renderStart = start ? { ...start } : null;
+    wall._renderEnd = end ? { ...end } : null;
+    wall._labelRect = null;
 
     ctx.save();
     ctx.strokeStyle = this.selectedWallId === wall.id ? '#d12d2d' : '#444';
     ctx.lineWidth = this.selectedWallId === wall.id ? 4 : 3;
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
-    ctx.lineTo(end.x, end.y);
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
     ctx.stroke();
     ctx.restore();
 
@@ -1611,6 +2616,36 @@ export class BuildingPlanCanvas {
         ctx.stroke();
       });
       ctx.restore();
+    }
+
+    if (this.shouldShowLabel('walls')) {
+      const rawLabel =
+        wall.displayLabel ||
+        wall.label ||
+        (typeof wall.index === 'number' ? `W#${wall.index + 1}` : null);
+      const labelText = formatShortLabel(
+        rawLabel,
+        'W',
+        typeof wall.index === 'number' ? wall.index + 1 : null,
+        'wall'
+      );
+      if (labelText && start && end) {
+        const anchor = {
+          x: (start.x + end.x) / 2,
+          y: (start.y + end.y) / 2,
+        };
+        const offset = ctx.lineWidth / 2 + 6;
+        const labelRect = this.drawLabelBadge(
+          labelText,
+          { x: anchor.x, y: anchor.y - offset },
+          { position: 'top' }
+        );
+        if (labelRect) {
+          wall._labelRect = labelRect;
+        }
+      }
+    } else {
+      wall._labelRect = null;
     }
   }
 
@@ -1700,6 +2735,7 @@ export class BuildingPlanCanvas {
   }
 
   drawOpening(opening, type) {
+    opening._labelRect = null;
     let overrides;
     if (
       this.openingDragState &&
@@ -1723,12 +2759,35 @@ export class BuildingPlanCanvas {
     ctx.save();
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = lineWidth;
-    ctx.lineCap = 'round';
+   ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(geometry.startPoint.x, geometry.startPoint.y);
     ctx.lineTo(geometry.endPoint.x, geometry.endPoint.y);
     ctx.stroke();
     ctx.restore();
+
+    const labelType = isDoor ? 'doors' : 'windows';
+    if (this.shouldShowLabel(labelType)) {
+      const labelText = formatShortLabel(
+        opening.label,
+        isDoor ? 'D' : 'W',
+        null,
+        isDoor ? 'door' : 'window'
+      );
+      if (labelText) {
+        const labelOffset = lineWidth / 2 + 6;
+        const labelAnchor = {
+          x: geometry.centerPoint.x,
+          y: geometry.centerPoint.y - labelOffset,
+        };
+        const labelRect = this.drawLabelBadge(labelText, labelAnchor, { position: 'top' });
+        if (labelRect) {
+          opening._labelRect = labelRect;
+        }
+      }
+    } else {
+      opening._labelRect = null;
+    }
 
     if (isSelected) {
       this.drawOpeningHandles(geometry);
@@ -1757,6 +2816,21 @@ export class BuildingPlanCanvas {
     ctx.fill();
     ctx.stroke();
     ctx.restore();
+  }
+
+  snapPointToWall(point, roomId = null) {
+    const hit = this.findWallNearPoint(point, roomId);
+    if (!hit || hit.distance > STRUCTURAL_SNAP_TOLERANCE) {
+      return null;
+    }
+    return {
+      point: hit.closestPoint,
+      wall: hit.wall,
+      wallId: hit.wall.id,
+      segmentIndex: hit.segmentIndex,
+      ratio: hit.ratio,
+      distance: hit.distance,
+    };
   }
 
   findOpeningHandle(point) {
@@ -1828,6 +2902,11 @@ export class BuildingPlanCanvas {
     candidates.forEach(({ type, opening }) => {
       const geometry = this.getOpeningGeometry(opening);
       if (!geometry || geometry.segmentLength === 0) return;
+      if (opening._labelRect && pointInRect(point, opening._labelRect)) {
+        bestDistance = 0;
+        bestMatch = { type, openingId: opening.id, geometry };
+        return;
+      }
       const dist = pointToSegmentDistance(point, geometry.startPoint, geometry.endPoint);
       if (dist < bestDistance) {
         bestDistance = dist;

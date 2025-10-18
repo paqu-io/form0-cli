@@ -6,6 +6,15 @@ import { BuildingPlanCanvas } from './building-plan-canvas.js';
 /**
  * Handles form rendering and field creation
  */
+const DEFAULT_LABEL_VISIBILITY = {
+  rooms: true,
+  walls: true,
+  doors: true,
+  windows: true,
+  columns: true,
+  beams: true,
+};
+
 export class FormRenderer {
   constructor() {
     this.currentSchema = null;
@@ -18,6 +27,7 @@ export class FormRenderer {
     this.currentBuildingPlanMeta = [];
     this.repeatableCollapseState = new Map();
     this.buildingPlanRepeatableDataNames = new Set();
+    this.labelVisibilitySettings = { ...DEFAULT_LABEL_VISIBILITY };
   }
 
   /**
@@ -38,6 +48,18 @@ export class FormRenderer {
 
   setStateManager(stateManager) {
     this.formStateManager = stateManager;
+  }
+
+  setLabelVisibilitySettings(settings = {}) {
+    this.labelVisibilitySettings = {
+      ...DEFAULT_LABEL_VISIBILITY,
+      ...settings,
+    };
+    this.buildingPlanRegistry.forEach((entry) => {
+      if (entry?.canvas && typeof entry.canvas.setLabelSettings === 'function') {
+        entry.canvas.setLabelSettings(this.labelVisibilitySettings);
+      }
+    });
   }
 
   /**
@@ -1303,7 +1325,11 @@ export class FormRenderer {
 
     if (this.formStateManager) {
       controller = new BuildingPlanController(this, this.formStateManager, section, contextPath, metaEntry);
-      canvas = new BuildingPlanCanvas({ container: canvasContainer, controller });
+      canvas = new BuildingPlanCanvas({
+        container: canvasContainer,
+        controller,
+        labelSettings: this.labelVisibilitySettings,
+      });
     } else {
       canvasContainer.innerHTML = `
         <div class="building-plan-canvas-placeholder">
