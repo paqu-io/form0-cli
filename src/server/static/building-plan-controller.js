@@ -116,6 +116,7 @@ function getFieldDataName(meta, nodeKey, originalDataName) {
 }
 
 const ROUND_DECIMALS = 3;
+const DEFAULT_GRID_SIZE = 20;
 const DEFAULT_DOOR_WIDTH = 0.9;
 const DEFAULT_DOOR_HEIGHT = 2;
 const DEFAULT_WINDOW_WIDTH = 1.2;
@@ -144,6 +145,77 @@ function roundPoint(point, decimals = ROUND_DECIMALS) {
 
 function roundVertices(vertices, decimals = ROUND_DECIMALS) {
   return Array.isArray(vertices) ? vertices.map((point) => roundPoint(point, decimals)) : [];
+}
+
+function normalizeGridSize(value) {
+  const size = Number(value);
+  return Number.isFinite(size) && size > 0 ? size : DEFAULT_GRID_SIZE;
+}
+
+function convertVerticesToMeters(vertices, gridSize = DEFAULT_GRID_SIZE) {
+  const size = normalizeGridSize(gridSize);
+  return Array.isArray(vertices)
+    ? vertices.map((point) => ({
+        x: roundCoordinate(point.x / size),
+        y: roundCoordinate(point.y / size),
+      }))
+    : [];
+}
+
+function convertVerticesToCanvas(vertices, gridSize = DEFAULT_GRID_SIZE) {
+  const size = normalizeGridSize(gridSize);
+  return Array.isArray(vertices)
+    ? vertices.map((point) => ({
+        x: roundCoordinate(point.x * size),
+        y: roundCoordinate(point.y * size),
+      }))
+    : [];
+}
+
+function buildStoredVerticesPayload(vertices, gridSize = DEFAULT_GRID_SIZE) {
+  const size = normalizeGridSize(gridSize);
+  return {
+    unit: 'meters',
+    gridSize: size,
+    vertices: convertVerticesToMeters(vertices, size),
+  };
+}
+
+function isMetersUnit(unit) {
+  if (!unit || typeof unit !== 'string') return false;
+  const normalized = unit.toLowerCase();
+  return normalized === 'meters' || normalized === 'metres' || normalized === 'meter' || normalized === 'm';
+}
+
+function parseStoredVertices(rawValue) {
+  if (rawValue == null) {
+    return { vertices: [], unit: 'pixels', gridSize: null };
+  }
+
+  let value = rawValue;
+  if (typeof rawValue === 'string') {
+    try {
+      value = JSON.parse(rawValue);
+    } catch (err) {
+      return { vertices: [], unit: 'pixels', gridSize: null };
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return { vertices: cloneVertices(value), unit: 'pixels', gridSize: null };
+  }
+
+  if (value && typeof value === 'object') {
+    if (Array.isArray(value.vertices)) {
+      return {
+        vertices: cloneVertices(value.vertices),
+        unit: typeof value.unit === 'string' ? value.unit : 'pixels',
+        gridSize: Number.isFinite(value.gridSize) ? Number(value.gridSize) : null,
+      };
+    }
+  }
+
+  return { vertices: [], unit: 'pixels', gridSize: null };
 }
 
 function distanceBetweenPoints(a, b) {
@@ -342,6 +414,7 @@ export class BuildingPlanController {
     this.floorCount = 0;
     this.floors = [];
     this.activeFloorIndex = 0;
+    this.gridSize = DEFAULT_GRID_SIZE;
 
     this.handleRepeatableChange = this.handleRepeatableChange.bind(this);
     document.addEventListener('form0:repeatable-change', this.handleRepeatableChange);
@@ -352,6 +425,15 @@ export class BuildingPlanController {
   dispose() {
     document.removeEventListener('form0:repeatable-change', this.handleRepeatableChange);
     this.listeners.clear();
+  }
+
+  setGridSize(size) {
+    const normalized = normalizeGridSize(size);
+    if (normalized !== this.gridSize) {
+      this.gridSize = normalized;
+      this.syncFromState();
+      this.emitUpdate();
+    }
   }
 
   subscribe(listener) {
@@ -465,7 +547,8 @@ export class BuildingPlanController {
     const roomId = roomInstance?.id || `${this.formRenderer.formatContextPath(roomPath)}`;
     const roomVerticesValue = verticesFromRect(rectangle);
     const roundedVertices = roundVertices(roomVerticesValue);
-    const roomVerticesString = stringifyValue(roundedVertices);
+    const storedVerticesPayload = buildStoredVerticesPayload(roundedVertices, this.gridSize);
+    const roomVerticesString = stringifyValue(storedVerticesPayload);
 
     if (roomInstance) {
       roomInstance.values = {};
@@ -507,12 +590,14 @@ export class BuildingPlanController {
     const roomVerticesField = this.fieldNames.roomVertices;
     const wallGeometryField = this.fieldNames.wallGeometry;
     const roundedVertices = roundVertices(verticesFromRect(rectangle));
+    const storedVerticesPayload = buildStoredVerticesPayload(roundedVertices, this.gridSize);
+    const roomVerticesString = stringifyValue(storedVerticesPayload);
 
     if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
       this.formStateManager.setFieldValueAtContext(
         roomVerticesField,
         roomInfo.path,
-        stringifyValue(roundedVertices),
+        roomVerticesString,
         { suppressLogging: true, skipStateUpdate: true }
       );
     }
@@ -543,11 +628,13 @@ export class BuildingPlanController {
       });
       const roundedPoints = roundVertices(updatedPoints);
       wall.points = cloneVertices(roundedPoints);
+      const storedGeometryPayload = buildStoredVerticesPayload(roundedPoints, this.gridSize);
+      const wallGeometryValue = stringifyValue(storedGeometryPayload);
       if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
         this.formStateManager.setFieldValueAtContext(
           wallGeometryField,
           wall.path,
-          stringifyValue(roundedPoints),
+          wallGeometryValue,
           { suppressLogging: true, skipStateUpdate: true }
         );
       }
@@ -586,17 +673,20 @@ export class BuildingPlanController {
 
     const wallId = wallInstance?.id || `${this.formRenderer.formatContextPath(wallPath)}`;
     const roundedPoints = roundVertices(points);
-    const wallPointsString = stringifyValue(roundedPoints);
+    const storedWallGeometry = buildStoredVerticesPayload(roundedPoints, this.gridSize);
+    const wallGeometryValue = stringifyValue(storedWallGeometry);
 
     if (wallInstance) {
       wallInstance.values = {};
       wallInstance.repeatable = {};
-      wallInstance.values[wallGeometryField] = wallPointsString;
+      wallInstance.values[wallGeometryField] = wallGeometryValue;
       wallInstance.values[wallLabelField] = '';
       wallInstance.values[wallHeightField] = null;
       wallInstance.values[wallThicknessField] = null;
+      wallInstance.points = cloneVertices(roundedPoints);
     }
 
+    const displayLabel = `W#${wallIndex + 1}`;
     const provisionalWall = {
       id: wallId,
       roomId: roomId,
@@ -607,7 +697,7 @@ export class BuildingPlanController {
       doors: [],
       windows: [],
       label: '',
-      displayLabel: `W#${wallIndex + 1}`,
+      displayLabel,
     };
     this.walls.set(wallId, provisionalWall);
     this.emitUpdate();
@@ -615,7 +705,7 @@ export class BuildingPlanController {
     this.queueFieldUpdate(
       wallGeometryField,
       wallPath,
-      wallPointsString,
+      wallGeometryValue,
       () => {
         this.syncFromState();
         this.emitUpdate();
@@ -657,7 +747,8 @@ export class BuildingPlanController {
       clearNewInstanceValues: true,
       clearNewInstanceRepeatable: true,
     });
-    const columnInstances = this.formRenderer.getRepeatableInstances(this.columnSection, roomInfo.path) || [];
+    const columnInstances =
+      this.formRenderer.getRepeatableInstances(this.columnSection, roomInfo.path) || [];
     const columnIndex = columnInstances.length - 1;
     const columnInstance = columnInstances[columnIndex];
     const columnPath = [...roomInfo.path, { key: this.columnKey, index: columnIndex }];
@@ -675,6 +766,7 @@ export class BuildingPlanController {
       label && String(label).trim() !== ''
         ? String(label).trim()
         : `C#${columnInstances.length}`;
+    const displayLabel = `C#${columnIndex + 1}`;
 
     if (columnInstance) {
       columnInstance.values = columnInstance.values || {};
@@ -702,7 +794,7 @@ export class BuildingPlanController {
       wallSegmentIndex: sanitizedSegment,
       wallRatio: sanitizedRatio,
       label: resolvedLabel,
-      displayLabel: resolvedLabel,
+      displayLabel,
     };
 
     this.columns.set(columnId, provisionalColumn);
@@ -786,10 +878,7 @@ export class BuildingPlanController {
     columnInfo.wallSegmentIndex = nextSegment;
     columnInfo.wallRatio = nextRatio;
     columnInfo.label = nextLabel;
-    columnInfo.displayLabel =
-      nextLabel && nextLabel.trim() !== ''
-        ? nextLabel
-        : `C#${(columnInfo.index ?? 0) + 1}`;
+    columnInfo.displayLabel = `C#${(columnInfo.index ?? 0) + 1}`;
 
     if (columnInstance) {
       columnInstance.values[columnFields.label] = nextLabel;
@@ -882,6 +971,7 @@ export class BuildingPlanController {
       label && String(label).trim() !== ''
         ? String(label).trim()
         : `B#${beamInstances.length}`;
+    const displayLabel = `B#${beamIndex + 1}`;
 
     const startPoint = {
       x: roomInfo.rect.x + sanitizedStartU * roomInfo.rect.width,
@@ -925,7 +1015,7 @@ export class BuildingPlanController {
       endRatio: sanitizedEndRatio,
       length: lengthMeters,
       label: resolvedLabel,
-      displayLabel: resolvedLabel,
+      displayLabel,
     };
 
     this.beams.set(beamId, provisionalBeam);
@@ -1040,10 +1130,7 @@ export class BuildingPlanController {
     beamInfo.endRatio = nextEndRatio;
     beamInfo.length = nextLength;
     beamInfo.label = nextLabel;
-    beamInfo.displayLabel =
-      nextLabel && nextLabel.trim() !== ''
-        ? nextLabel
-        : `B#${(beamInfo.index ?? 0) + 1}`;
+    beamInfo.displayLabel = `B#${(beamInfo.index ?? 0) + 1}`;
 
     if (beamInstance) {
       beamInstance.values[beamFields.label] = nextLabel;
@@ -1143,6 +1230,7 @@ export class BuildingPlanController {
     const sanitizedHeight = roundCoordinate(toNumber(height, DEFAULT_DOOR_HEIGHT));
     const resolvedLabel =
       label && String(label).trim() !== '' ? String(label).trim() : `D#${doorIndex + 1}`;
+    const displayLabel = `D#${doorIndex + 1}`;
 
     if (doorInstance) {
       doorInstance.values = doorInstance.values || {};
@@ -1167,6 +1255,8 @@ export class BuildingPlanController {
       width: sanitizedWidth,
       height: sanitizedHeight,
       label: resolvedLabel,
+      displayLabel,
+      index: doorIndex,
       wallReference: wallId,
     };
 
@@ -1254,6 +1344,7 @@ export class BuildingPlanController {
     );
     const resolvedLabel =
       label && String(label).trim() !== '' ? String(label).trim() : `W#${windowIndex + 1}`;
+    const displayLabel = `W#${windowIndex + 1}`;
 
     if (windowInstance) {
       windowInstance.values = windowInstance.values || {};
@@ -1280,6 +1371,8 @@ export class BuildingPlanController {
       height: sanitizedHeight,
       distanceFromFloor: sanitizedDistance,
       label: resolvedLabel,
+      displayLabel,
+      index: windowIndex,
       wallReference: wallId,
     };
 
@@ -1350,12 +1443,6 @@ export class BuildingPlanController {
         ? roundCoordinate(toNumber(updates.height, doorInfo.height))
         : doorInfo.height;
 
-    doorInfo.segmentIndex = nextSegment;
-    doorInfo.startRatio = nextStart;
-    doorInfo.endRatio = nextEnd;
-    doorInfo.width = nextWidth;
-    doorInfo.height = nextHeight;
-
     const doorFields = this.fieldNames.door;
     const doorPath = doorInfo.path;
     const parentPath = doorPath.slice(0, -1);
@@ -1363,6 +1450,17 @@ export class BuildingPlanController {
     const doorInstances =
       this.formRenderer.getRepeatableInstances(this.doorSection, parentPath) || [];
     const doorInstance = doorIndex != null ? doorInstances[doorIndex] : null;
+
+    doorInfo.segmentIndex = nextSegment;
+    doorInfo.startRatio = nextStart;
+    doorInfo.endRatio = nextEnd;
+    doorInfo.width = nextWidth;
+    doorInfo.height = nextHeight;
+    if (typeof doorIndex === 'number') {
+      doorInfo.index = doorIndex;
+    }
+    doorInfo.displayLabel = `D#${(doorInfo.index ?? 0) + 1}`;
+
     if (doorInstance) {
       doorInstance.values = doorInstance.values || {};
       doorInstance.values[doorFields.segmentIndex] = nextSegment;
@@ -1430,13 +1528,6 @@ export class BuildingPlanController {
         ? roundCoordinate(toNumber(updates.distanceFromFloor, windowInfo.distanceFromFloor))
         : windowInfo.distanceFromFloor;
 
-    windowInfo.segmentIndex = nextSegment;
-    windowInfo.startRatio = nextStart;
-    windowInfo.endRatio = nextEnd;
-    windowInfo.width = nextWidth;
-    windowInfo.height = nextHeight;
-    windowInfo.distanceFromFloor = nextDistance;
-
     const windowFields = this.fieldNames.window;
     const windowPath = windowInfo.path;
     const parentPath = windowPath.slice(0, -1);
@@ -1444,6 +1535,18 @@ export class BuildingPlanController {
     const windowInstances =
       this.formRenderer.getRepeatableInstances(this.windowSection, parentPath) || [];
     const windowInstance = windowIndex != null ? windowInstances[windowIndex] : null;
+
+    windowInfo.segmentIndex = nextSegment;
+    windowInfo.startRatio = nextStart;
+    windowInfo.endRatio = nextEnd;
+    windowInfo.width = nextWidth;
+    windowInfo.height = nextHeight;
+    windowInfo.distanceFromFloor = nextDistance;
+    if (typeof windowIndex === 'number') {
+      windowInfo.index = windowIndex;
+    }
+    windowInfo.displayLabel = `W#${(windowInfo.index ?? 0) + 1}`;
+
     if (windowInstance) {
       windowInstance.values = windowInstance.values || {};
       windowInstance.values[windowFields.segmentIndex] = nextSegment;
@@ -1603,10 +1706,13 @@ export class BuildingPlanController {
     }
     this.emitUpdate();
 
+    const storedGeometryPayload = buildStoredVerticesPayload(roundedPoints, this.gridSize);
+    const wallGeometryValue = stringifyValue(storedGeometryPayload);
+
     this.queueFieldUpdate(
       wallGeometryField,
       wallInfo.path,
-      stringifyValue(roundedPoints),
+      wallGeometryValue,
       () => {
         this.syncFromState();
         this.emitUpdate();
@@ -1736,7 +1842,8 @@ export class BuildingPlanController {
         points: cloneVertices(wall.points),
         doors: Array.isArray(wall.doors) ? [...wall.doors] : [],
         windows: Array.isArray(wall.windows) ? [...wall.windows] : [],
-        displayLabel: wall.displayLabel || wall.label || null,
+        label: wall.label,
+        displayLabel: wall.displayLabel,
       })),
       columns: activeColumns.map((column) => ({
         id: column.id,
@@ -1751,7 +1858,7 @@ export class BuildingPlanController {
         wallSegmentIndex: column.wallSegmentIndex,
         wallRatio: column.wallRatio,
         label: column.label,
-        displayLabel: column.displayLabel || column.label || null,
+        displayLabel: column.displayLabel,
       })),
       beams: activeBeams.map((beam) => ({
         id: beam.id,
@@ -1769,19 +1876,21 @@ export class BuildingPlanController {
         endRatio: beam.endRatio,
         length: beam.length,
         label: beam.label,
-        displayLabel: beam.displayLabel || beam.label || null,
+        displayLabel: beam.displayLabel,
       })),
       doors: activeDoors.map((door) => ({
         id: door.id,
         wallId: door.wallId,
         roomId: door.roomId,
         path: door.path,
+        index: door.index,
         segmentIndex: door.segmentIndex,
         startRatio: door.startRatio,
         endRatio: door.endRatio,
         width: door.width,
         height: door.height,
         label: door.label,
+        displayLabel: door.displayLabel,
         wallReference: door.wallReference,
       })),
       windows: activeWindows.map((window) => ({
@@ -1789,6 +1898,7 @@ export class BuildingPlanController {
         wallId: window.wallId,
         roomId: window.roomId,
         path: window.path,
+        index: window.index,
         segmentIndex: window.segmentIndex,
         startRatio: window.startRatio,
         endRatio: window.endRatio,
@@ -1796,6 +1906,7 @@ export class BuildingPlanController {
         height: window.height,
         distanceFromFloor: window.distanceFromFloor,
         label: window.label,
+        displayLabel: window.displayLabel,
         wallReference: window.wallReference,
       })),
     };
@@ -1892,7 +2003,27 @@ export class BuildingPlanController {
 
       roomInstances.forEach((roomInstance, roomIndex) => {
         const roomPath = [...floorPath, { key: this.roomKey, index: roomIndex }];
-        const vertices = roundVertices(parseVertices(roomInstance?.values?.[roomVerticesField]));
+        const parsedVertices = parseStoredVertices(roomInstance?.values?.[roomVerticesField]);
+        const sourceGridSize = normalizeGridSize(parsedVertices.gridSize || this.gridSize);
+        let vertices = [];
+
+        if (isMetersUnit(parsedVertices.unit)) {
+          vertices = roundVertices(
+            convertVerticesToCanvas(parsedVertices.vertices, sourceGridSize)
+          );
+        } else {
+          vertices = roundVertices(parsedVertices.vertices);
+          const upgradedPayload = buildStoredVerticesPayload(vertices, this.gridSize);
+          const upgradedString = stringifyValue(upgradedPayload);
+          if (roomInstance) {
+            roomInstance.values = roomInstance.values || {};
+            if (roomInstance.values[roomVerticesField] !== upgradedString) {
+              roomInstance.values[roomVerticesField] = upgradedString;
+              this.setFieldValueWithoutState(roomVerticesField, roomPath, upgradedString);
+            }
+          }
+        }
+
         const rect = rectFromVertices(vertices);
         const roomId =
           roomInstance && roomInstance.id
@@ -1954,6 +2085,8 @@ export class BuildingPlanController {
             );
             const labelValue =
               typeof values[columnFields.label] === 'string' ? values[columnFields.label] : '';
+            const trimmedLabel =
+              typeof labelValue === 'string' && labelValue.trim() !== '' ? labelValue.trim() : '';
 
             if (values[columnFields.centerU] !== centerU) {
               values[columnFields.centerU] = centerU;
@@ -1976,10 +2109,7 @@ export class BuildingPlanController {
               this.setFieldValueWithoutState(columnFields.wallRatio, columnPath, wallRatio);
             }
 
-            const displayLabel =
-              typeof labelValue === 'string' && labelValue.trim() !== ''
-                ? labelValue
-                : `C#${columnIndex + 1}`;
+            const displayLabel = `C#${columnIndex + 1}`;
 
             if (
               !values[columnFields.label] ||
@@ -1987,6 +2117,8 @@ export class BuildingPlanController {
                 values[columnFields.label].trim() === '')
             ) {
               values[columnFields.label] = displayLabel;
+            } else if (trimmedLabel !== values[columnFields.label]) {
+              values[columnFields.label] = trimmedLabel;
             }
 
             this.columns.set(columnId, {
@@ -2002,7 +2134,7 @@ export class BuildingPlanController {
               centerV,
               wallSegmentIndex,
               wallRatio,
-              label: displayLabel,
+              label: trimmedLabel || displayLabel,
               displayLabel,
             });
           });
@@ -2061,6 +2193,8 @@ export class BuildingPlanController {
             );
             const labelValue =
               typeof values[beamFields.label] === 'string' ? values[beamFields.label] : '';
+            const trimmedLabel =
+              typeof labelValue === 'string' && labelValue.trim() !== '' ? labelValue.trim() : '';
 
             const startPoint = {
               x: rect.x + startU * rect.width,
@@ -2109,10 +2243,7 @@ export class BuildingPlanController {
               this.setFieldValueWithoutState(beamFields.length, beamPath, lengthMeters);
             }
 
-            const displayLabel =
-              typeof labelValue === 'string' && labelValue.trim() !== ''
-                ? labelValue
-                : `B#${beamIndex + 1}`;
+            const displayLabel = `B#${beamIndex + 1}`;
 
             if (
               !values[beamFields.label] ||
@@ -2120,6 +2251,8 @@ export class BuildingPlanController {
                 values[beamFields.label].trim() === '')
             ) {
               values[beamFields.label] = displayLabel;
+            } else if (trimmedLabel !== values[beamFields.label]) {
+              values[beamFields.label] = trimmedLabel;
             }
 
             this.beams.set(beamId, {
@@ -2138,7 +2271,7 @@ export class BuildingPlanController {
               startRatio,
               endRatio,
               length: lengthMeters,
-              label: displayLabel,
+              label: trimmedLabel || displayLabel,
               displayLabel,
             });
           });
@@ -2152,7 +2285,32 @@ export class BuildingPlanController {
 
         wallInstances.forEach((wallInstance, wallIndex) => {
           const wallPath = [...roomPath, { key: this.wallKey, index: wallIndex }];
-          const points = roundVertices(parsePoints(wallInstance?.values?.[wallGeometryField]));
+          const rawGeometry = wallInstance?.values?.[wallGeometryField];
+          const parsedGeometry = parseStoredVertices(rawGeometry);
+          const geometryGridSize = normalizeGridSize(parsedGeometry.gridSize || this.gridSize);
+          let points = [];
+
+          if (isMetersUnit(parsedGeometry.unit)) {
+            points = roundVertices(
+              convertVerticesToCanvas(parsedGeometry.vertices, geometryGridSize)
+            );
+          } else {
+            points = roundVertices(parsedGeometry.vertices);
+            const upgradedPayload = buildStoredVerticesPayload(points, this.gridSize);
+            const upgradedString = stringifyValue(upgradedPayload);
+            if (wallInstance) {
+              wallInstance.values = wallInstance.values || {};
+              if (wallInstance.values[wallGeometryField] !== upgradedString) {
+                wallInstance.values[wallGeometryField] = upgradedString;
+                this.setFieldValueWithoutState(wallGeometryField, wallPath, upgradedString);
+              }
+            }
+          }
+
+          if (wallInstance) {
+            wallInstance.points = cloneVertices(points);
+          }
+
           const wallId =
             wallInstance && wallInstance.id
               ? wallInstance.id
@@ -2162,10 +2320,11 @@ export class BuildingPlanController {
             wallLabelField && wallInstance?.values
               ? wallInstance.values[wallLabelField]
               : '';
-          const displayLabel =
+          const trimmedWallLabel =
             typeof wallLabelValue === 'string' && wallLabelValue.trim() !== ''
-              ? wallLabelValue
-              : `W#${wallIndex + 1}`;
+              ? wallLabelValue.trim()
+              : '';
+          const displayLabel = `W#${wallIndex + 1}`;
 
           const wallEntry = {
             id: wallId,
@@ -2176,7 +2335,7 @@ export class BuildingPlanController {
             points,
             doors: [],
             windows: [],
-            label: displayLabel,
+            label: trimmedWallLabel,
             displayLabel,
           };
 
@@ -2212,6 +2371,10 @@ export class BuildingPlanController {
                 typeof doorValues[doorFields.label] === 'string'
                   ? doorValues[doorFields.label]
                   : '';
+              const trimmedDoorLabel =
+                typeof labelValue === 'string' && labelValue.trim() !== ''
+                  ? labelValue.trim()
+                  : '';
               let wallReference =
                 typeof doorValues[doorFields.wallReference] === 'string'
                   ? doorValues[doorFields.wallReference]
@@ -2235,6 +2398,12 @@ export class BuildingPlanController {
                 this.setFieldValueWithoutState(doorFields.wallReference, doorPath, wallReference);
               }
 
+              if (labelValue !== trimmedDoorLabel) {
+                doorValues[doorFields.label] = trimmedDoorLabel;
+              }
+
+              const displayLabel = `D#${doorIndex + 1}`;
+
               const doorRecord = {
                 id: doorId,
                 wallId,
@@ -2246,7 +2415,9 @@ export class BuildingPlanController {
                 endRatio,
                 width,
                 height,
-                label: labelValue,
+                index: doorIndex,
+                label: trimmedDoorLabel,
+                displayLabel,
                 wallReference,
               };
 
@@ -2291,6 +2462,10 @@ export class BuildingPlanController {
                 typeof windowValues[windowFields.label] === 'string'
                   ? windowValues[windowFields.label]
                   : '';
+              const trimmedWindowLabel =
+                typeof labelValue === 'string' && labelValue.trim() !== ''
+                  ? labelValue.trim()
+                  : '';
               let wallReference =
                 typeof windowValues[windowFields.wallReference] === 'string'
                   ? windowValues[windowFields.wallReference]
@@ -2318,6 +2493,12 @@ export class BuildingPlanController {
                 );
               }
 
+              if (labelValue !== trimmedWindowLabel) {
+                windowValues[windowFields.label] = trimmedWindowLabel;
+              }
+
+              const displayLabel = `W#${windowIndex + 1}`;
+
               const windowRecord = {
                 id: windowId,
                 wallId,
@@ -2330,7 +2511,9 @@ export class BuildingPlanController {
                 width,
                 height,
                 distanceFromFloor,
-                label: labelValue,
+                index: windowIndex,
+                label: trimmedWindowLabel,
+                displayLabel,
                 wallReference,
               };
 
@@ -2375,7 +2558,8 @@ export class BuildingPlanController {
       height: 80,
     };
     const verticesValue = roundVertices(verticesFromRect(rect));
-    const verticesString = stringifyValue(verticesValue);
+    const storedVerticesPayload = buildStoredVerticesPayload(verticesValue, this.gridSize);
+    const verticesString = stringifyValue(storedVerticesPayload);
 
     room.rect = { ...rect };
     room.vertices = verticesValue;
@@ -2507,13 +2691,15 @@ export class BuildingPlanController {
     const start = { x: room.rect.x + margin, y: centerY };
     const end = { x: room.rect.x + room.rect.width - margin, y: centerY };
     const defaultPoints = [start, end];
+    const storedGeometryPayload = buildStoredVerticesPayload(defaultPoints, this.gridSize);
+    const geometryString = stringifyValue(storedGeometryPayload);
 
     wall.points = cloneVertices(defaultPoints);
 
     this.queueFieldUpdate(
       wallGeometryField,
       instancePath,
-      stringifyValue(defaultPoints),
+      geometryString,
       null,
       { suspendEngine: true }
     );
@@ -2717,7 +2903,8 @@ export class BuildingPlanController {
       const wallPath = [...room.path, { key: this.wallKey, index: wallIndex }];
       const geometryPoints = Array.isArray(wallInstance.points) ? wallInstance.points : [];
       const roundedPoints = roundVertices(geometryPoints);
-      const geometryValue = stringifyValue(roundedPoints);
+      const storedGeometryPayload = buildStoredVerticesPayload(roundedPoints, this.gridSize);
+      const geometryValue = stringifyValue(storedGeometryPayload);
 
       wallInstance.points = cloneVertices(roundedPoints);
       wallInstance.values[wallGeometryField] = geometryValue;

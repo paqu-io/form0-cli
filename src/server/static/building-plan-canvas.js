@@ -233,6 +233,9 @@ export class BuildingPlanCanvas {
     this.hoverState = null;
 
     this.gridSize = DEFAULT_GRID_SIZE;
+    if (this.controller && typeof this.controller.setGridSize === 'function') {
+      this.controller.setGridSize(this.gridSize);
+    }
 
     this.unsubscribe = null;
     this.floorTabsContainer = null;
@@ -2768,10 +2771,13 @@ export class BuildingPlanCanvas {
 
     const labelType = isDoor ? 'doors' : 'windows';
     if (this.shouldShowLabel(labelType)) {
+      const baseLabel = opening.displayLabel || opening.label;
+      const fallbackIndex =
+        typeof opening.index === 'number' ? opening.index + 1 : null;
       const labelText = formatShortLabel(
-        opening.label,
+        baseLabel,
         isDoor ? 'D' : 'W',
-        null,
+        fallbackIndex,
         isDoor ? 'door' : 'window'
       );
       if (labelText) {
