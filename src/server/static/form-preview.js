@@ -83,12 +83,314 @@ let currentSchema = null;
 let schemaSource = 'Current Schema'; // Will be updated by server
 let currentStatusValue = null; // Selected status for metadata panel (not part of engine state)
 let createdAtTimestamp = null; // Simple client-side timestamps for preview
+let currentBuildingPlanMeta = [];
+
+const FIELD_KEY_MODE_STORAGE_KEY = 'form0-cli-field-key-mode';
+const LABEL_VISIBILITY_STORAGE_KEY = 'form0-cli-label-visibility';
+const DEFAULT_LABEL_VISIBILITY = {
+  rooms: true,
+  walls: true,
+  doors: true,
+  windows: true,
+  columns: true,
+  beams: true,
+};
+
+let currentFieldKeyMode = 'prefer-key';
+let pendingFieldKeyMode = 'prefer-key';
+
+let currentLabelVisibility = { ...DEFAULT_LABEL_VISIBILITY };
+let pendingLabelVisibility = { ...DEFAULT_LABEL_VISIBILITY };
+
+let settingsPreviouslyFocused = null;
+let settingsLabelCheckboxes = {};
+
+function loadFieldKeyModePreference() {
+  try {
+    const stored = window.localStorage.getItem(FIELD_KEY_MODE_STORAGE_KEY);
+    if (stored === 'data-name') {
+      currentFieldKeyMode = 'data-name';
+      pendingFieldKeyMode = 'data-name';
+    }
+  } catch (err) {
+    // Ignore storage errors (e.g., private browsing)
+  }
+  pendingFieldKeyMode = currentFieldKeyMode;
+}
+
+function persistFieldKeyModePreference(mode) {
+  try {
+    window.localStorage.setItem(FIELD_KEY_MODE_STORAGE_KEY, mode);
+  } catch (err) {
+    // Ignore storage errors (e.g., private browsing)
+  }
+}
+
+function loadLabelVisibilityPreference() {
+  try {
+    const stored = window.localStorage.getItem(LABEL_VISIBILITY_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed === 'object') {
+        currentLabelVisibility = { ...DEFAULT_LABEL_VISIBILITY, ...parsed };
+      }
+    }
+  } catch (err) {
+    currentLabelVisibility = { ...DEFAULT_LABEL_VISIBILITY };
+  }
+  pendingLabelVisibility = { ...currentLabelVisibility };
+  Object.entries(settingsLabelCheckboxes).forEach(([key, checkbox]) => {
+    if (checkbox) {
+      checkbox.checked = pendingLabelVisibility[key] !== false;
+    }
+  });
+  if (typeof formRenderer?.setLabelVisibilitySettings === 'function') {
+    formRenderer.setLabelVisibilitySettings(currentLabelVisibility);
+  }
+}
+
+function persistLabelVisibilityPreference(visibility) {
+  try {
+    window.localStorage.setItem(
+      LABEL_VISIBILITY_STORAGE_KEY,
+      JSON.stringify(visibility)
+    );
+  } catch (err) {
+    // Ignore storage errors
+  }
+}
+
+const SETTINGS_DIALOG_ID = 'form-settings-dialog';
+let settingsDialog = null;
+let settingsKeyModeSelect = null;
+
+function ensureSettingsDialog() {
+  if (settingsDialog) {
+    if (settingsKeyModeSelect) {
+      settingsKeyModeSelect.value = pendingFieldKeyMode;
+    }
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = SETTINGS_DIALOG_ID;
+  overlay.className = 'settings-modal-overlay hidden';
+
+  const modal = document.createElement('div');
+  modal.className = 'settings-modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  modal.setAttribute('aria-labelledby', 'form-settings-title');
+
+  const header = document.createElement('div');
+  header.className = 'settings-modal-header';
+  header.id = 'form-settings-title';
+  header.textContent = 'Form Settings';
+
+  const body = document.createElement('div');
+  body.className = 'settings-modal-body';
+
+  const keyModeLabel = document.createElement('label');
+  keyModeLabel.setAttribute('for', 'settings-output-keys');
+  keyModeLabel.textContent = 'Structured Output Keys';
+
+  settingsKeyModeSelect = document.createElement('select');
+  settingsKeyModeSelect.id = 'settings-output-keys';
+  settingsKeyModeSelect.className = 'settings-select';
+
+  const keyOption = document.createElement('option');
+  keyOption.value = 'prefer-key';
+  keyOption.textContent = 'Field keys (default)';
+  const dataOption = document.createElement('option');
+  dataOption.value = 'data-name';
+  dataOption.textContent = 'Data names';
+
+  settingsKeyModeSelect.appendChild(keyOption);
+  settingsKeyModeSelect.appendChild(dataOption);
+  settingsKeyModeSelect.value = pendingFieldKeyMode;
+  settingsKeyModeSelect.addEventListener('change', handleSettingsKeyModeChange);
+
+  body.appendChild(keyModeLabel);
+  body.appendChild(settingsKeyModeSelect);
+
+  const labelGroup = document.createElement('div');
+  labelGroup.className = 'settings-group';
+
+  const labelGroupTitle = document.createElement('div');
+  labelGroupTitle.className = 'settings-group-title';
+  labelGroupTitle.textContent = 'Building Plan Labels';
+  labelGroup.appendChild(labelGroupTitle);
+
+  const labelDescription = document.createElement('div');
+  labelDescription.className = 'settings-group-description';
+  labelDescription.textContent = 'Toggle helper badges for each element type.';
+  labelGroup.appendChild(labelDescription);
+
+  const labelList = document.createElement('div');
+  labelList.className = 'settings-checkbox-list';
+
+  const labelOptions = [
+    { key: 'rooms', label: 'Rooms' },
+    { key: 'walls', label: 'Walls' },
+    { key: 'doors', label: 'Doors' },
+    { key: 'windows', label: 'Windows' },
+    { key: 'columns', label: 'Columns' },
+    { key: 'beams', label: 'Beams' },
+  ];
+
+  settingsLabelCheckboxes = {};
+
+  labelOptions.forEach(({ key, label }) => {
+    const checkboxId = `settings-label-${key}`;
+    const wrapper = document.createElement('label');
+    wrapper.className = 'settings-checkbox-item';
+    wrapper.setAttribute('for', checkboxId);
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = checkboxId;
+    checkbox.checked = pendingLabelVisibility[key] !== false;
+    checkbox.addEventListener('change', (event) => {
+      pendingLabelVisibility[key] = event.target.checked;
+    });
+
+    const span = document.createElement('span');
+    span.textContent = label;
+
+    wrapper.appendChild(checkbox);
+    wrapper.appendChild(span);
+    labelList.appendChild(wrapper);
+
+    settingsLabelCheckboxes[key] = checkbox;
+  });
+
+  labelGroup.appendChild(labelList);
+  body.appendChild(labelGroup);
+
+  const footer = document.createElement('div');
+  footer.className = 'settings-modal-footer';
+
+  const saveButton = document.createElement('button');
+  saveButton.type = 'button';
+  saveButton.className = 'primary-button';
+  saveButton.textContent = 'Save';
+  saveButton.addEventListener('click', saveSettingsDialog);
+
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button';
+  closeButton.className = 'secondary-button';
+  closeButton.textContent = 'Close';
+  closeButton.addEventListener('click', closeSettingsDialog);
+
+  footer.appendChild(saveButton);
+  footer.appendChild(closeButton);
+
+  modal.appendChild(header);
+  modal.appendChild(body);
+  modal.appendChild(footer);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  modal.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      closeSettingsDialog();
+    }
+  });
+
+  overlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeSettingsDialog();
+    }
+  });
+
+  settingsDialog = overlay;
+}
+
+function openSettingsDialog() {
+  ensureSettingsDialog();
+  if (!settingsDialog) return;
+  pendingFieldKeyMode = currentFieldKeyMode;
+  if (settingsKeyModeSelect) {
+    settingsKeyModeSelect.value = pendingFieldKeyMode;
+  }
+  Object.entries(settingsLabelCheckboxes).forEach(([key, checkbox]) => {
+    if (checkbox) {
+      checkbox.checked = pendingLabelVisibility[key] !== false;
+    }
+  });
+  settingsPreviouslyFocused =
+    document.activeElement && typeof document.activeElement.focus === 'function'
+      ? document.activeElement
+      : null;
+  settingsDialog.classList.remove('hidden');
+  document.addEventListener('keydown', handleSettingsKeyDown);
+  if (settingsKeyModeSelect) {
+    settingsKeyModeSelect.focus();
+  }
+}
+
+function closeSettingsDialog() {
+  if (!settingsDialog) return;
+  settingsDialog.classList.add('hidden');
+  document.removeEventListener('keydown', handleSettingsKeyDown);
+  pendingFieldKeyMode = currentFieldKeyMode;
+  if (settingsKeyModeSelect) {
+    settingsKeyModeSelect.value = currentFieldKeyMode;
+  }
+  pendingLabelVisibility = { ...currentLabelVisibility };
+  Object.entries(settingsLabelCheckboxes).forEach(([key, checkbox]) => {
+    if (checkbox) {
+      checkbox.checked = pendingLabelVisibility[key] !== false;
+    }
+  });
+  if (settingsPreviouslyFocused) {
+    settingsPreviouslyFocused.focus();
+  }
+  settingsPreviouslyFocused = null;
+}
+
+function handleSettingsKeyModeChange(event) {
+  const selected = event.target.value === 'data-name' ? 'data-name' : 'prefer-key';
+  pendingFieldKeyMode = selected;
+}
+
+function handleSettingsKeyDown(event) {
+  if (event.key === 'Escape') {
+    closeSettingsDialog();
+  }
+}
+
+function saveSettingsDialog() {
+  currentFieldKeyMode = pendingFieldKeyMode;
+  persistFieldKeyModePreference(currentFieldKeyMode);
+
+  Object.entries(settingsLabelCheckboxes).forEach(([key, checkbox]) => {
+    if (checkbox) {
+      pendingLabelVisibility[key] = checkbox.checked;
+    }
+  });
+  currentLabelVisibility = { ...pendingLabelVisibility };
+  persistLabelVisibilityPreference(currentLabelVisibility);
+  if (typeof formRenderer.setLabelVisibilitySettings === 'function') {
+    formRenderer.setLabelVisibilitySettings(currentLabelVisibility);
+  }
+
+  closeSettingsDialog();
+}
+
 
 // Initialize modular components
 const formRenderer = new FormRenderer();
 const formStateManager = new FormStateManager(formRenderer);
 formRenderer.setStateManager(formStateManager);
 const operationProcessor = new OperationProcessor(formStateManager);
+
+loadLabelVisibilityPreference();
 
 /**
  * Trigger a form event
@@ -186,6 +488,7 @@ function initializeWebSocket() {
 
         currentSchema = newSchema;
         schemaSource = data.source || 'Current Schema'; // Get schema source from server
+        currentBuildingPlanMeta = data.buildingPlanMeta || [];
         await renderForm();
 
         // Format timestamp as yyyy-mm-dd hh:mm:ss
@@ -229,6 +532,7 @@ async function loadInitialSchema() {
       const data = await response.json();
       currentSchema = data.schema;
       schemaSource = data.source || 'Current Schema';
+      currentBuildingPlanMeta = data.buildingPlanMeta || [];
       await renderForm();
     } else {
       document.getElementById('status').textContent = t('failedToLoadSchema');
@@ -242,6 +546,8 @@ async function loadInitialSchema() {
 
 // Initialize application
 async function initialize() {
+  loadFieldKeyModePreference();
+  loadLabelVisibilityPreference();
   // Load translations first
   await loadTranslations();
 
@@ -259,7 +565,7 @@ async function renderForm() {
   if (!currentSchema) return;
 
   // Set schema in renderer and render form
-  formRenderer.setSchema(currentSchema);
+  formRenderer.setSchema(currentSchema, { buildingPlanMeta: currentBuildingPlanMeta });
   formRenderer.renderForm();
 
   // Update schema path in header with schema source
@@ -356,6 +662,9 @@ function renderRecordHeaderAndMetadata() {
   header.id = 'record-header';
   header.className = 'record-header';
 
+  const headerLeft = document.createElement('div');
+  headerLeft.className = 'record-header-left';
+
   const statusPill = document.createElement('span');
   statusPill.id = 'record-header-status-pill';
   statusPill.className = 'record-status-pill';
@@ -365,8 +674,22 @@ function renderRecordHeaderAndMetadata() {
   titleEl.className = 'record-header-title';
   titleEl.textContent = '';
 
-  header.appendChild(statusPill);
-  header.appendChild(titleEl);
+  headerLeft.appendChild(statusPill);
+  headerLeft.appendChild(titleEl);
+
+  const headerActions = document.createElement('div');
+  headerActions.className = 'record-header-actions';
+  const settingsButton = document.createElement('button');
+  settingsButton.type = 'button';
+  settingsButton.className = 'settings-button';
+  settingsButton.setAttribute('aria-label', 'Open settings');
+  settingsButton.title = 'Form settings';
+  settingsButton.innerHTML = '&#9881;';
+  settingsButton.addEventListener('click', openSettingsDialog);
+  headerActions.appendChild(settingsButton);
+
+  header.appendChild(headerLeft);
+  header.appendChild(headerActions);
 
   const panel = document.createElement('div');
   panel.id = 'record-metadata-panel';
@@ -838,7 +1161,13 @@ async function handleFormSubmit() {
     const recordResponse = await fetch('/api/create-record', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state, options: { '@status': currentStatusValue } }),
+      body: JSON.stringify({
+        state,
+        options: {
+          '@status': currentStatusValue,
+          fieldKeyMode: currentFieldKeyMode,
+        },
+      }),
     });
 
     if (!recordResponse.ok) {

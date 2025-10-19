@@ -5,6 +5,13 @@ export class FormStateManager {
   constructor(formRenderer) {
     this.formRenderer = formRenderer;
     this.preservedValues = {}; // Store values to preserve across schema updates
+    this.pendingFieldValues = new Map();
+    this.pendingFieldCallbacks = new Map();
+    this.engineUpdateDepth = 0;
+    this.pendingEngineUpdate = false;
+    this.isEngineUpdateRunning = false;
+    this.engineUpdateIntent = 0;
+    this.lastAppliedEngineIntent = 0;
   }
 
   /**
@@ -1013,6 +1020,20 @@ export class FormStateManager {
    * Update form engine and get new state
    */
   async updateFormState() {
+    const intentId = ++this.engineUpdateIntent;
+
+    if (this.engineUpdateDepth > 0) {
+      this.pendingEngineUpdate = true;
+      return;
+    }
+
+    if (this.isEngineUpdateRunning) {
+      this.pendingEngineUpdate = true;
+      return;
+    }
+
+    this.isEngineUpdateRunning = true;
+
     const { values, repeatable } = this.getCurrentFormState();
 
     try {
@@ -1023,9 +1044,19 @@ export class FormStateManager {
       });
 
       const state = await response.json();
-      this.applyFormState(state);
+      if (intentId === this.engineUpdateIntent) {
+        this.applyFormState(state);
+        this.lastAppliedEngineIntent = intentId;
+      }
     } catch (err) {
       console.error('Failed to update form state:', err);
+    } finally {
+      this.isEngineUpdateRunning = false;
+
+      if (this.engineUpdateDepth === 0 && this.pendingEngineUpdate) {
+        this.pendingEngineUpdate = false;
+        await this.updateFormState();
+      }
     }
   }
 
@@ -1601,6 +1632,168 @@ export class FormStateManager {
     if (!skipStateUpdate) {
       this.updateFormState();
     }
+  }
+
+  setFieldValueAtContext(
+    fieldDataName,
+    contextPath = [],
+    valueToSet,
+    { suppressLogging = false, skipStateUpdate = false } = {}
+  ) {
+    const contextKey = this.formRenderer.formatContextPath(contextPath);
+    const fieldSelector = `[data-field-key="${contextKey}::${fieldDataName}"]`;
+    const fieldContainer = document.querySelector(fieldSelector);
+
+    this.updateContextState(fieldDataName, contextPath, valueToSet);
+
+    if (!fieldContainer) {
+      if (!suppressLogging) {
+        console.warn(
+          `[SETVALUE] Field container not found for "${fieldDataName}" in context "${contextKey}"`
+        );
+      }
+      if (Array.isArray(contextPath) && contextPath.length > 0) {
+        this.storePendingFieldValue(contextKey, fieldDataName, valueToSet, contextPath);
+        return false;
+      }
+      this.storePendingFieldValue(contextKey, fieldDataName, valueToSet, contextPath);
+      return false;
+    }
+
+    const input =
+      fieldContainer.querySelector(`[data-field-value="true"]`) ||
+      fieldContainer.querySelector(`input[name="${fieldDataName}"]`) ||
+      fieldContainer.querySelector(`textarea[name="${fieldDataName}"]`) ||
+      fieldContainer.querySelector(`select[name="${fieldDataName}"]`);
+
+    if (!input) {
+      if (!suppressLogging) {
+        console.warn(
+          `[SETVALUE] Input element not found for "${fieldDataName}" in context "${contextKey}"`
+        );
+      }
+      this.storePendingFieldValue(contextKey, fieldDataName, valueToSet, contextPath);
+      return false;
+    }
+
+    const displayValue =
+      valueToSet === null || valueToSet === undefined ? '' : String(valueToSet);
+    input.value = displayValue;
+
+    if (!skipStateUpdate) {
+      this.updateFormState();
+    }
+
+    return true;
+  }
+
+  updateContextState(fieldDataName, contextPath, valueToSet) {
+    if (!this.formRenderer || typeof this.formRenderer.getActiveInstance !== 'function') {
+      return;
+    }
+
+    const instance = this.formRenderer.getActiveInstance(contextPath);
+    if (instance) {
+      if (!instance.values) {
+        instance.values = {};
+      }
+      instance.values[fieldDataName] = valueToSet;
+    } else if (contextPath.length === 0) {
+      if (!this.activeRepeatableState) {
+        this.activeRepeatableState = {};
+      }
+      this.activeRepeatableState[fieldDataName] = valueToSet;
+    }
+  }
+
+  storePendingFieldValue(contextKey, fieldDataName, valueToSet, contextPath = []) {
+    const pendingKey = this.getPendingKey(contextKey, fieldDataName);
+    this.pendingFieldValues.set(pendingKey, {
+      value: valueToSet,
+      contextPath: Array.isArray(contextPath) ? [...contextPath] : [],
+    });
+  }
+
+  registerPendingFieldCallback(contextKey, fieldName, callback) {
+    if (typeof callback !== 'function') return;
+    const pendingKey = this.getPendingKey(contextKey, fieldName);
+    this.pendingFieldCallbacks.set(pendingKey, callback);
+  }
+
+  suspendEngineUpdates() {
+    this.engineUpdateDepth += 1;
+  }
+
+  resumeEngineUpdates() {
+    if (this.engineUpdateDepth > 0) {
+      this.engineUpdateDepth -= 1;
+    }
+
+    if (this.engineUpdateDepth === 0 && this.pendingEngineUpdate) {
+      const shouldUpdate = this.pendingEngineUpdate;
+      this.pendingEngineUpdate = false;
+      if (shouldUpdate) {
+        this.updateFormState();
+      }
+    }
+  }
+
+  applyPendingFieldValue(field, contextKey) {
+    if (!field || !contextKey) return;
+    const pendingKey = this.getPendingKey(contextKey, field.data_name);
+    const pending = this.pendingFieldValues.get(pendingKey);
+    if (!pending) return;
+
+    const success = this.setFieldValueAtContext(
+      field.data_name,
+      pending.contextPath,
+      pending.value,
+      { suppressLogging: true, skipStateUpdate: true }
+    );
+
+    if (success) {
+      this.pendingFieldValues.delete(pendingKey);
+      const callback = this.pendingFieldCallbacks.get(pendingKey);
+      if (callback) {
+        this.pendingFieldCallbacks.delete(pendingKey);
+        callback();
+      }
+    }
+  }
+
+  clearPendingFieldValues() {
+    this.pendingFieldValues.clear();
+    this.pendingFieldCallbacks.clear();
+  }
+
+  clearPendingValuesUnderPath(contextPath = []) {
+    if (!this.formRenderer || typeof this.formRenderer.formatContextPath !== 'function') {
+      return;
+    }
+    const baseKey = this.formRenderer.formatContextPath(contextPath);
+    const prefix = baseKey === 'root' ? baseKey : `${baseKey}.`;
+
+    const shouldPrune = (pendingKey) => {
+      const separatorIndex = pendingKey.indexOf('::');
+      const keyContext = separatorIndex >= 0 ? pendingKey.slice(0, separatorIndex) : pendingKey;
+      return keyContext === baseKey || keyContext.startsWith(prefix);
+    };
+
+    for (const key of Array.from(this.pendingFieldValues.keys())) {
+      if (shouldPrune(key)) {
+        this.pendingFieldValues.delete(key);
+      }
+    }
+
+    for (const key of Array.from(this.pendingFieldCallbacks.keys())) {
+      if (shouldPrune(key)) {
+        this.pendingFieldCallbacks.delete(key);
+      }
+    }
+  }
+
+  getPendingKey(contextKey, fieldName) {
+    return `${contextKey}::${fieldName}`;
   }
 
   /**

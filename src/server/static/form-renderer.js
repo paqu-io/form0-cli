@@ -1,9 +1,20 @@
 import { generateUuidV7 } from './uuid.js';
 import { resolveSupportingImagePath } from './supporting-image-utils.js';
+import { BuildingPlanController } from './building-plan-controller.js';
+import { BuildingPlanCanvas } from './building-plan-canvas.js';
 
 /**
  * Handles form rendering and field creation
  */
+const DEFAULT_LABEL_VISIBILITY = {
+  rooms: true,
+  walls: true,
+  doors: true,
+  windows: true,
+  columns: true,
+  beams: true,
+};
+
 export class FormRenderer {
   constructor() {
     this.currentSchema = null;
@@ -11,7 +22,12 @@ export class FormRenderer {
     this.initialRepeatableState = {};
     this.activeRepeatableState = {};
     this.repeatableSectionRegistry = new Map();
+    this.buildingPlanRegistry = new Map();
     this.formStateManager = null;
+    this.currentBuildingPlanMeta = [];
+    this.repeatableCollapseState = new Map();
+    this.buildingPlanRepeatableDataNames = new Set();
+    this.labelVisibilitySettings = { ...DEFAULT_LABEL_VISIBILITY };
   }
 
   /**
@@ -19,10 +35,31 @@ export class FormRenderer {
    */
   resetFieldRegistry() {
     this.fieldInstanceRegistry = new Map();
+    this.disposeBuildingPlanControllers();
+    this.buildingPlanRegistry = new Map();
+    this.repeatableCollapseState = new Map();
+    if (
+      this.formStateManager &&
+      typeof this.formStateManager.clearPendingFieldValues === 'function'
+    ) {
+      this.formStateManager.clearPendingFieldValues();
+    }
   }
 
   setStateManager(stateManager) {
     this.formStateManager = stateManager;
+  }
+
+  setLabelVisibilitySettings(settings = {}) {
+    this.labelVisibilitySettings = {
+      ...DEFAULT_LABEL_VISIBILITY,
+      ...settings,
+    };
+    this.buildingPlanRegistry.forEach((entry) => {
+      if (entry?.canvas && typeof entry.canvas.setLabelSettings === 'function') {
+        entry.canvas.setLabelSettings(this.labelVisibilitySettings);
+      }
+    });
   }
 
   /**
@@ -98,6 +135,13 @@ export class FormRenderer {
       contextKey,
       container,
     });
+
+    if (
+      this.formStateManager &&
+      typeof this.formStateManager.applyPendingFieldValue === 'function'
+    ) {
+      this.formStateManager.applyPendingFieldValue(field, contextKey);
+    }
   }
 
   dispatchRepeatableChange(changeType, section, contextPath, instanceIndex, extraDetail = {}) {
@@ -132,6 +176,9 @@ export class FormRenderer {
     // For sections, check if display is drilldown
     if (element.type === 'Section') {
       return element.display === 'drilldown';
+    }
+    if (element.type === 'BuildingPlanSection') {
+      return true;
     }
     // if (element.type === 'RepeatableSection') {
     //   return true; // Always partially supported for now
@@ -170,6 +217,10 @@ export class FormRenderer {
 
     if (element.type === 'Section' && element.display === 'drilldown') {
       parts.push(`(display: ${element.display})`);
+    }
+
+    if (element.type === 'BuildingPlanSection') {
+      parts.push('(canvas preview)');
     }
 
     if (element.is_searchable === true) {
@@ -237,12 +288,31 @@ export class FormRenderer {
     return state ? JSON.parse(JSON.stringify(state)) : {};
   }
 
-  setSchema(schema, { repeatableState = {} } = {}) {
+  setSchema(schema, { repeatableState = {}, buildingPlanMeta = [] } = {}) {
     this.currentSchema = schema;
     this.initialRepeatableState = this.cloneRepeatableState(repeatableState);
     this.activeRepeatableState = this.cloneRepeatableState(repeatableState);
     this.resetFieldRegistry();
     this.repeatableSectionRegistry = new Map();
+    this.currentBuildingPlanMeta = Array.isArray(buildingPlanMeta) ? buildingPlanMeta : [];
+    this.refreshBuildingPlanRepeatableMap();
+  }
+
+  refreshBuildingPlanRepeatableMap() {
+    this.buildingPlanRepeatableDataNames = new Set();
+    if (!Array.isArray(this.currentBuildingPlanMeta)) {
+      return;
+    }
+    this.currentBuildingPlanMeta.forEach((meta) => {
+      if (!meta || !Array.isArray(meta.repeatables)) {
+        return;
+      }
+      meta.repeatables.forEach((node) => {
+        if (node && typeof node.dataName === 'string' && node.dataName !== '') {
+          this.buildingPlanRepeatableDataNames.add(node.dataName);
+        }
+      });
+    });
   }
 
   /**
@@ -270,6 +340,22 @@ export class FormRenderer {
     container.appendChild(form);
   }
 
+  disposeBuildingPlanControllers() {
+    if (!this.buildingPlanRegistry || this.buildingPlanRegistry.size === 0) {
+      return;
+    }
+
+    for (const entry of this.buildingPlanRegistry.values()) {
+      if (entry && typeof entry.dispose === 'function') {
+        try {
+          entry.dispose();
+        } catch (error) {
+          console.error('[BuildingPlan] Dispose error:', error);
+        }
+      }
+    }
+  }
+
   /**
    * Render form elements recursively
    */
@@ -277,6 +363,8 @@ export class FormRenderer {
     elements.forEach((element) => {
       if (element.type === 'RepeatableSection') {
         this.renderRepeatableSection(element, container, contextPath);
+      } else if (element.type === 'BuildingPlanSection') {
+        this.renderBuildingPlanSection(element, container, contextPath);
       } else if (element.type === 'Section') {
         this.renderSection(element, container, contextPath);
       } else {
@@ -327,12 +415,30 @@ export class FormRenderer {
     return instance;
   }
 
+  sanitizeRepeatableInstance(instance, { clearValues = false, clearNested = false } = {}) {
+    if (!instance || typeof instance !== 'object') {
+      return instance;
+    }
+
+    if (clearValues || !instance.values || typeof instance.values !== 'object') {
+      instance.values = clearValues ? {} : instance.values || {};
+    }
+
+    if (clearNested) {
+      instance.repeatable = {};
+    } else if (!instance.repeatable || typeof instance.repeatable !== 'object') {
+      instance.repeatable = {};
+    }
+
+    return instance;
+  }
+
   applyDefaultsToInstance(section, instance) {
     const elements = this.getSectionElements(section);
     elements.forEach((element) => {
       if (!element) return;
 
-      if (element.type === 'Section') {
+      if (element.type === 'Section' || element.type === 'BuildingPlanSection') {
         this.applyDefaultsToInstance(element, instance);
         return;
       }
@@ -759,12 +865,32 @@ export class FormRenderer {
     instanceDiv.setAttribute('data-created-at-client', createdAtClient);
     instanceDiv.setAttribute('data-updated-at-client', updatedAtClient);
 
+    const instanceLabel = `${section.label || section.data_name} #${index + 1}`;
     const headerRow = document.createElement('div');
     headerRow.className = 'repeatable-instance-header';
+
+    const headerLeft = document.createElement('div');
+    headerLeft.className = 'repeatable-instance-header-left';
+    headerRow.appendChild(headerLeft);
+
+    const toggleButton = document.createElement('button');
+    toggleButton.type = 'button';
+    toggleButton.className = 'repeatable-instance-toggle';
+    toggleButton.dataset.label = instanceLabel;
+    toggleButton.textContent = '▾';
+    toggleButton.setAttribute('aria-expanded', 'true');
+    toggleButton.setAttribute('aria-label', `Collapse ${instanceLabel}`);
+    toggleButton.title = `Collapse ${instanceLabel}`;
+    headerLeft.appendChild(toggleButton);
+
     const headerTitle = document.createElement('div');
     headerTitle.className = 'repeatable-instance-title';
-    headerTitle.textContent = `${section.label || section.data_name} #${index + 1}`;
-    headerRow.appendChild(headerTitle);
+    headerTitle.textContent = instanceLabel;
+    headerLeft.appendChild(headerTitle);
+
+    const headerActions = document.createElement('div');
+    headerActions.className = 'repeatable-instance-header-actions';
+    headerRow.appendChild(headerActions);
 
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
@@ -774,20 +900,82 @@ export class FormRenderer {
     removeButton.addEventListener('click', () => {
       this.removeRepeatableInstance(section, parentContextPath, index);
     });
-    headerRow.appendChild(removeButton);
+    headerActions.appendChild(removeButton);
+
     instanceDiv.appendChild(headerRow);
 
-    this.renderElements(section.elements || section.drilldown_elements || [], instanceDiv, instancePath);
+    const content = document.createElement('div');
+    content.className = 'repeatable-instance-content';
+    const contentId = `repeatable-content-${contextKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    content.id = contentId;
+    toggleButton.setAttribute('aria-controls', contentId);
+    instanceDiv.appendChild(content);
+
+    this.renderElements(section.elements || section.drilldown_elements || [], content, instancePath);
+
+    toggleButton.addEventListener('click', () => {
+      this.toggleRepeatableInstance(instanceDiv);
+    });
+
+    headerLeft.addEventListener('click', (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      const targetElement = event.target instanceof Element ? event.target : null;
+      if (targetElement && targetElement.closest('.repeatable-instance-toggle')) {
+        return;
+      }
+      this.toggleRepeatableInstance(instanceDiv);
+    });
+
+    const isCollapsed = this.repeatableCollapseState.get(contextKey) === true;
+    this.setRepeatableInstanceCollapsed(instanceDiv, isCollapsed, { storeState: false });
 
     instancesContainer.appendChild(instanceDiv);
   }
 
-  addRepeatableInstance(section, contextPath = []) {
-    const snapshotInstances = this.captureRepeatableSnapshot(section, contextPath);
+  addRepeatableInstance(section, contextPath = [], options = {}) {
+    // allow callers to request a fresh instance without inherited values/nested data
+    const {
+      clearNewInstanceValues = false,
+      clearNewInstanceRepeatable = false,
+    } = options || {};
+    const isBuildingPlanRepeatable =
+      section && typeof section.data_name === 'string'
+        ? this.buildingPlanRepeatableDataNames.has(section.data_name)
+        : false;
+    const shouldClearValues = clearNewInstanceValues || isBuildingPlanRepeatable;
+    const shouldClearNested = clearNewInstanceRepeatable || isBuildingPlanRepeatable;
+    let snapshotInstances = this.captureRepeatableSnapshot(section, contextPath);
     const instances = this.getRepeatableInstances(section, contextPath);
     this.mergeSnapshotIntoInstances(instances, snapshotInstances);
     const newInstance = this.createEmptyRepeatableInstance(section);
+    this.sanitizeRepeatableInstance(newInstance, {
+      clearValues: shouldClearValues,
+      clearNested: shouldClearNested,
+    });
     instances.push(newInstance);
+    if (!Array.isArray(snapshotInstances)) {
+      snapshotInstances = [];
+    }
+    const newSnapshot = JSON.parse(JSON.stringify(newInstance));
+    this.sanitizeRepeatableInstance(newSnapshot, {
+      clearValues: shouldClearValues,
+      clearNested: shouldClearNested,
+    });
+    if (snapshotInstances.length === instances.length - 1) {
+      snapshotInstances.push(newSnapshot);
+    } else {
+      snapshotInstances[instances.length - 1] = newSnapshot;
+    }
+    if (
+      this.formStateManager &&
+      typeof this.formStateManager.clearPendingValuesUnderPath === 'function'
+    ) {
+      const newIndex = instances.length - 1;
+      const newPath = [...contextPath, { key: this.getPreferredKey(section), index: newIndex }];
+      this.formStateManager.clearPendingValuesUnderPath(newPath);
+    }
     this.rebuildRepeatableSection(section, contextPath, snapshotInstances);
     this.dispatchRepeatableChange('add', section, contextPath, instances.length - 1, {
       totalInstances: instances.length,
@@ -807,6 +995,15 @@ export class FormRenderer {
       return;
     }
     this.mergeSnapshotIntoInstances(instances, snapshotInstances);
+    const removedPath = [...contextPath, { key: preferredKey, index }];
+    const removedKey = this.formatContextPath(removedPath);
+    this.clearCollapseStateForPath(removedKey);
+    if (
+      this.formStateManager &&
+      typeof this.formStateManager.clearPendingValuesUnderPath === 'function'
+    ) {
+      this.formStateManager.clearPendingValuesUnderPath(removedPath);
+    }
     instances.splice(index, 1);
     if (instances.length === 0) {
       delete parentContainer[preferredKey];
@@ -846,6 +1043,63 @@ export class FormRenderer {
   getRepeatableInstanceContainer(contextPath = []) {
     const contextKey = this.formatContextPath(contextPath);
     return document.querySelector(`[data-repeatable-context="${contextKey}"]`);
+  }
+
+  setRepeatableInstanceCollapsed(instanceDiv, collapsed, { storeState = true } = {}) {
+    if (!instanceDiv) return;
+    const content = instanceDiv.querySelector('.repeatable-instance-content');
+    const toggleButton = instanceDiv.querySelector('.repeatable-instance-toggle');
+    const contextKey = instanceDiv.getAttribute('data-repeatable-context');
+
+    instanceDiv.classList.toggle('collapsed', Boolean(collapsed));
+    if (content) {
+      content.style.display = collapsed ? 'none' : '';
+    }
+
+    if (toggleButton) {
+      const label = toggleButton.getAttribute('data-label') || 'section';
+      const expanded = !collapsed;
+      toggleButton.textContent = expanded ? '▾' : '▸';
+      toggleButton.setAttribute('aria-expanded', String(expanded));
+      toggleButton.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} ${label}`);
+      toggleButton.title = `${expanded ? 'Collapse' : 'Expand'} ${label}`;
+    }
+
+    if (storeState && contextKey) {
+      if (collapsed) {
+        this.repeatableCollapseState.set(contextKey, true);
+      } else {
+        this.repeatableCollapseState.delete(contextKey);
+      }
+    }
+  }
+
+  toggleRepeatableInstance(instanceDiv) {
+    if (!instanceDiv) return;
+    const collapsed = instanceDiv.classList.contains('collapsed');
+    this.setRepeatableInstanceCollapsed(instanceDiv, !collapsed);
+  }
+
+  ensureRepeatablePathExpanded(contextPath = []) {
+    if (!Array.isArray(contextPath)) return;
+    for (let i = 0; i < contextPath.length; i += 1) {
+      const subPath = contextPath.slice(0, i + 1);
+      const container = this.getRepeatableInstanceContainer(subPath);
+      if (container) {
+        this.setRepeatableInstanceCollapsed(container, false);
+      }
+    }
+  }
+
+  clearCollapseStateForPath(contextKey) {
+    if (!contextKey) return;
+    const toDelete = [];
+    this.repeatableCollapseState.forEach((_, key) => {
+      if (key === contextKey || key.startsWith(`${contextKey}.`)) {
+        toDelete.push(key);
+      }
+    });
+    toDelete.forEach((key) => this.repeatableCollapseState.delete(key));
   }
 
   getActiveInstance(contextPath = []) {
@@ -967,10 +1221,151 @@ export class FormRenderer {
     return true;
   }
 
+  renderBuildingPlanSection(section, container, contextPath = []) {
+    const sectionDiv = document.createElement('div');
+    sectionDiv.className = 'section building-plan-section';
+    sectionDiv.setAttribute('data-key', section.key);
+    sectionDiv.setAttribute('data-name', section.data_name);
+
+    const titleRow = document.createElement('div');
+    titleRow.className = 'section-title-row';
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.textContent = section.label || section.data_name || 'Building Plan';
+    titleRow.appendChild(title);
+
+    if (section.description && typeof section.description === 'string') {
+      if (section.description_mode === 'default') {
+        const infoIcon = document.createElement('span');
+        infoIcon.className = 'description-info-icon section-info-icon';
+        infoIcon.textContent = 'ℹ️';
+        infoIcon.title = 'Show description';
+        infoIcon.style.cursor = 'pointer';
+        infoIcon.tabIndex = 0;
+        titleRow.appendChild(infoIcon);
+
+        const dialog = document.createElement('div');
+        dialog.className = 'description-dialog';
+        dialog.style.display = 'none';
+        dialog.innerHTML = `
+          <div class="description-dialog-content">
+            <span class="description-dialog-close" tabindex="0">&times;</span>
+            <div class="description-dialog-header">${section.label || section.data_name || 'Building Plan'}</div>
+            <div class="description-dialog-text">${section.description}</div>
+          </div>
+        `;
+        document.body.appendChild(dialog);
+
+        const showDialog = () => {
+          dialog.style.display = 'block';
+        };
+        const hideDialog = () => {
+          dialog.style.display = 'none';
+        };
+        infoIcon.addEventListener('click', showDialog);
+        infoIcon.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') showDialog();
+        });
+        dialog.querySelector('.description-dialog-close').addEventListener('click', hideDialog);
+        dialog.querySelector('.description-dialog-close').addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') hideDialog();
+        });
+        dialog.addEventListener('click', (e) => {
+          if (e.target === dialog) hideDialog();
+        });
+      }
+    }
+
+    if (this.isPartiallySupportedFeature(section)) {
+      const warningIcon = this.createWarningIcon(section, 'section');
+      titleRow.appendChild(warningIcon);
+    }
+
+    if (this.isUnsupportedFeature(section)) {
+      const stopIcon = this.createStopIcon(section, 'section');
+      titleRow.appendChild(stopIcon);
+    }
+
+    sectionDiv.appendChild(titleRow);
+
+    if (section.description && section.description_mode === 'subtext') {
+      const subtext = document.createElement('div');
+      subtext.className = 'description-subtext';
+      subtext.textContent = section.description;
+      sectionDiv.appendChild(subtext);
+    }
+
+    const layoutWrapper = document.createElement('div');
+    layoutWrapper.className = 'building-plan-layout';
+
+    const canvasContainer = document.createElement('div');
+    canvasContainer.className = 'building-plan-canvas-panel';
+
+    const detailContainer = document.createElement('div');
+    detailContainer.className = 'building-plan-detail-panel';
+
+    const childElements = Array.isArray(section.elements) ? section.elements : [];
+    this.renderElements(childElements, detailContainer, contextPath);
+
+    layoutWrapper.appendChild(canvasContainer);
+    layoutWrapper.appendChild(detailContainer);
+
+    sectionDiv.appendChild(layoutWrapper);
+    container.appendChild(sectionDiv);
+
+    const metaEntry = this.currentBuildingPlanMeta.find((meta) => meta.dataName === section.data_name) || null;
+
+    const existing = this.buildingPlanRegistry.get(section.data_name);
+    if (existing && typeof existing.dispose === 'function') {
+      existing.dispose();
+    }
+
+    let controller = null;
+    let canvas = null;
+
+    if (this.formStateManager) {
+      controller = new BuildingPlanController(this, this.formStateManager, section, contextPath, metaEntry);
+      canvas = new BuildingPlanCanvas({
+        container: canvasContainer,
+        controller,
+        labelSettings: this.labelVisibilitySettings,
+      });
+    } else {
+      canvasContainer.innerHTML = `
+        <div class="building-plan-canvas-placeholder">
+          <div class="building-plan-canvas-placeholder-title">Canvas preview</div>
+          <div class="building-plan-canvas-placeholder-body">
+            Drawing tools for rooms and walls will appear here.
+          </div>
+        </div>
+      `;
+    }
+
+    this.buildingPlanRegistry.set(section.data_name, {
+      field: section,
+      blueprint: section.building_plan?.blueprint || metaEntry?.blueprint || null,
+      meta: section.building_plan?.meta || metaEntry || null,
+      element: sectionDiv,
+      canvasContainer,
+      detailContainer,
+      contextPath: [...contextPath],
+      controller,
+      canvas,
+      dispose: () => {
+        canvas?.destroy();
+        controller?.dispose();
+      },
+    });
+  }
+
   /**
    * Render a section element
    */
   renderSection(section, container, contextPath = []) {
+    if (section.type === 'BuildingPlanSection') {
+      this.renderBuildingPlanSection(section, container, contextPath);
+      return;
+    }
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'section';
     sectionDiv.setAttribute('data-key', section.key);
@@ -2748,7 +3143,9 @@ export class FormRenderer {
     let count = 0;
     elements.forEach((element) => {
       if (
-        (element.type === 'Section' || element.type === 'RepeatableSection') &&
+        (element.type === 'Section' ||
+          element.type === 'RepeatableSection' ||
+          element.type === 'BuildingPlanSection') &&
         Array.isArray(element.elements)
       ) {
         count += this.countFields(element.elements || element.drilldown_elements || []);
@@ -2807,7 +3204,9 @@ export class FormRenderer {
           return element;
         }
         if (
-          (element.type === 'Section' || element.type === 'RepeatableSection') &&
+          (element.type === 'Section' ||
+            element.type === 'RepeatableSection' ||
+            element.type === 'BuildingPlanSection') &&
           Array.isArray(element.elements)
         ) {
           const found = searchElements(element.elements || element.drilldown_elements || []);
@@ -2828,7 +3227,9 @@ export class FormRenderer {
       for (const el of elements || []) {
         if (el.key === key) return el;
         if (
-          (el.type === 'Section' || el.type === 'RepeatableSection') &&
+          (el.type === 'Section' ||
+            el.type === 'RepeatableSection' ||
+            el.type === 'BuildingPlanSection') &&
           Array.isArray(el.elements)
         ) {
           const found = search(el.elements || el.drilldown_elements || []);

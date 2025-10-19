@@ -50,13 +50,28 @@ export class OperationProcessor {
       return;
     }
 
-    // First pass: Apply all DOM updates synchronously (skip async state updates)
-    for (const operation of operations) {
-      await this.processOperation(operation, true); // skipStateUpdate = true
+    const canBatchEngine =
+      this.formStateManager &&
+      typeof this.formStateManager.suspendEngineUpdates === 'function' &&
+      typeof this.formStateManager.resumeEngineUpdates === 'function';
+
+    if (canBatchEngine) {
+      this.formStateManager.suspendEngineUpdates();
     }
 
-    // Second pass: Single async state update after all DOM operations complete
-    this.formStateManager.updateFormState();
+    try {
+      // Apply all operations with state updates deferred
+      for (const operation of operations) {
+        await this.processOperation(operation, true); // skipStateUpdate = true
+      }
+
+      // Trigger a single engine refresh (will queue if suspended)
+      this.formStateManager.updateFormState();
+    } finally {
+      if (canBatchEngine) {
+        this.formStateManager.resumeEngineUpdates();
+      }
+    }
   }
 
   /**
