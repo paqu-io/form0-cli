@@ -46,6 +46,12 @@
       "updatingSchema": "🔄 Mise à jour du schéma du serveur...",
       "watcherError": "❌ Erreur du surveillant de fichiers : {message}"
     },
+    "schema": {
+      "importSuccess": "✅ Conversion de {csv} en {json} réussie.",
+      "importFailed": "❌ Échec de l'import du schéma CSV : {message}",
+      "exportSuccess": "✅ Export du schéma de {json} vers {csv} réussi.",
+      "exportFailed": "❌ Échec de l'export du schéma : {message}"
+    },
     "test": {
       "attemptingRun": "🔄 Tentative d'exécution du test quand même...",
       "createProjectFirst": "💡 Exécutez {command} pour créer d'abord un projet de test.",
@@ -143,6 +149,8 @@
     "navigation": "  Navigation : Utilisez les flèches ↑/↓ pour l'historique, Tab pour l'autocomplétion",
     "notation": "  Notation : <obligatoire> [optionnel]",
     "previewCommand": "    preview, p           Afficher la structure du formulaire",
+    "schemaImportCommand": "    schema import <csv> [json]  Convertir un CSV en schéma JSON",
+    "schemaExportCommand": "    schema export [csv] [json]  Exporter le schéma courant en CSV",
     "reloadCommand": "    reload, rld          Recharger le fichier de schéma courant",
     "runCommand": "    run [options], r     Exécuter le moteur du formulaire avec des valeurs optionnelles",
     "runOptions": "      options : --values <input>",
@@ -174,6 +182,10 @@
     "continueWithOther": "   • Continuer avec d'autres commandes",
     "error": "❌ Erreur : {message}",
     "failedToInitialize": "❌ Échec de l'initialisation : {message}",
+    "schemaUsageImport": "❌ Utilisation : schema import <chemin-csv> [chemin-json-sortie]",
+    "schemaUsageExport": "❌ Utilisation : schema export [chemin-csv-sortie] [chemin-json-entrée]",
+    "schemaImportSuccess": "✅ Schéma CSV importé dans {json}.",
+    "schemaExportSuccess": "✅ Schéma exporté en CSV vers {csv}.",
     "foundButFailedToLoad": "⚠️ {path} trouvé mais échec du chargement : {message}",
     "foundExistingSchema": "⚠️ Schéma existant trouvé : {path}",
     "goodbye": "🦙 ¡Hasta pronto! 🦙",

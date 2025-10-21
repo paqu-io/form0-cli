@@ -21,6 +21,8 @@ class Form0Server {
     this.port = parseInt(options.port) || 3030;
     this.host = options.host || 'localhost';
     this.actualSchemaPath = null; // For interactive mode to track the real schema file
+    this.exitHandler = null;
+    this.connections = new Set();
   }
 
   async start() {
@@ -42,6 +44,11 @@ class Form0Server {
 
       // Start HTTP server
       this.server = createServer(this.app);
+      this.server.on('connection', (socket) => {
+        this.connections.add(socket);
+        socket.on('close', () => this.connections.delete(socket));
+        socket.on('error', () => this.connections.delete(socket));
+      });
 
       // Setup WebSocket server with schema source
       this.wsServer = createWebSocketServer(
@@ -211,6 +218,11 @@ class Form0Server {
   }
 
   setupExitHandlers() {
+    if (this.exitHandler) {
+      process.off('SIGINT', this.exitHandler);
+      process.off('SIGTERM', this.exitHandler);
+    }
+
     const cleanup = () => {
       console.log(colors.warning('\n' + t('commands.serve.shuttingDown') + '\n'));
 
@@ -229,14 +241,84 @@ class Form0Server {
       process.exit(0);
     };
 
+    this.exitHandler = cleanup;
     process.on('SIGINT', cleanup);
     process.on('SIGTERM', cleanup);
   }
 
-  stop() {
-    if (this.watcher) this.watcher.close();
-    if (this.wsServer?.wss) this.wsServer.wss.close();
-    if (this.server) this.server.close();
+  async stop() {
+    if (this.exitHandler) {
+      process.off('SIGINT', this.exitHandler);
+      process.off('SIGTERM', this.exitHandler);
+      this.exitHandler = null;
+    }
+
+    const tasks = [];
+
+    if (this.watcher) {
+      const watcher = this.watcher;
+      this.watcher = null;
+      tasks.push(
+        watcher.close().catch((err) => {
+          console.error(colors.error(`Failed to close schema watcher: ${err.message}`));
+        })
+      );
+    }
+
+    if (this.wsServer?.wss) {
+      const wss = this.wsServer.wss;
+      this.wsServer = null;
+
+      wss.clients.forEach((client) => {
+        try {
+          client.terminate();
+        } catch (err) {
+          console.error(colors.error(`Failed to terminate WebSocket client: ${err.message}`));
+        }
+      });
+
+      tasks.push(
+        new Promise((resolve) => {
+          wss.close((err) => {
+            if (err) {
+              console.error(colors.error(`Failed to close WebSocket server: ${err.message}`));
+            }
+            resolve();
+          });
+        })
+      );
+    }
+
+    if (this.server) {
+      const httpServer = this.server;
+      this.server = null;
+
+      this.connections.forEach((socket) => {
+        try {
+          socket.destroy();
+        } catch (err) {
+          console.error(colors.error(`Failed to destroy HTTP connection: ${err.message}`));
+        }
+      });
+      this.connections.clear();
+
+      tasks.push(
+        new Promise((resolve) => {
+          httpServer.close((err) => {
+            if (err) {
+              console.error(colors.error(`Failed to close development server: ${err.message}`));
+            }
+            resolve();
+          });
+        })
+      );
+    } else {
+      this.connections.clear();
+    }
+
+    if (tasks.length > 0) {
+      await Promise.all(tasks);
+    }
   }
 
   // Method for interactive integration

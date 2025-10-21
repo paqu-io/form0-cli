@@ -46,6 +46,12 @@
       "updatingSchema": "🔄 Actualizando esquema del servidor...",
       "watcherError": "❌ Error en el observador de archivos: {message}"
     },
+    "schema": {
+      "importSuccess": "✅ Convertido {csv} en {json}.",
+      "importFailed": "❌ Error al importar el esquema CSV: {message}",
+      "exportSuccess": "✅ Exportado el esquema de {json} a {csv}.",
+      "exportFailed": "❌ Error al exportar el esquema: {message}"
+    },
     "test": {
       "attemptingRun": "🔄 Intentando ejecutar el test de todas formas...",
       "createProjectFirst": "💡 Ejecuta {command} para crear primero un proyecto de prueba.",
@@ -143,6 +149,8 @@
     "navigation": "  Navegación: Usa flechas ↑/↓ para historial de comandos, Tab para autocompletado",
     "notation": "  Notación: <obligatorio> [opcional]",
     "previewCommand": "    preview, p           Mostrar la estructura del formulario",
+    "schemaImportCommand": "    schema import <csv> [json]  Convertir un CSV en un esquema JSON",
+    "schemaExportCommand": "    schema export [csv] [json]  Exportar el esquema actual a CSV",
     "reloadCommand": "    reload, rld          Recargar el archivo de esquema actual",
     "runCommand": "    run [options], r     Ejecutar el motor del formulario con valores opcionales",
     "runOptions": "      opciones: --values <input>",
@@ -174,6 +182,10 @@
     "continueWithOther": "   • Continuar con otros comandos",
     "error": "❌ Error: {message}",
     "failedToInitialize": "❌ Error al inicializar: {message}",
+    "schemaUsageImport": "❌ Uso: schema import <ruta-csv> [ruta-json-salida]",
+    "schemaUsageExport": "❌ Uso: schema export [ruta-csv-salida] [ruta-json-entrada]",
+    "schemaImportSuccess": "✅ Esquema CSV importado en {json}.",
+    "schemaExportSuccess": "✅ Esquema exportado a CSV en {csv}.",
     "foundButFailedToLoad": "⚠️ Se encontró {path} pero no se pudo cargar: {message}",
     "foundExistingSchema": "⚠️ Se encontró un esquema existente: {path}",
     "goodbye": "🦙 ¡Hasta pronto! 🦙",

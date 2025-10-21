@@ -33,6 +33,8 @@ export function showHelp() {
   console.log(colors.text(t('help.reloadCommand')));
   console.log(colors.text(t('help.validateCommand')));
   console.log(colors.text(t('help.previewCommand')));
+  console.log(colors.text(t('help.schemaImportCommand')));
+  console.log(colors.text(t('help.schemaExportCommand')));
   console.log();
   console.log(colors.accent1(t('help.engineOperations')));
   console.log(colors.text(t('help.runCommand')));

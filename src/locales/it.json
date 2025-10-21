@@ -46,6 +46,12 @@
       "updatingSchema": "🔄 Aggiornamento dello schema del server...",
       "watcherError": "❌ Errore nel file watcher: {message}"
     },
+    "schema": {
+      "importSuccess": "✅ Convertito {csv} in {json}.",
+      "importFailed": "❌ Impossibile importare lo schema CSV: {message}",
+      "exportSuccess": "✅ Esportato lo schema da {json} a {csv}.",
+      "exportFailed": "❌ Impossibile esportare lo schema: {message}"
+    },
     "test": {
       "attemptingRun": "🔄 Tentativo di eseguire comunque il test...",
       "createProjectFirst": "💡 Esegui {command} per creare prima un progetto di test.",
@@ -143,6 +149,8 @@
     "navigation": "  Navigazione: usa frecce ↑/↓ per cronologia comandi, Tab per completamento",
     "notation": "  Notazione: <obbligatorio> [opzionale]",
     "previewCommand": "    preview, p           Mostra la struttura del form",
+    "schemaImportCommand": "    schema import <csv> [json]  Converti un CSV in uno schema JSON",
+    "schemaExportCommand": "    schema export [csv] [json]  Esporta lo schema corrente in CSV",
     "reloadCommand": "    reload, rld          Ricarica il file schema corrente",
     "runCommand": "    run [options], r     Esegui il motore con valori opzionali",
     "runOptions": "      opzioni: --values <input>",
@@ -174,6 +182,10 @@
     "continueWithOther": "   • Continua con altri comandi",
     "error": "❌ Errore: {message}",
     "failedToInitialize": "❌ Impossibile inizializzare: {message}",
+    "schemaUsageImport": "❌ Utilizzo: schema import <percorso-csv> [percorso-json-output]",
+    "schemaUsageExport": "❌ Utilizzo: schema export [percorso-csv-output] [percorso-json-input]",
+    "schemaImportSuccess": "✅ Schema CSV importato in {json}.",
+    "schemaExportSuccess": "✅ Schema esportato in CSV su {csv}.",
     "foundButFailedToLoad": "⚠️ Trovato {path} ma impossibile caricare: {message}",
     "foundExistingSchema": "⚠️ Schema esistente trovato: {path}",
     "goodbye": "🦙 ¡Hasta pronto! 🦙",
