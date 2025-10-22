@@ -77,7 +77,10 @@
       "importSuccess": "✅ Converted {csv} into {json}.",
       "importFailed": "❌ Failed to import CSV schema: {message}",
       "exportSuccess": "✅ Exported schema from {json} to {csv}.",
-      "exportFailed": "❌ Failed to export schema: {message}"
+      "exportFailed": "❌ Failed to export schema: {message}",
+      "overwritePrompt": "⚠️ {file} already exists. Overwrite? (y/N) ",
+      "overwriteCancelled": "✋ Operation cancelled.",
+      "overwriteRefused": "❌ Cannot overwrite {file} without confirmation. Use --force to override."
     }
   },
   "connectors": {
@@ -198,8 +201,8 @@
     "initializingIn": "🚀 Initializing form0 project in: {dir}",
     "autoLoadedNewSchema": "✅ Auto-loaded the newly created schema.",
     "failedToInitialize": "❌ Failed to initialize: {message}",
-    "schemaUsageImport": "❌ Usage: schema import <csv-path> [json-output-path]",
-    "schemaUsageExport": "❌ Usage: schema export [csv-output-path] [json-input-path]",
+    "schemaUsageImport": "❌ Usage: schema import <csv-path> [json-output-path] [--force]",
+    "schemaUsageExport": "❌ Usage: schema export [csv-output-path] [json-input-path] [--force]",
     "schemaImportSuccess": "✅ Imported schema CSV into {json}.",
     "schemaExportSuccess": "✅ Exported schema CSV to {csv}.",
     "usingPreviousValues": "Using previous values for engine execution.",

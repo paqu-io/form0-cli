@@ -50,7 +50,10 @@
       "importSuccess": "✅ Convertito {csv} in {json}.",
       "importFailed": "❌ Impossibile importare lo schema CSV: {message}",
       "exportSuccess": "✅ Esportato lo schema da {json} a {csv}.",
-      "exportFailed": "❌ Impossibile esportare lo schema: {message}"
+      "exportFailed": "❌ Impossibile esportare lo schema: {message}",
+      "overwritePrompt": "⚠️ {file} esiste già. Sovrascrivere? (s/N) ",
+      "overwriteCancelled": "✋ Operazione annullata.",
+      "overwriteRefused": "❌ Impossibile sovrascrivere {file} senza conferma. Usa --force per procedere."
     },
     "test": {
       "attemptingRun": "🔄 Tentativo di eseguire comunque il test...",
@@ -182,8 +185,8 @@
     "continueWithOther": "   • Continua con altri comandi",
     "error": "❌ Errore: {message}",
     "failedToInitialize": "❌ Impossibile inizializzare: {message}",
-    "schemaUsageImport": "❌ Utilizzo: schema import <percorso-csv> [percorso-json-output]",
-    "schemaUsageExport": "❌ Utilizzo: schema export [percorso-csv-output] [percorso-json-input]",
+    "schemaUsageImport": "❌ Utilizzo: schema import <percorso-csv> [percorso-json-output] [--force]",
+    "schemaUsageExport": "❌ Utilizzo: schema export [percorso-csv-output] [percorso-json-input] [--force]",
     "schemaImportSuccess": "✅ Schema CSV importato in {json}.",
     "schemaExportSuccess": "✅ Schema esportato in CSV su {csv}.",
     "foundButFailedToLoad": "⚠️ Trovato {path} ma impossibile caricare: {message}",

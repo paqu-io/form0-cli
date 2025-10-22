@@ -14,16 +14,8 @@ async function run() {
     form: {
       name: 'CSV Demo',
       description: 'Schema round-trip test',
-      status: 'active',
-      version: 3,
       location_enabled: true,
       location_required: false,
-      form_links: {
-        to: [
-          { form_link_field_key: 'link_field', form_id: '123e4567-e89b-12d3-a456-426614174000' },
-        ],
-        from: [],
-      },
       events: {
         code: 'ON("load-record", function () { ALERT("Loaded!"); });',
       },
@@ -155,6 +147,37 @@ async function run() {
     sampleSchema.form.title_field.elements.join(','),
     'Title field elements preserved'
   );
+  assert.strictEqual(
+    imported.form.location_enabled,
+    sampleSchema.form.location_enabled,
+    'location_enabled metadata preserved'
+  );
+  assert.strictEqual(
+    imported.form.location_required,
+    sampleSchema.form.location_required,
+    'location_required metadata preserved'
+  );
+  assert.strictEqual(
+    imported.form.events.code,
+    sampleSchema.form.events.code,
+    'events.code metadata preserved'
+  );
+
+  const jsonText = await fs.readFile(roundtripJsonPath, 'utf8');
+  const metadataOrder = [
+    '"name"',
+    '"description"',
+    '"location_enabled"',
+    '"location_required"',
+    '"events"',
+  ];
+  let lastIndex = -1;
+  metadataOrder.forEach((token) => {
+    const idx = jsonText.indexOf(token);
+    assert.ok(idx !== -1, `Expected ${token} in generated JSON`);
+    assert.ok(idx > lastIndex, `Expected ${token} to appear after previous metadata field`);
+    lastIndex = idx;
+  });
 
   const section = imported.form.elements.find((el) => el.data_name === 'personal_section');
   assert.ok(section, 'Section should round-trip');
@@ -163,9 +186,6 @@ async function run() {
   const calcField = section.elements.find((el) => el.data_name === 'score');
   assert.ok(calcField, 'Calculated field should remain');
   assert.equal(calcField.calculate, 'IF($favorite_city == "bogota", 10, 5)');
-
-  const exportedLinks = imported.form.form_links?.to ?? [];
-  assert.equal(exportedLinks.length, 1, 'Form links should persist');
 
   await fs.remove(tmpDir);
   console.log('Schema CSV round-trip test passed.');

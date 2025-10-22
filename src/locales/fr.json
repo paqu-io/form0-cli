@@ -50,7 +50,10 @@
       "importSuccess": "✅ Conversion de {csv} en {json} réussie.",
       "importFailed": "❌ Échec de l'import du schéma CSV : {message}",
       "exportSuccess": "✅ Export du schéma de {json} vers {csv} réussi.",
-      "exportFailed": "❌ Échec de l'export du schéma : {message}"
+      "exportFailed": "❌ Échec de l'export du schéma : {message}",
+      "overwritePrompt": "⚠️ {file} existe déjà. Écraser ? (o/N) ",
+      "overwriteCancelled": "✋ Opération annulée.",
+      "overwriteRefused": "❌ Impossible d'écraser {file} sans confirmation. Utilisez --force pour continuer."
     },
     "test": {
       "attemptingRun": "🔄 Tentative d'exécution du test quand même...",
@@ -182,8 +185,8 @@
     "continueWithOther": "   • Continuer avec d'autres commandes",
     "error": "❌ Erreur : {message}",
     "failedToInitialize": "❌ Échec de l'initialisation : {message}",
-    "schemaUsageImport": "❌ Utilisation : schema import <chemin-csv> [chemin-json-sortie]",
-    "schemaUsageExport": "❌ Utilisation : schema export [chemin-csv-sortie] [chemin-json-entrée]",
+    "schemaUsageImport": "❌ Utilisation : schema import <chemin-csv> [chemin-json-sortie] [--force]",
+    "schemaUsageExport": "❌ Utilisation : schema export [chemin-csv-sortie] [chemin-json-entrée] [--force]",
     "schemaImportSuccess": "✅ Schéma CSV importé dans {json}.",
     "schemaExportSuccess": "✅ Schéma exporté en CSV vers {csv}.",
     "foundButFailedToLoad": "⚠️ {path} trouvé mais échec du chargement : {message}",

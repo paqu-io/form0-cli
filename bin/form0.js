@@ -85,6 +85,7 @@ if (process.argv.length === 2) {
     .command('import')
     .argument('<csv>', 'Path to schema CSV file')
     .option('-o, --output <json>', 'Path for generated JSON schema', 'form.schema.json')
+    .option('-f, --force', 'Overwrite destination without prompting')
     .description('Convert schema CSV into JSON')
     .action(schemaImportCommand);
 
@@ -92,6 +93,7 @@ if (process.argv.length === 2) {
     .command('export')
     .argument('[csv]', 'Path for generated CSV file (defaults to form.schema.csv)', 'form.schema.csv')
     .option('-i, --input <json>', 'Path to source schema JSON', 'form.schema.json')
+    .option('-f, --force', 'Overwrite destination without prompting')
     .description('Export schema JSON to CSV')
     .action((csv, options) => schemaExportCommand(csv, options));
 

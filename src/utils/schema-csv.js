@@ -20,32 +20,24 @@ const TITLE_TYPE = 'TitleField';
 const FORM_METADATA_KEYS = new Set([
   'name',
   'description',
-  'id',
-  'record_count',
-  'record_last_change_at',
-  'form_created_at',
-  'form_updated_at',
-  'form_created_by',
-  'form_updated_by',
-  'status',
-  'version',
-  'main_org_id',
-  'main_org_metadata',
-  'sub_org_id',
-  'sub_org_metadata',
-  'project_id',
-  'project_metadata',
-  'bounding_box',
   'location_enabled',
   'location_required',
-  'image',
-  'image_thumbnail',
-  'image_small',
-  'image_large',
   'events.code',
-  'form_links.to',
-  'form_links.from',
 ]);
+
+const WARNED_METADATA_ATTRIBUTES = new Set();
+
+const FORM_KEY_ORDER = [
+  'name',
+  'description',
+  'location_enabled',
+  'location_required',
+  'events',
+  'status_field',
+  'title_field',
+  'form_links',
+  'elements',
+];
 
 const RESERVED_COLUMNS = new Set(['row_kind', 'attribute', 'value', 'parent_section']);
 
@@ -92,6 +84,39 @@ function splitMultiline(value) {
 
 function splitDelimited(line) {
   return line.split(CSV_DELIMITER).map((token) => token.trim());
+}
+
+function reorderFormKeys(form) {
+  const ordered = {};
+  const added = new Set();
+
+  for (const key of FORM_KEY_ORDER) {
+    if (Object.prototype.hasOwnProperty.call(form, key)) {
+      if (key === 'events' && form.events && typeof form.events === 'object') {
+        const eventOrdered = {};
+        Object.keys(form.events).forEach((eventKey) => {
+          if (eventKey !== 'code') {
+            eventOrdered[eventKey] = form.events[eventKey];
+          }
+        });
+        if (Object.prototype.hasOwnProperty.call(form.events, 'code')) {
+          eventOrdered.code = form.events.code;
+        }
+        ordered.events = eventOrdered;
+      } else {
+        ordered[key] = form[key];
+      }
+      added.add(key);
+    }
+  }
+
+  Object.keys(form).forEach((key) => {
+    if (!added.has(key)) {
+      ordered[key] = form[key];
+    }
+  });
+
+  return ordered;
 }
 
 function parseMetadataValue(raw) {
@@ -279,8 +304,13 @@ function parseMetadataRows(rows, form) {
     const attribute = row.attribute?.trim();
     if (!attribute) return;
     if (!FORM_METADATA_KEYS.has(attribute)) {
-      throw new Error(`Unknown form metadata attribute "${attribute}"`);
+      if (!WARNED_METADATA_ATTRIBUTES.has(attribute)) {
+        console.warn(`[form0 schema] Ignoring unsupported form-meta attribute "${attribute}"`);
+        WARNED_METADATA_ATTRIBUTES.add(attribute);
+      }
+      return;
     }
+
     const value = parseMetadataValue(row.value ?? '');
 
     if (attribute === 'events.code') {
@@ -289,56 +319,11 @@ function parseMetadataRows(rows, form) {
       return;
     }
 
-    if (attribute === 'form_links.to' || attribute === 'form_links.from') {
-      const direction = attribute.endsWith('.to') ? 'to' : 'from';
-      if (!form.form_links) form.form_links = { to: [], from: [] };
-
-      const rawValue = row.value ?? '';
-      let entries = splitMultiline(rawValue);
-      if (entries.length === 0 && rawValue.trim()) {
-        entries = [rawValue.trim()];
-      }
-
-      if (entries.length > 0) {
-        form.form_links[direction] = entries.map((entry) => {
-          const [formLinkFieldKey, formId] = splitDelimited(entry);
-          return { form_link_field_key: formLinkFieldKey || null, form_id: formId || null };
-        });
-        return;
-      }
-
-      if (Array.isArray(value)) {
-        form.form_links[direction] = value.map((entry) => {
-          if (typeof entry === 'string') {
-            const [formLinkFieldKey, formId] = splitDelimited(entry);
-            return { form_link_field_key: formLinkFieldKey || null, form_id: formId || null };
-          }
-          if (Array.isArray(entry)) {
-            const [formLinkFieldKey, formId] = entry;
-            return { form_link_field_key: formLinkFieldKey || null, form_id: formId || null };
-          }
-          if (entry && typeof entry === 'object') {
-            return {
-              form_link_field_key: entry.form_link_field_key ?? null,
-              form_id: entry.form_id ?? null,
-            };
-          }
-          return { form_link_field_key: null, form_id: null };
-        });
-      }
-      return;
+    if (value === null) {
+      delete form[attribute];
+    } else {
+      form[attribute] = value;
     }
-
-    if (attribute === 'bounding_box') {
-      if (Array.isArray(value)) {
-        form.bounding_box = value.flat().map((entry) => Number(entry));
-      } else if (typeof value === 'string') {
-        form.bounding_box = splitDelimited(value).map((entry) => Number(entry));
-      }
-      return;
-    }
-
-    form[attribute] = value;
   });
 }
 
@@ -440,6 +425,7 @@ function ensureGeneratedKeys(form) {
 }
 
 export async function importSchemaFromCsvFile(csvPath, { outputPath } = {}) {
+  WARNED_METADATA_ATTRIBUTES.clear();
   const targetPath = outputPath || 'form.schema.json';
   const csvText = await fs.readFile(csvPath, 'utf8');
   const rows = rowsToObjects(parseCsv(csvText));
@@ -461,11 +447,13 @@ export async function importSchemaFromCsvFile(csvPath, { outputPath } = {}) {
   ensureGeneratedKeys(form);
   validateSchema(form);
 
+  const orderedForm = reorderFormKeys(form);
+
   const outputDir = path.dirname(path.resolve(targetPath));
   await fs.ensureDir(outputDir);
-  await fs.writeJson(targetPath, { form }, { spaces: 2 });
+  await fs.writeJson(targetPath, { form: orderedForm }, { spaces: 2 });
 
-  return { form, schemaPath: targetPath };
+  return { form: orderedForm, schemaPath: targetPath };
 }
 
 function collectFieldRows(form, parentSectionName = '') {
@@ -518,14 +506,6 @@ function buildMetadataRows(form) {
     let value;
     if (attribute === 'events.code') {
       value = form?.events?.code ?? '';
-    } else if (attribute === 'form_links.to' || attribute === 'form_links.from') {
-      const direction = attribute.endsWith('.to') ? 'to' : 'from';
-      const list = form?.form_links?.[direction] ?? [];
-      value = stringifyArray(
-        list.map((entry) => [entry.form_link_field_key ?? '', entry.form_id ?? ''])
-      );
-    } else if (attribute === 'bounding_box') {
-      value = (form?.bounding_box || []).join(CSV_DELIMITER);
     } else {
       value = formatAttributeValue(form?.[attribute], attribute);
     }

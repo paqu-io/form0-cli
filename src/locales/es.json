@@ -50,7 +50,10 @@
       "importSuccess": "✅ Convertido {csv} en {json}.",
       "importFailed": "❌ Error al importar el esquema CSV: {message}",
       "exportSuccess": "✅ Exportado el esquema de {json} a {csv}.",
-      "exportFailed": "❌ Error al exportar el esquema: {message}"
+      "exportFailed": "❌ Error al exportar el esquema: {message}",
+      "overwritePrompt": "⚠️ {file} ya existe. ¿Sobrescribir? (s/N) ",
+      "overwriteCancelled": "✋ Operación cancelada.",
+      "overwriteRefused": "❌ No se puede sobrescribir {file} sin confirmación. Usa --force para continuar."
     },
     "test": {
       "attemptingRun": "🔄 Intentando ejecutar el test de todas formas...",
@@ -182,8 +185,8 @@
     "continueWithOther": "   • Continuar con otros comandos",
     "error": "❌ Error: {message}",
     "failedToInitialize": "❌ Error al inicializar: {message}",
-    "schemaUsageImport": "❌ Uso: schema import <ruta-csv> [ruta-json-salida]",
-    "schemaUsageExport": "❌ Uso: schema export [ruta-csv-salida] [ruta-json-entrada]",
+    "schemaUsageImport": "❌ Uso: schema import <ruta-csv> [ruta-json-salida] [--force]",
+    "schemaUsageExport": "❌ Uso: schema export [ruta-csv-salida] [ruta-json-entrada] [--force]",
     "schemaImportSuccess": "✅ Esquema CSV importado en {json}.",
     "schemaExportSuccess": "✅ Esquema exportado a CSV en {csv}.",
     "foundButFailedToLoad": "⚠️ Se encontró {path} pero no se pudo cargar: {message}",

@@ -4,6 +4,7 @@ import { localeCommand } from '../locale.js';
 import { colors } from '../../utils/theme.js';
 import { t } from '../../utils/i18n.js';
 import { importSchemaFromCsvFile, exportSchemaToCsvFile } from '../../utils/schema-csv.js';
+import { confirmOverwrite } from '../schema.js';
 
 /**
  * Handles command processing for interactive shell
@@ -202,23 +203,35 @@ export class CommandHandler {
   }
 
   async handleSchemaCommand(args) {
-    const [action, firstArg, secondArg] = args;
+    const [action, ...rest] = args;
 
     if (!action) {
       console.log(colors.error(t('interactive.schemaUsageImport')));
       return;
     }
 
+    const { positional, force } = this.parseSchemaFlags(rest);
+
     if (action === 'import') {
-      if (!firstArg) {
+      const [csvPath, outputArg] = positional;
+      if (!csvPath) {
         console.log(colors.error(t('interactive.schemaUsageImport')));
         return;
       }
 
-      const outputPath = secondArg || 'form.schema.json';
+      const outputPath = outputArg || 'form.schema.json';
 
       try {
-        const { schemaPath } = await importSchemaFromCsvFile(firstArg, { outputPath });
+        const confirmed = await confirmOverwrite(outputPath, {
+          force,
+          readlineInterface: this.readline,
+        });
+
+        if (!confirmed) {
+          return;
+        }
+
+        const { schemaPath } = await importSchemaFromCsvFile(csvPath, { outputPath });
         console.log(colors.success(t('interactive.schemaImportSuccess', { json: schemaPath })));
 
         await this.schemaManager.loadSchema(schemaPath);
@@ -231,13 +244,23 @@ export class CommandHandler {
     }
 
     if (action === 'export') {
-      const csvPath = firstArg || 'form.schema.csv';
+      const [csvArg, inputArg] = positional;
+      const csvPath = csvArg || 'form.schema.csv';
       const sourceSchema =
-        secondArg ||
+        inputArg ||
         this.schemaManager.getCurrentSchemaPath() ||
         'form.schema.json';
 
       try {
+        const confirmed = await confirmOverwrite(csvPath, {
+          force,
+          readlineInterface: this.readline,
+        });
+
+        if (!confirmed) {
+          return;
+        }
+
         const { csvPath: producedPath } = await exportSchemaToCsvFile(sourceSchema, {
           outputPath: csvPath,
         });
@@ -249,6 +272,21 @@ export class CommandHandler {
     }
 
     console.log(colors.error(t('interactive.unknownCommand', { command: `schema ${action}` })));
+  }
+
+  parseSchemaFlags(args) {
+    const positional = [];
+    let force = false;
+
+    for (const arg of args) {
+      if (arg === '--force' || arg === '-f') {
+        force = true;
+      } else {
+        positional.push(arg);
+      }
+    }
+
+    return { positional, force };
   }
 
   /**
