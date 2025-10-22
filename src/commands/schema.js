@@ -8,7 +8,9 @@ import { importSchemaFromCsvFile, exportSchemaToCsvFile } from '../utils/schema-
 
 export async function confirmOverwrite(targetPath, { force = false, readlineInterface } = {}) {
   if (force) return true;
-  if (!(await fs.pathExists(targetPath))) return true;
+
+  const resolvedPath = path.resolve(targetPath);
+  const targetExists = await fs.pathExists(targetPath);
 
   if (!readlineInterface && (!input.isTTY || !output.isTTY)) {
     console.log(
@@ -21,8 +23,12 @@ export async function confirmOverwrite(targetPath, { force = false, readlineInte
     return false;
   }
 
+  const promptKey = targetExists ? 'overwritePrompt' : 'writePrompt';
   const promptMessage = colors.warning(
-    t('commands.schema.overwritePrompt', { file: path.basename(targetPath) })
+    t(`commands.schema.${promptKey}`, {
+      file: path.basename(targetPath),
+      path: resolvedPath,
+    })
   );
 
   const accepted = await new Promise((resolve) => {
@@ -46,9 +52,16 @@ export async function confirmOverwrite(targetPath, { force = false, readlineInte
   return accepted;
 }
 
+export function resolveDefaultSchemaPath(csvPath) {
+  const parsed = path.parse(csvPath);
+  const baseDir = parsed.dir || '.';
+  const baseName = parsed.name || 'form.schema';
+  return path.join(baseDir, `${baseName}.json`);
+}
+
 export async function schemaImportCommand(csvPath, options = {}) {
   const { output: outputPath, force = false } = options;
-  const targetPath = outputPath || 'form.schema.json';
+  const targetPath = outputPath || resolveDefaultSchemaPath(csvPath);
 
   try {
     if (!(await confirmOverwrite(targetPath, { force }))) {
@@ -75,6 +88,10 @@ export async function schemaExportCommand(csvPath = 'form.schema.csv', options =
   const sourcePath = schemaPath || 'form.schema.json';
 
   try {
+    const resolvedSource = path.resolve(sourcePath);
+    const resolvedTarget = path.resolve(csvPath);
+    console.log(colors.info(t('commands.schema.exportPreview', { json: resolvedSource, csv: resolvedTarget })));
+
     if (!(await confirmOverwrite(csvPath, { force }))) {
       return { cancelled: true };
     }

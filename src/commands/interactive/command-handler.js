@@ -1,10 +1,11 @@
+import path from 'path';
 import { testCommand } from '../test.js';
 import { themeCommand } from '../theme.js';
 import { localeCommand } from '../locale.js';
 import { colors } from '../../utils/theme.js';
 import { t } from '../../utils/i18n.js';
 import { importSchemaFromCsvFile, exportSchemaToCsvFile } from '../../utils/schema-csv.js';
-import { confirmOverwrite } from '../schema.js';
+import { confirmOverwrite, resolveDefaultSchemaPath } from '../schema.js';
 
 /**
  * Handles command processing for interactive shell
@@ -219,7 +220,7 @@ export class CommandHandler {
         return;
       }
 
-      const outputPath = outputArg || 'form.schema.json';
+      const outputPath = outputArg || resolveDefaultSchemaPath(csvPath);
 
       try {
         const confirmed = await confirmOverwrite(outputPath, {
@@ -252,6 +253,10 @@ export class CommandHandler {
         'form.schema.json';
 
       try {
+        const resolvedSource = path.resolve(sourceSchema);
+        const resolvedTarget = path.resolve(csvPath);
+        console.log(colors.info(t('commands.schema.exportPreview', { json: resolvedSource, csv: resolvedTarget })));
+
         const confirmed = await confirmOverwrite(csvPath, {
           force,
           readlineInterface: this.readline,

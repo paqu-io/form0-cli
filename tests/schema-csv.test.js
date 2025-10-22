@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import assert from 'node:assert/strict';
 import { exportSchemaToCsvFile, importSchemaFromCsvFile } from '../src/utils/schema-csv.js';
+import { resolveDefaultSchemaPath } from '../src/commands/schema.js';
 
 async function run() {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-cli-schema-'));
@@ -163,21 +164,21 @@ async function run() {
     'events.code metadata preserved'
   );
 
-  const jsonText = await fs.readFile(roundtripJsonPath, 'utf8');
-  const metadataOrder = [
-    '"name"',
-    '"description"',
-    '"location_enabled"',
-    '"location_required"',
-    '"events"',
-  ];
-  let lastIndex = -1;
-  metadataOrder.forEach((token) => {
-    const idx = jsonText.indexOf(token);
-    assert.ok(idx !== -1, `Expected ${token} in generated JSON`);
-    assert.ok(idx > lastIndex, `Expected ${token} to appear after previous metadata field`);
-    lastIndex = idx;
-  });
+  const formKeys = Object.keys(imported.form);
+  const indexOfKey = (key) => {
+    const idx = formKeys.indexOf(key);
+    assert.ok(idx !== -1, `Expected ${key} in form keys`);
+    return idx;
+  };
+  const eventsKeyIdx = indexOfKey('events');
+  assert.ok(eventsKeyIdx > indexOfKey('location_required'), 'events should come after location metadata');
+  assert.ok(eventsKeyIdx > indexOfKey('status_field'), 'events should come after status_field');
+  assert.ok(eventsKeyIdx > indexOfKey('title_field'), 'events should come after title_field');
+  assert.ok(eventsKeyIdx < indexOfKey('elements'), 'events should come before elements');
+
+  const eventKeys = Object.keys(imported.form.events || {});
+  assert.ok(eventKeys.length > 0, 'events object should not be empty');
+  assert.equal(eventKeys[eventKeys.length - 1], 'code', 'events.code should be listed last');
 
   const section = imported.form.elements.find((el) => el.data_name === 'personal_section');
   assert.ok(section, 'Section should round-trip');
@@ -186,6 +187,18 @@ async function run() {
   const calcField = section.elements.find((el) => el.data_name === 'score');
   assert.ok(calcField, 'Calculated field should remain');
   assert.equal(calcField.calculate, 'IF($favorite_city == "bogota", 10, 5)');
+
+  assert.equal(
+    resolveDefaultSchemaPath('form.schema.v2.csv'),
+    'form.schema.v2.json',
+    'Default output path should follow CSV basename'
+  );
+  const nestedCsv = path.join('schemas', 'forms', 'demo.csv');
+  assert.equal(
+    resolveDefaultSchemaPath(nestedCsv),
+    path.join('schemas', 'forms', 'demo.json'),
+    'Default output path should remain alongside CSV'
+  );
 
   await fs.remove(tmpDir);
   console.log('Schema CSV round-trip test passed.');

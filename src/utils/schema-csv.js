@@ -16,14 +16,15 @@ const CONTAINER_TYPES = new Set(['Section', 'RepeatableSection', 'BuildingPlanSe
 const STATUS_TYPE = 'StatusField';
 const TITLE_TYPE = 'TitleField';
 
-// Metadata keys allowed for root-level form properties
-const FORM_METADATA_KEYS = new Set([
+// Metadata keys allowed for root-level form properties (ordered for export consistency)
+const FORM_METADATA_KEYS = [
   'name',
   'description',
   'location_enabled',
   'location_required',
   'events.code',
-]);
+];
+const FORM_METADATA_KEY_SET = new Set(FORM_METADATA_KEYS);
 
 const WARNED_METADATA_ATTRIBUTES = new Set();
 
@@ -32,10 +33,10 @@ const FORM_KEY_ORDER = [
   'description',
   'location_enabled',
   'location_required',
-  'events',
   'status_field',
   'title_field',
   'form_links',
+  'events',
   'elements',
 ];
 
@@ -303,7 +304,7 @@ function parseMetadataRows(rows, form) {
   rows.forEach((row) => {
     const attribute = row.attribute?.trim();
     if (!attribute) return;
-    if (!FORM_METADATA_KEYS.has(attribute)) {
+    if (!FORM_METADATA_KEY_SET.has(attribute)) {
       if (!WARNED_METADATA_ATTRIBUTES.has(attribute)) {
         console.warn(`[form0 schema] Ignoring unsupported form-meta attribute "${attribute}"`);
         WARNED_METADATA_ATTRIBUTES.add(attribute);
@@ -502,7 +503,7 @@ function collectFieldRows(form, parentSectionName = '') {
 
 function buildMetadataRows(form) {
   const rows = [];
-  FORM_METADATA_KEYS.forEach((attribute) => {
+  for (const attribute of FORM_METADATA_KEYS) {
     let value;
     if (attribute === 'events.code') {
       value = form?.events?.code ?? '';
@@ -517,7 +518,7 @@ function buildMetadataRows(form) {
         value,
       });
     }
-  });
+  }
   return rows;
 }
 

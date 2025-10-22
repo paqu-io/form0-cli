@@ -51,9 +51,11 @@
       "importFailed": "❌ Impossibile importare lo schema CSV: {message}",
       "exportSuccess": "✅ Esportato lo schema da {json} a {csv}.",
       "exportFailed": "❌ Impossibile esportare lo schema: {message}",
-      "overwritePrompt": "⚠️ {file} esiste già. Sovrascrivere? (s/N) ",
+      "exportPreview": "📤 Esportazione di {json} → {csv}",
+      "overwritePrompt": "⚠️ {file} esiste già in {path}. Sovrascrivere? (s/N) ",
+      "writePrompt": "📄 Creare {file} in {path}? (s/N) ",
       "overwriteCancelled": "✋ Operazione annullata.",
-      "overwriteRefused": "❌ Impossibile sovrascrivere {file} senza conferma. Usa --force per procedere."
+      "overwriteRefused": "❌ Impossibile scrivere {file} senza conferma. Usa --force per procedere."
     },
     "test": {
       "attemptingRun": "🔄 Tentativo di eseguire comunque il test...",

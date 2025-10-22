@@ -51,9 +51,11 @@
       "importFailed": "❌ Échec de l'import du schéma CSV : {message}",
       "exportSuccess": "✅ Export du schéma de {json} vers {csv} réussi.",
       "exportFailed": "❌ Échec de l'export du schéma : {message}",
-      "overwritePrompt": "⚠️ {file} existe déjà. Écraser ? (o/N) ",
+      "exportPreview": "📤 Exportation de {json} → {csv}",
+      "overwritePrompt": "⚠️ {file} existe déjà à {path}. Écraser ? (o/N) ",
+      "writePrompt": "📄 Créer {file} à {path} ? (o/N) ",
       "overwriteCancelled": "✋ Opération annulée.",
-      "overwriteRefused": "❌ Impossible d'écraser {file} sans confirmation. Utilisez --force pour continuer."
+      "overwriteRefused": "❌ Impossible d'écrire {file} sans confirmation. Utilisez --force pour continuer."
     },
     "test": {
       "attemptingRun": "🔄 Tentative d'exécution du test quand même...",

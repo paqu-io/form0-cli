@@ -51,9 +51,11 @@
       "importFailed": "❌ Error al importar el esquema CSV: {message}",
       "exportSuccess": "✅ Exportado el esquema de {json} a {csv}.",
       "exportFailed": "❌ Error al exportar el esquema: {message}",
-      "overwritePrompt": "⚠️ {file} ya existe. ¿Sobrescribir? (s/N) ",
+      "exportPreview": "📤 Exportando {json} → {csv}",
+      "overwritePrompt": "⚠️ {file} ya existe en {path}. ¿Sobrescribir? (s/N) ",
+      "writePrompt": "📄 ¿Crear {file} en {path}? (s/N) ",
       "overwriteCancelled": "✋ Operación cancelada.",
-      "overwriteRefused": "❌ No se puede sobrescribir {file} sin confirmación. Usa --force para continuar."
+      "overwriteRefused": "❌ No se puede escribir {file} sin confirmación. Usa --force para continuar."
     },
     "test": {
       "attemptingRun": "🔄 Intentando ejecutar el test de todas formas...",

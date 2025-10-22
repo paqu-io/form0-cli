@@ -78,9 +78,11 @@
       "importFailed": "❌ Failed to import CSV schema: {message}",
       "exportSuccess": "✅ Exported schema from {json} to {csv}.",
       "exportFailed": "❌ Failed to export schema: {message}",
-      "overwritePrompt": "⚠️ {file} already exists. Overwrite? (y/N) ",
+      "exportPreview": "📤 Exporting {json} → {csv}",
+      "overwritePrompt": "⚠️ {file} already exists at {path}. Overwrite? (y/N) ",
+      "writePrompt": "📄 Create {file} at {path}? (y/N) ",
       "overwriteCancelled": "✋ Operation cancelled.",
-      "overwriteRefused": "❌ Cannot overwrite {file} without confirmation. Use --force to override."
+      "overwriteRefused": "❌ Cannot write {file} without confirmation. Use --force to override."
     }
   },
   "connectors": {
