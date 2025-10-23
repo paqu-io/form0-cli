@@ -34,7 +34,7 @@ export class ServerManager {
         break;
 
       case 'stop':
-        this.stopDevServer();
+        await this.stopDevServer();
         break;
 
       case 'status':
@@ -221,14 +221,14 @@ export class ServerManager {
   /**
    * Stop the development server
    */
-  stopDevServer() {
+  async stopDevServer() {
     if (!this.devServer || !this.devServer.getStatus().running) {
       console.log(colors.warning(t('interactive.server.noServerRunning')));
       return;
     }
 
     try {
-      this.devServer.stop();
+      await this.devServer.stop();
       this.devServer = null;
 
       // Exit server running mode

@@ -1,8 +1,11 @@
+import path from 'path';
 import { testCommand } from '../test.js';
 import { themeCommand } from '../theme.js';
 import { localeCommand } from '../locale.js';
 import { colors } from '../../utils/theme.js';
 import { t } from '../../utils/i18n.js';
+import { importSchemaFromCsvFile, exportSchemaToCsvFile } from '../../utils/schema-csv.js';
+import { confirmOverwrite, resolveDefaultSchemaPath } from '../schema.js';
 
 /**
  * Handles command processing for interactive shell
@@ -21,7 +24,21 @@ export class CommandHandler {
    * Check if command is allowed in server mode
    */
   isCommandAllowedInServerMode(command, args) {
-    const allowedCommands = ['serve', 'status', 's', 'preview', 'p', 'validate', 'v', 'help', 'h', 'connector', 'conn', 'c'];
+    const allowedCommands = [
+      'serve',
+      'status',
+      's',
+      'preview',
+      'p',
+      'validate',
+      'v',
+      'help',
+      'h',
+      'connector',
+      'conn',
+      'c',
+      'schema',
+    ];
 
     if (!allowedCommands.includes(command.toLowerCase())) {
       return { allowed: false, reason: 'command_blocked' };
@@ -157,6 +174,10 @@ export class CommandHandler {
           await this.handleConnectorCommand(args);
           break;
 
+        case 'schema':
+          await this.handleSchemaCommand(args);
+          break;
+
         case 'exit':
         case 'quit':
         case 'q':
@@ -180,6 +201,97 @@ export class CommandHandler {
     // Pass the shell reference to the connector manager for readline coordination
     const connectorManager = new ConnectorManager(this.shell);
     await connectorManager.handleCommand(args);
+  }
+
+  async handleSchemaCommand(args) {
+    const [action, ...rest] = args;
+
+    if (!action) {
+      console.log(colors.error(t('interactive.schemaUsageImport')));
+      return;
+    }
+
+    const { positional, force } = this.parseSchemaFlags(rest);
+
+    if (action === 'import') {
+      const [csvPath, outputArg] = positional;
+      if (!csvPath) {
+        console.log(colors.error(t('interactive.schemaUsageImport')));
+        return;
+      }
+
+      const outputPath = outputArg || resolveDefaultSchemaPath(csvPath);
+
+      try {
+        const confirmed = await confirmOverwrite(outputPath, {
+          force,
+          readlineInterface: this.readline,
+        });
+
+        if (!confirmed) {
+          return;
+        }
+
+        const { schemaPath } = await importSchemaFromCsvFile(csvPath, { outputPath });
+        console.log(colors.success(t('interactive.schemaImportSuccess', { json: schemaPath })));
+
+        await this.schemaManager.loadSchema(schemaPath);
+        this.engineRunner.resetEngine();
+        this.serverManager.updateDevServerSchema();
+      } catch (err) {
+        console.log(colors.error(t('interactive.error', { message: err.message })));
+      }
+      return;
+    }
+
+    if (action === 'export') {
+      const [csvArg, inputArg] = positional;
+      const csvPath = csvArg || 'form.schema.csv';
+      const sourceSchema =
+        inputArg ||
+        this.schemaManager.getCurrentSchemaPath() ||
+        'form.schema.json';
+
+      try {
+        const resolvedSource = path.resolve(sourceSchema);
+        const resolvedTarget = path.resolve(csvPath);
+        console.log(colors.info(t('commands.schema.exportPreview', { json: resolvedSource, csv: resolvedTarget })));
+
+        const confirmed = await confirmOverwrite(csvPath, {
+          force,
+          readlineInterface: this.readline,
+        });
+
+        if (!confirmed) {
+          return;
+        }
+
+        const { csvPath: producedPath } = await exportSchemaToCsvFile(sourceSchema, {
+          outputPath: csvPath,
+        });
+        console.log(colors.success(t('interactive.schemaExportSuccess', { csv: producedPath })));
+      } catch (err) {
+        console.log(colors.error(t('interactive.error', { message: err.message })));
+      }
+      return;
+    }
+
+    console.log(colors.error(t('interactive.unknownCommand', { command: `schema ${action}` })));
+  }
+
+  parseSchemaFlags(args) {
+    const positional = [];
+    let force = false;
+
+    for (const arg of args) {
+      if (arg === '--force' || arg === '-f') {
+        force = true;
+      } else {
+        positional.push(arg);
+      }
+    }
+
+    return { positional, force };
   }
 
   /**

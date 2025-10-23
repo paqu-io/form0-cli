@@ -11,6 +11,7 @@ import { interactiveCommand } from '../src/commands/interactive.js';
 import { themeCommand } from '../src/commands/theme.js';
 import { localeCommand } from '../src/commands/locale.js';
 import { connectorCommand } from '../src/commands/connector.js';
+import { schemaImportCommand, schemaExportCommand } from '../src/commands/schema.js';
 import { loadConfig } from '../src/utils/config.js';
 
 const program = new Command();
@@ -75,6 +76,26 @@ if (process.argv.length === 2) {
     .option('--host <host>', 'Host to bind server to', 'localhost')
     .description('Start development server with live form preview')
     .action(serveCommand);
+
+  const schemaProgram = program
+    .command('schema')
+    .description('Convert schemas between JSON and CSV formats');
+
+  schemaProgram
+    .command('import')
+    .argument('<csv>', 'Path to schema CSV file')
+    .option('-o, --output <json>', 'Path for generated JSON schema', 'form.schema.json')
+    .option('-f, --force', 'Overwrite destination without prompting')
+    .description('Convert schema CSV into JSON')
+    .action(schemaImportCommand);
+
+  schemaProgram
+    .command('export')
+    .argument('[csv]', 'Path for generated CSV file (defaults to form.schema.csv)', 'form.schema.csv')
+    .option('-i, --input <json>', 'Path to source schema JSON', 'form.schema.json')
+    .option('-f, --force', 'Overwrite destination without prompting')
+    .description('Export schema JSON to CSV')
+    .action((csv, options) => schemaExportCommand(csv, options));
 
   // Add explicit interactive command for those who want to use it
   program

@@ -46,6 +46,17 @@
       "updatingSchema": "🔄 Aggiornamento dello schema del server...",
       "watcherError": "❌ Errore nel file watcher: {message}"
     },
+    "schema": {
+      "importSuccess": "✅ Convertito {csv} in {json}.",
+      "importFailed": "❌ Impossibile importare lo schema CSV: {message}",
+      "exportSuccess": "✅ Esportato lo schema da {json} a {csv}.",
+      "exportFailed": "❌ Impossibile esportare lo schema: {message}",
+      "exportPreview": "📤 Esportazione di {json} → {csv}",
+      "overwritePrompt": "⚠️ {file} esiste già in {path}. Sovrascrivere? (s/N) ",
+      "writePrompt": "📄 Creare {file} in {path}? (s/N) ",
+      "overwriteCancelled": "✋ Operazione annullata.",
+      "overwriteRefused": "❌ Impossibile scrivere {file} senza conferma. Usa --force per procedere."
+    },
     "test": {
       "attemptingRun": "🔄 Tentativo di eseguire comunque il test...",
       "createProjectFirst": "💡 Esegui {command} per creare prima un progetto di test.",
@@ -143,6 +154,8 @@
     "navigation": "  Navigazione: usa frecce ↑/↓ per cronologia comandi, Tab per completamento",
     "notation": "  Notazione: <obbligatorio> [opzionale]",
     "previewCommand": "    preview, p           Mostra la struttura del form",
+    "schemaImportCommand": "    schema import <csv> [json]  Converti un CSV in uno schema JSON",
+    "schemaExportCommand": "    schema export [csv] [json]  Esporta lo schema corrente in CSV",
     "reloadCommand": "    reload, rld          Ricarica il file schema corrente",
     "runCommand": "    run [options], r     Esegui il motore con valori opzionali",
     "runOptions": "      opzioni: --values <input>",
@@ -174,6 +187,10 @@
     "continueWithOther": "   • Continua con altri comandi",
     "error": "❌ Errore: {message}",
     "failedToInitialize": "❌ Impossibile inizializzare: {message}",
+    "schemaUsageImport": "❌ Utilizzo: schema import <percorso-csv> [percorso-json-output] [--force]",
+    "schemaUsageExport": "❌ Utilizzo: schema export [percorso-csv-output] [percorso-json-input] [--force]",
+    "schemaImportSuccess": "✅ Schema CSV importato in {json}.",
+    "schemaExportSuccess": "✅ Schema esportato in CSV su {csv}.",
     "foundButFailedToLoad": "⚠️ Trovato {path} ma impossibile caricare: {message}",
     "foundExistingSchema": "⚠️ Schema esistente trovato: {path}",
     "goodbye": "🦙 ¡Hasta pronto! 🦙",

@@ -51,6 +51,8 @@ form0 init my-form-project
 This creates:
 
 - `form.schema.json` - Sample form schema
+  - Convert existing CSV definitions with `form0 schema import form.schema.csv`
+  - Export the current JSON schema with `form0 schema export form.schema.csv`
 - `test.js` - Basic test script
 - `README.md` - Project documentation
 
