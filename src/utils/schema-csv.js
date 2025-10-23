@@ -40,35 +40,120 @@ const FORM_KEY_ORDER = [
   'elements',
 ];
 
-const RESERVED_COLUMNS = new Set(['row_kind', 'attribute', 'value', 'parent_section']);
+const BASE_HEADERS = ['entry_type', 'form_meta_attribute', 'form_meta_value'];
 
-// Precompute union of attribute names (excluding `key` which we manage separately)
-const ATTRIBUTE_PRIORITY = new Map([
-  ['type', 0],
-  ['data_name', 1],
-  ['label', 2],
-  ['display', 3],
+const ATTRIBUTE_COLUMN_MAP = new Map([
+  ['elements', null],
+  ['agreement_text', 'signature_agreement_text'],
+  ['allow_other', 'choice_allow_other'],
+  ['form_id', 'linked_form_id'],
+  ['format', 'numeric_format'],
+  ['is_searchable', 'choice_is_searchable'],
+  ['is_searchable_mode', 'choice_is_searchable_mode'],
+  ['location_enabled', 'repeatable_location_enabled'],
+  ['location_required', 'repeatable_location_required'],
+  ['max', 'numeric_max'],
+  ['min', 'numeric_min'],
+  ['max_length', 'media_max_length'],
+  ['min_length', 'media_min_length'],
+  ['node_overrides', 'building_plan_node_overrides'],
+  ['pattern', 'regex_pattern'],
+  ['pattern_description', 'regex_pattern_description'],
+  ['third_option_enabled', 'boolean_third_option_enabled'],
+  ['enabled', 'status_title_enabled'],
+  ['record_conditions', 'linked_record_conditions'],
+  ['record_defaults', 'linked_record_defaults'],
+  ['building_plan', null],
 ]);
 
-const FIELD_ATTRIBUTE_NAMES = (() => {
-  const names = new Set();
-  for (const spec of Object.values(FIELD_SPECS)) {
+const ATTRIBUTE_COLUMN_TYPE_OVERRIDES = {
+  TitleField: new Map([['elements', 'title_elements']]),
+};
+
+const DESIRED_FIELD_COLUMNS = [
+  'data_name',
+  'label',
+  'type',
+  'parent_section_data_name',
+  'description',
+  'description_mode',
+  'default_value',
+  'visible',
+  'visible_conditions',
+  'read_only',
+  'read_only_conditions',
+  'required',
+  'required_conditions',
+  'choices',
+  'choice_allow_other',
+  'choice_is_searchable',
+  'choice_is_searchable_mode',
+  'boolean_third_option_enabled',
+  'calculate',
+  'display',
+  'regex_pattern',
+  'regex_pattern_description',
+  'numeric_format',
+  'numeric_min',
+  'numeric_max',
+  'media_min_length',
+  'media_max_length',
+  'supporting_image',
+  'supporting_image_display',
+  'supporting_image_path',
+  'signature_agreement_text',
+  'linked_form_id',
+  'allow_creating_records',
+  'allow_existing_records',
+  'allow_multiple_records',
+  'allow_updating_records',
+  'linked_record_conditions',
+  'linked_record_defaults',
+  'repeatable_location_enabled',
+  'repeatable_location_required',
+  'title_elements',
+  'status_title_enabled',
+  'building_plan_node_overrides',
+];
+
+function resolveColumnName(attributeName, typeName) {
+  const typeOverrides = ATTRIBUTE_COLUMN_TYPE_OVERRIDES[typeName];
+  if (typeOverrides && typeOverrides.has(attributeName)) {
+    return typeOverrides.get(attributeName);
+  }
+  if (ATTRIBUTE_COLUMN_MAP.has(attributeName)) {
+    return ATTRIBUTE_COLUMN_MAP.get(attributeName);
+  }
+  return attributeName;
+}
+
+const FIELD_ATTRIBUTE_COLUMNS = (() => {
+  const columnSet = new Set();
+  for (const [typeName, spec] of Object.entries(FIELD_SPECS)) {
     for (const attributeName of Object.keys(spec.attributes)) {
       if (attributeName === 'key') continue;
-      names.add(attributeName);
+      const columnName = resolveColumnName(attributeName, typeName);
+      if (columnName) {
+        columnSet.add(columnName);
+      }
     }
   }
-  return Array.from(names).sort((a, b) => {
-    const ap = ATTRIBUTE_PRIORITY.has(a) ? ATTRIBUTE_PRIORITY.get(a) : Number.MAX_SAFE_INTEGER;
-    const bp = ATTRIBUTE_PRIORITY.has(b) ? ATTRIBUTE_PRIORITY.get(b) : Number.MAX_SAFE_INTEGER;
+
+  columnSet.add('parent_section_data_name');
+
+  const columns = Array.from(columnSet);
+  const desiredIndex = new Map();
+  DESIRED_FIELD_COLUMNS.forEach((name, index) => desiredIndex.set(name, index));
+
+  return columns.sort((a, b) => {
+    const ap = desiredIndex.has(a) ? desiredIndex.get(a) : Number.MAX_SAFE_INTEGER;
+    const bp = desiredIndex.has(b) ? desiredIndex.get(b) : Number.MAX_SAFE_INTEGER;
     if (ap !== bp) return ap - bp;
     return a.localeCompare(b);
   });
 })();
 
-const BASE_HEADERS = ['row_kind', 'attribute', 'value', 'parent_section'];
-
-export const CSV_HEADERS = [...BASE_HEADERS, ...FIELD_ATTRIBUTE_NAMES];
+export const CSV_HEADERS = [...BASE_HEADERS, ...FIELD_ATTRIBUTE_COLUMNS];
 
 function normalizeRowKind(rowKind) {
   const value = (rowKind || ROW_KINDS.FIELD).toString().trim().toLowerCase();
@@ -302,7 +387,7 @@ function formatAttributeValue(value, attributeName) {
 
 function parseMetadataRows(rows, form) {
   rows.forEach((row) => {
-    const attribute = row.attribute?.trim();
+    const attribute = row.form_meta_attribute?.trim();
     if (!attribute) return;
     if (!FORM_METADATA_KEY_SET.has(attribute)) {
       if (!WARNED_METADATA_ATTRIBUTES.has(attribute)) {
@@ -312,7 +397,7 @@ function parseMetadataRows(rows, form) {
       return;
     }
 
-    const value = parseMetadataValue(row.value ?? '');
+    const value = parseMetadataValue(row.form_meta_value ?? '');
 
     if (attribute === 'events.code') {
       if (!form.events) form.events = {};
@@ -347,8 +432,10 @@ function buildFieldFromRow(row) {
       field.elements = [];
       continue;
     }
+    const columnName = resolveColumnName(attributeName, typeName);
+    if (!columnName) continue;
     const attributeSpec = spec.attributes[attributeName];
-    const rawValue = row[attributeName];
+    const rawValue = row[columnName];
     const parsedValue = parseAttributeValue(rawValue, attributeName, attributeSpec, typeName);
     if (parsedValue !== undefined) {
       field[attributeName] = parsedValue;
@@ -432,8 +519,8 @@ export async function importSchemaFromCsvFile(csvPath, { outputPath } = {}) {
   const rows = rowsToObjects(parseCsv(csvText));
 
   const form = { elements: [] };
-  const metadataRows = rows.filter((row) => normalizeRowKind(row.row_kind) === ROW_KINDS.FORM_META);
-  const fieldRows = rows.filter((row) => normalizeRowKind(row.row_kind) === ROW_KINDS.FIELD);
+  const metadataRows = rows.filter((row) => normalizeRowKind(row.entry_type) === ROW_KINDS.FORM_META);
+  const fieldRows = rows.filter((row) => normalizeRowKind(row.entry_type) === ROW_KINDS.FIELD);
 
   parseMetadataRows(metadataRows, form);
 
@@ -441,7 +528,7 @@ export async function importSchemaFromCsvFile(csvPath, { outputPath } = {}) {
 
   fieldRows.forEach((row) => {
     const field = buildFieldFromRow(row);
-    const parentSectionName = row.parent_section?.trim() || '';
+    const parentSectionName = row.parent_section_data_name?.trim() || '';
     attachFieldToForm(field, parentSectionName, form, sectionLookup);
   });
 
@@ -465,18 +552,19 @@ function collectFieldRows(form, parentSectionName = '') {
       return;
     }
     const row = {
-      row_kind: ROW_KINDS.FIELD,
-      parent_section: parentName,
+      entry_type: ROW_KINDS.FIELD,
+      parent_section_data_name: parentName,
     };
 
-    for (const attributeName of FIELD_ATTRIBUTE_NAMES) {
+    for (const attributeName of Object.keys(spec.attributes)) {
       if (attributeName === 'key') continue;
       if (attributeName === 'elements' && CONTAINER_TYPES.has(field.type)) {
-        row[attributeName] = '';
         continue;
       }
+      const columnName = resolveColumnName(attributeName, field.type);
+      if (!columnName) continue;
       const value = field[attributeName];
-      row[attributeName] = formatAttributeValue(value, attributeName);
+      row[columnName] = formatAttributeValue(value, attributeName);
     }
 
     rows.push(row);
@@ -513,9 +601,9 @@ function buildMetadataRows(form) {
 
     if (value !== '' && value != null) {
       rows.push({
-        row_kind: ROW_KINDS.FORM_META,
-        attribute,
-        value,
+        entry_type: ROW_KINDS.FORM_META,
+        form_meta_attribute: attribute,
+        form_meta_value: value,
       });
     }
   }

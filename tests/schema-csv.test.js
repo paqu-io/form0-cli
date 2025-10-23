@@ -2,7 +2,7 @@ import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
 import assert from 'node:assert/strict';
-import { exportSchemaToCsvFile, importSchemaFromCsvFile } from '../src/utils/schema-csv.js';
+import { CSV_HEADERS, exportSchemaToCsvFile, importSchemaFromCsvFile } from '../src/utils/schema-csv.js';
 import { resolveDefaultSchemaPath } from '../src/commands/schema.js';
 
 async function run() {
@@ -136,6 +136,61 @@ async function run() {
 
   await exportSchemaToCsvFile(sourceJsonPath, { outputPath: csvPath });
   assert.ok(await fs.pathExists(csvPath), 'CSV export file should exist');
+
+  const expectedHeaders = [
+    'entry_type',
+    'form_meta_attribute',
+    'form_meta_value',
+    'data_name',
+    'label',
+    'type',
+    'parent_section_data_name',
+    'description',
+    'description_mode',
+    'default_value',
+    'visible',
+    'visible_conditions',
+    'read_only',
+    'read_only_conditions',
+    'required',
+    'required_conditions',
+    'choices',
+    'choice_allow_other',
+    'choice_is_searchable',
+    'choice_is_searchable_mode',
+    'boolean_third_option_enabled',
+    'calculate',
+    'display',
+    'regex_pattern',
+    'regex_pattern_description',
+    'numeric_format',
+    'numeric_min',
+    'numeric_max',
+    'media_min_length',
+    'media_max_length',
+    'supporting_image',
+    'supporting_image_display',
+    'supporting_image_path',
+    'signature_agreement_text',
+    'linked_form_id',
+    'allow_creating_records',
+    'allow_existing_records',
+    'allow_multiple_records',
+    'allow_updating_records',
+    'linked_record_conditions',
+    'linked_record_defaults',
+    'repeatable_location_enabled',
+    'repeatable_location_required',
+    'title_elements',
+    'status_title_enabled',
+    'building_plan_node_overrides',
+  ];
+
+  assert.deepEqual(CSV_HEADERS, expectedHeaders, 'CSV headers should match expected order');
+
+  const csvContent = await fs.readFile(csvPath, 'utf8');
+  const headerLine = csvContent.split('\n')[0].trim();
+  assert.equal(headerLine, expectedHeaders.join(','), 'CSV file should use the expected headers');
 
   await importSchemaFromCsvFile(csvPath, { outputPath: roundtripJsonPath });
   const imported = await fs.readJson(roundtripJsonPath);
