@@ -1,19 +1,46 @@
 import fs from 'fs-extra';
 import chalk from 'chalk';
+import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
+import { t } from '../utils/i18n.js';
 
 function printFields(elements, indent = '') {
-  elements.forEach((field, index) => {
+  elements.forEach((element, index) => {
     const isLast = index === elements.length - 1;
-    const prefix = indent + (isLast ? '└─ ' : '├─ ');
+    const connector = isLast ? '└─' : '├─';
+    const childIndent = indent + (isLast ? '  ' : '│ ');
 
-    if (field.type === 'Section') {
-      const label = field.label || '(no label)';
-      //console.log(`${prefix}Section        ${label} [${field.data_name}] (key: ${field.key})`);
-      console.log(chalk.magenta(`${prefix}Section`.padEnd(20)) + chalk.white(label) + chalk.gray(` [${field.data_name}] (key: ${field.key})`));
-      printFields(field.elements || [], indent + (isLast ? '   ' : '│  '));
-    } else {
-      const label = field.label || '(no label)';
-      console.log(chalk.green(`${prefix}${field.type.padEnd(20)}`) + chalk.white(label) + chalk.gray(` [${field.data_name}] (key: ${field.key})`));
+    let typeColor = chalk.white;
+    switch (element.type) {
+      case 'Section':
+      case 'RepeatableSection':
+        typeColor = chalk.magenta;
+        break;
+      case 'TextField':
+        typeColor = chalk.green;
+        break;
+      case 'NumericField':
+        typeColor = chalk.blue;
+        break;
+      case 'SingleChoiceField':
+        typeColor = chalk.cyan;
+        break;
+      case 'CalculatedField':
+        typeColor = chalk.yellow;
+        break;
+      default:
+        typeColor = chalk.cyan;
+    }
+
+    const label = element.label || element.data_name || t('commands.preview.unlabeled');
+    const dataNameDisplay = element.data_name ? chalk.gray(` [${element.data_name}]`) : '';
+    const keyDisplay = element.key ? chalk.gray(` (key: ${element.key})`) : '';
+
+    console.log(
+      `${indent}${connector} ${typeColor(element.type)} ${chalk.bold(label)}${dataNameDisplay}${keyDisplay}`
+    );
+
+    if ((element.type === 'Section' || element.type === 'RepeatableSection') && element.elements) {
+      printFields(element.elements, childIndent);
     }
   });
 }
@@ -21,12 +48,24 @@ function printFields(elements, indent = '') {
 export async function previewCommand(file) {
   try {
     const data = await fs.readJson(file);
-    const elements = data.form?.elements || [];
 
-    console.log(chalk.cyan(`📋 Previewing form: ${data.form?.name || 'Unnamed Form'}\n`));
-    printFields(elements);
+    // Process SingleChoiceField choices before preview
+    ensureChoiceValuesForSchema(data.form.elements || []);
+
+    const form = data.form;
+
+    console.log(
+      chalk.blue.bold(t('commands.preview.formTitle', { name: form?.name || t('preview.unnamed') }))
+    );
+    if (form?.description) {
+      console.log(chalk.gray(`   ${form.description}`));
+    }
+    console.log();
+
+    printFields(form?.elements || []);
+    console.log();
   } catch (err) {
-    console.error('❌ Failed to preview schema:', err.message);
+    console.error(chalk.red(t('commands.preview.failedToPreview', { message: err.message })));
     process.exit(1);
   }
 }

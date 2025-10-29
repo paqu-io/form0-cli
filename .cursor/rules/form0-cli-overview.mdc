@@ -1,0 +1,119 @@
+---
+description: form0-cli package overview and key concepts
+globs: 
+alwaysApply: false
+---
+# form0 CLI - Package Overview
+
+form0 CLI is a command-line interface for working with form0-powered forms. It provides tools for initializing, validating, previewing, and running form schemas.
+
+## Main Entry Point
+
+- **CLI Binary**: [bin/form0.js](mdc:form0-core/bin/form0.js) - Main CLI entry point using Commander.js
+- **Package Config**: [package.json](mdc:form0-core/package.json) - Project configuration and dependencies
+
+## Available Commands
+
+### 1. Initialize Project (`form0 init`)
+- **Command File**: [src/commands/init.js](mdc:form0-core/src/commands/init.js)
+- **Purpose**: Creates a new form0 project with sample schema
+- **Usage**: `form0 init [directory]`
+- **Output**: Creates `form.schema.json`, `test.js`, and `README.md`
+
+### 2. Validate Schema (`form0 validate`)
+- **Command File**: [src/commands/validate.js](mdc:form0-core/src/commands/validate.js)
+- **Purpose**: Validates form schema using form0-core
+- **Usage**: `form0 validate <schema-file>`
+- **Dependencies**: Uses `validateSchema` from form0-core
+
+### 3. Preview Form (`form0 preview`)
+- **Command File**: [src/commands/preview.js](mdc:form0-core/src/commands/preview.js)
+- **Purpose**: Displays form structure in tree format
+- **Usage**: `form0 preview <schema-file>`
+- **Features**: Color-coded output, drilldown section indicators
+
+### 4. Run Engine (`form0 run`)
+- **Command File**: [src/commands/run.js](mdc:form0-core/src/commands/run.js)
+- **Purpose**: Executes form engine with optional initial values
+- **Usage**: `form0 run <schema-file> [--values <input>]`
+- **Input Formats**: JSON string, .json file, .yaml/.yml file
+
+## Utilities
+
+### Key Generation
+- **Utility File**: [src/utils/ensure-keys.js](mdc:form0-core/src/utils/ensure-keys.js)
+- **Function**: `ensureKeysForSchema()` - Recursively adds missing keys to fields
+- **Dependencies**: Uses `generateKey` from form0-core
+
+## Dependencies
+
+### Core Dependencies
+- **commander**: CLI framework for command parsing
+- **chalk**: Terminal color output
+- **fs-extra**: Enhanced file system operations
+- **yaml**: YAML file parsing
+- **form0-core**: Core form engine (peer dependency)
+
+### Development Dependencies
+- **prettier**: Code formatting
+- **ignore**: Git ignore patterns
+
+## Command Structure
+
+```javascript
+// Main CLI setup in bin/form0.js
+program
+  .command('init')
+  .argument('[dir]', 'Directory to create', 'my-form')
+  .description('Initialize a new form0 schema project')
+  .action(initCommand);
+```
+
+## Generated Project Structure
+
+When using `form0 init`, the following files are created:
+
+```
+my-form/
+├── form.schema.json    # Form schema definition
+├── test.js            # Sample test script
+└── README.md          # Project documentation
+```
+
+## Schema Validation Flow
+
+1. **Load Schema**: Read JSON file using `fs-extra`
+2. **Validate**: Use `validateSchema` from form0-core
+3. **Error Handling**: Exit with code 1 on validation failure
+
+## Form Preview Features
+
+- **Tree Display**: Hierarchical view of form structure
+- **Color Coding**: 
+  - Magenta: Sections
+  - Green: Field types
+  - Yellow: Drilldown sections
+- **Field Information**: Shows data_name, key, and display type
+
+## Engine Execution
+
+The `run` command supports multiple input formats:
+- **Inline JSON**: `--values '{"field": "value"}'`
+- **JSON File**: `--values data.json`
+- **YAML File**: `--values data.yaml`
+
+## Error Handling
+
+All commands follow consistent error handling:
+- Try-catch blocks around main operations
+- Descriptive error messages with emoji indicators
+- Process exit with code 1 on failure
+- Success messages with checkmark indicators
+
+## Integration with form0-core
+
+The CLI serves as a testing and development tool for form0-core:
+- Validates schemas using core validation
+- Runs engines with sample data
+- Provides development workflow tools
+- Generates testable form schemas

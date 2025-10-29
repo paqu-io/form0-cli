@@ -15,8 +15,12 @@ dist/
 build/
 
 # Environment files
-.env*
+.env
+.env.local
 *.tsbuildinfo
+
+# Generated config files
+localazy.json
 
 # Caches
 .npm/

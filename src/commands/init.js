@@ -1,120 +1,122 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { ensureKeysForSchema } from '../utils/ensure-keys.js';
+import { defaultFormTemplate } from '../form0-forms/form-schema-template.js';
+import { testScriptTemplate } from '../utils/test-template.js';
+import { createReadmeTemplate } from '../utils/test-readme.js';
+import { t } from '../utils/i18n.js';
 
-export async function initCommand(dir) {
+// Dedent function to remove common leading whitespace
+function dedent(str) {
+  if (typeof str !== 'string') return str;
+
+  // Normalize line endings to \n for processing
+  const normalized = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  const lines = normalized.split('\n');
+  const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
+
+  if (nonEmptyLines.length === 0) return str;
+
+  // Find minimum indentation
+  const minIndent = Math.min(...nonEmptyLines.map((line) => line.match(/^\s*/)[0].length));
+
+  // Remove the minimum indentation from all lines
+  return lines
+    .map((line) => line.slice(minIndent))
+    .join('\n')
+    .trim();
+}
+
+// Recursively process schema to dedent code strings
+function dedentCodeInSchema(obj) {
+  if (typeof obj === 'string') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => dedentCodeInSchema(item));
+  }
+
+  if (obj && typeof obj === 'object') {
+    const result = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === 'code' && typeof value === 'string') {
+        result[key] = dedent(value);
+      } else if (key === 'calculate' && typeof value === 'string') {
+        result[key] = dedent(value);
+      } else {
+        result[key] = dedentCodeInSchema(value);
+      }
+    }
+    return result;
+  }
+
+  return obj;
+}
+
+async function createFormProject(dir, showInstructions = true) {
   const base = path.resolve(process.cwd(), dir);
   await fs.ensureDir(base);
 
-  const fields = [
-    {
-      type: 'Section',
-      data_name: 'personal_info',
-      label: 'Personal Info',
-      elements: [
-        {
-          type: 'TextField',
-          data_name: 'first_name',
-          label: 'First Name',
-          required: true,
-          hidden: false,
-          read_only: false,
-          pattern: '^[a-zA-Z]+$',
-          pattern_description: 'One or more letters (uppercase or lowercase), with no spaces, numbers, or symbols'
-        },
-        {
-          type: 'NumericField',
-          data_name: 'age',
-          label: 'Age',
-          required: true,
-          hidden: false,
-          read_only: false,
-          min: 16,
-          max: 100,
-          format: 'integer', //NumericField can be 'integer' or 'float'
-        }
-      ]
-    },
-    {
-      type: 'CalculatedField',
-      data_name: 'can_vote',
-      label: 'Eligible',
-      required: false, //CalcualtedField is required = false by default
-      hidden: false,
-      read_only: true, //CalcualtedField is read_only = true by default
-      calculate: 'IF($age >= 18, "yes", "no")',
-      display: {
-          style: 'text' // or numeric, date, currency
-      }
-    },
-    {
-        type: 'CalculatedField',
-        data_name: 'calc_test',
-        label: 'calc_test',
-        required: false, //CalcualtedField is required = false by default
-        hidden: false,
-        read_only: true, //CalcualtedField is read_only = true by default
-        calculate: 'SETRESULT($age + 10 >= 30 ? true : false)',
-        display: {
-            style: 'text' // or numeric, date, currency
-        }
-    },
-    {
-        type: 'CalculatedField',
-        data_name: 'calc_test_new',
-        label: 'calc_test_new',
-        required: false, //CalcualtedField is required = false by default
-        hidden: false,
-        read_only: true, //CalcualtedField is read_only = true by default
-        calculate: '$age + 88',
-        display: {
-            style: 'text' // or numeric, date, currency
-        }
-    },
-    {
-        type: 'TextField',
-        data_name: 'who_voted',
-        label: 'Who voted?',
-        required: true,
-        read_only: true,
-        hidden: false,
-        visible_conditions: {
-            and: [
-              { field_key: 'can_vote', operator: 'equal_to', value: 'yes' },
-              {
-                or: [
-                  { field_key: 'age', operator: 'greater_than', value: 20 },
-                  { field_key: 'name', operator: 'equal_to', value: 'Bob' }
-                ]
-              }
-            ]
-        }
-    }
-  ];
-  
+  // Get the default form template and ensure it has keys
+  const schema = structuredClone(defaultFormTemplate);
+  ensureKeysForSchema(schema.form.elements);
 
-  // Automatically add keys using generateKey()
-  ensureKeysForSchema(fields);
+  // Apply dedent to code strings before writing JSON
+  const compactSchema = dedentCodeInSchema(schema);
 
-  const schema = {
-    form: {
-      name: 'My Form',
-      description: 'Generated by form0 CLI',
-      elements: fields
-    }
+  const testScript = testScriptTemplate;
+
+  // Create package.json for ES modules
+  const packageJson = {
+    name: dir.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+    version: '1.0.0',
+    type: 'module',
+    description: 'Generated by form0 CLI',
+    main: 'test.js',
+    scripts: {
+      test: 'node test.js',
+    },
+    dependencies: {
+      'form0-core': 'file:../form0-core', // TODO: change to form0-core when published
+    },
   };
 
-  const testScript = `import { createFormEngine } from 'form0';
-import schema from './form.schema.json' assert { type: 'json' };
-
-const engine = createFormEngine({ schema, initialValues: { first_name: 'Alice', age: 21 } });
-engine.eval();
-console.log(engine.getState());
-`;
-
-  await fs.writeJson(`${base}/form.schema.json`, schema, { spaces: 2 });
+  // Write all files
+  await fs.writeJson(`${base}/package.json`, packageJson, { spaces: 2 });
+  await fs.writeJson(`${base}/form.schema.json`, compactSchema, { spaces: 2 });
   await fs.writeFile(`${base}/test.js`, testScript);
-  await fs.writeFile(`${base}/README.md`, `# ${dir}\n\nGenerated by \`form0 init\`.`);
+  await fs.writeFile(`${base}/README.md`, createReadmeTemplate(dir));
+  await fs.ensureDir(`${base}/supporting-images`);
 
-  console.log(`✅ Initialized form0 project in ${dir}`);
+  // Show completion message
+  const displayDir = dir === '.' ? path.basename(process.cwd()) : dir;
+  console.log(t('commands.init.success', { dir: displayDir }));
+
+  if (showInstructions) {
+    console.log();
+    console.log(t('commands.init.nextSteps'));
+    if (dir !== '.') {
+      console.log(`  cd ${dir}`);
+    }
+    console.log(`  ${t('commands.init.installDeps')}`);
+    console.log(`  ${t('commands.init.runTest')}`);
+    console.log();
+    console.log(t('commands.init.localFileNote'));
+    console.log(t('commands.init.makeAvailable'));
+    console.log();
+    console.log(t('commands.init.npmNotInPath'));
+    console.log(`  ${t('commands.init.manualRun')}`);
+  }
+}
+
+// Export the main command for CLI usage
+export async function initCommand(dir) {
+  return await createFormProject(dir, true);
+}
+
+// Export a version for interactive usage without instructions
+export async function initForInteractive(dir) {
+  return await createFormProject(dir, false);
 }

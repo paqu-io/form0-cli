@@ -1,20 +1,35 @@
 {
-  "name": "@form0/cli",
+  "name": "@form0-cli",
   "version": "0.0.1-alpha.1",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
   "type": "module",
+  "scripts": {
+    "format": "prettier --write \"**/*.{js,jsx,json,ts,tsx,md}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,json,ts,tsx,md}\"",
+    "generate-localazy-config": "node scripts/generate-localazy-config.js",
+    "localazy:upload": "npm run generate-localazy-config && localazy upload",
+    "localazy:download": "npm run generate-localazy-config && localazy download"
+  },
   "bin": {
     "form0": "./bin/form0.js"
   },
+  "license": "MIT",
   "dependencies": {
     "chalk": "^5.4.1",
+    "chokidar": "^3.6.0",
     "commander": "^11.0.0",
+    "express": "^5.1.0",
+    "form0-core": "file:../form0-core",
     "fs-extra": "^11.1.1",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.3",
     "yaml": "^2.8.0"
   },
   "devDependencies": {
-    "ignore": "^7.0.5"
+    "dotenv": "^17.0.0",
+    "ignore": "^7.0.5",
+    "prettier": "^3.5.3"
   }
 }

@@ -1,0 +1,43 @@
+---
+alwaysApply: false
+---
+# AI Commit Message Generation
+
+When I say "commit" or "generate commit message":
+1. Analyze the current `git diff --cached` (staged changes)
+2. Generate a conventional commit message with this exact format:
+   `<emoji> <type>(<scope>): <description>`
+
+## Rules:
+- **Emoji first**: Choose ONE relevant emoji
+  - 🚀 feat (new features)
+  - 🐛 fix (bug fixes) 
+  - 📚 docs (documentation)
+  - 💄 style (formatting, no logic change)
+  - ♻️ refactor (code restructuring)
+  - ✅ test (adding/updating tests)
+  - 🔧 chore (maintenance, deps)
+  - ⚡ perf (performance improvements)
+  - 🔨 build (build system, CI)
+  - 👷 ci (CI/CD pipeline changes)
+  
+- **Type**: feat, fix, docs, style, refactor, test, chore, perf, build, ci
+- **Scope**: Optional, use main affected area (auth, api, ui, etc.)
+- **Description**: 
+  - Imperative mood ("add" not "added")
+  - Lowercase start
+  - No period at end
+  - Under 72 characters
+  - Focus on **WHAT changed**, not implementation details
+
+- **Breaking changes**: Add `!` after scope: `feat(api)!: remove deprecated endpoint`
+
+## Examples:
+- `🚀 feat(auth): add OAuth2 integration`
+- `🐛 fix: resolve memory leak in data processing`
+- `📚 docs: update API documentation`
+- `🔧 chore: bump dependencies to latest versions`
+- `⚡ perf(db): optimize query performance`
+- `💄 style: format code with prettier`
+
+Generate ONLY the commit message, nothing else.
