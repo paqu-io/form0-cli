@@ -20,6 +20,7 @@ const TITLE_TYPE = 'TitleField';
 const FORM_METADATA_KEYS = [
   'name',
   'description',
+  'ai',
   'location_enabled',
   'location_required',
   'events.code',
@@ -31,6 +32,7 @@ const WARNED_METADATA_ATTRIBUTES = new Set();
 const FORM_KEY_ORDER = [
   'name',
   'description',
+  'ai',
   'location_enabled',
   'location_required',
   'status_field',
@@ -438,6 +440,9 @@ function buildFieldFromRow(row) {
     const rawValue = row[columnName];
     const parsedValue = parseAttributeValue(rawValue, attributeName, attributeSpec, typeName);
     if (parsedValue !== undefined) {
+      if (attributeName === 'ai' && parsedValue == null) {
+        continue;
+      }
       field[attributeName] = parsedValue;
     }
   }
