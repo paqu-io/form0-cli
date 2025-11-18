@@ -1099,7 +1099,7 @@ function addSubmitButtonEventListener() {
  * Handle form submission
  */
 async function handleFormSubmit() {
-  console.log('🚀 [RECORD SUBMIT] Starting form submission...');
+  console.log('🚀 [RECORD SUBMIT] Starting record submission...');
 
   const submitBtn = document.getElementById('submit-btn');
 
@@ -1222,7 +1222,7 @@ async function handleFormSubmit() {
     // Show success message
     showGlobalSuccess('Form submitted successfully! Check console for structured record.');
   } catch (error) {
-    console.error('❌ [RECORD SUBMIT] Error during form submission:', error);
+    console.error('❌ [RECORD SUBMIT] Error during record submission:', error);
     console.log('❌ [RECORD SUBMIT] Submission was not successful');
     showGlobalError(`Submission failed: ${error.message}`);
   } finally {
