@@ -104,6 +104,7 @@ let pendingLabelVisibility = { ...DEFAULT_LABEL_VISIBILITY };
 
 let settingsPreviouslyFocused = null;
 let settingsLabelCheckboxes = {};
+let lastSubmissionTimestamp = null;
 
 function loadFieldKeyModePreference() {
   try {
@@ -808,6 +809,13 @@ function renderRecordHeaderAndMetadata() {
 
   // Initial header update
   updateHeaderStatusPill();
+
+  if (createdAtTimestamp) {
+    createdInput.value = createdAtTimestamp;
+  }
+  if (lastSubmissionTimestamp) {
+    updatedInput.value = lastSubmissionTimestamp;
+  }
 }
 
 function updateHeaderStatusPill() {
@@ -1052,7 +1060,8 @@ function addFormEventListeners() {
       const now = new Date().toISOString();
       if (!createdAtTimestamp) createdAtTimestamp = now;
       if (createdInput) createdInput.value = createdAtTimestamp;
-      if (updatedInput) updatedInput.value = now;
+      const effectiveUpdated = lastSubmissionTimestamp || now;
+      if (updatedInput) updatedInput.value = effectiveUpdated;
       // Update status pill color
       updateHeaderStatusPill();
     } catch (e) {
@@ -1158,6 +1167,16 @@ async function handleFormSubmit() {
     }
 
     // Create structured record using server-side API
+    const submissionTimestamp = new Date().toISOString();
+    lastSubmissionTimestamp = submissionTimestamp;
+    if (!createdAtTimestamp) {
+      createdAtTimestamp = submissionTimestamp;
+    }
+    const createdInputEl = document.getElementById('record-metadata-created-at');
+    if (createdInputEl) createdInputEl.value = createdAtTimestamp;
+    const updatedInputEl = document.getElementById('record-metadata-updated-at');
+    if (updatedInputEl) updatedInputEl.value = submissionTimestamp;
+
     const recordResponse = await fetch('/api/create-record', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1166,6 +1185,10 @@ async function handleFormSubmit() {
         options: {
           '@status': currentStatusValue,
           fieldKeyMode: currentFieldKeyMode,
+          created_at_client: createdAtTimestamp,
+          updated_at_client: submissionTimestamp,
+          created_at_server: null,
+          updated_at_server: null,
         },
       }),
     });
