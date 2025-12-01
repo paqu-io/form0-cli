@@ -342,6 +342,24 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
     enableCollection: true,
     throttleMs: 0, // No server-side throttling - client handles deduplication
   });
+  const unsupportedEventWarnings = new Set();
+
+  function warnUnsupportedEvents(preparedSchema) {
+    if (unsupportedEventWarnings.has('edit-record')) {
+      return;
+    }
+    const code = preparedSchema?.form?.events?.code;
+    if (typeof code !== 'string') {
+      return;
+    }
+    if (!/\bON\s*\(\s*['"]edit-record['"]/i.test(code)) {
+      return;
+    }
+    unsupportedEventWarnings.add('edit-record');
+    console.warn(
+      "[form0-cli] The 'edit-record' event is not supported in form0-cli; handlers will be skipped in preview."
+    );
+  }
 
   // Initialize connector manager with configuration
   async function initializeConnectors() {
@@ -375,6 +393,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
     }
 
     const { schema: preparedSchema, buildingPlanMeta } = expandBuildingPlanSchema(schema);
+    warnUnsupportedEvents(preparedSchema);
     return {
       schema: preparedSchema,
       source: getSchemaSource ? getSchemaSource() : 'Current Schema',

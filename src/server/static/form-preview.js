@@ -12,6 +12,29 @@ let translations = {};
 
 // Session-based warning deduplication (better than server-side throttling)
 const shownWarnings = new Set();
+const UNSUPPORTED_EVENT_WARNING_KEY = 'unsupported:event:edit-record';
+
+function schemaUsesEvent(schema, eventName) {
+  const code = schema?.form?.events?.code;
+  if (typeof code !== 'string') {
+    return false;
+  }
+  const pattern = new RegExp(`\\bON\\s*\\(\\s*['"]${eventName}['"]`, 'i');
+  return pattern.test(code);
+}
+
+function warnUnsupportedEvents(schema) {
+  if (shownWarnings.has(UNSUPPORTED_EVENT_WARNING_KEY)) {
+    return;
+  }
+  if (!schemaUsesEvent(schema, 'edit-record')) {
+    return;
+  }
+  console.warn(
+    "[form0-cli] The 'edit-record' event is not supported in form0-cli; its handlers will be skipped."
+  );
+  shownWarnings.add(UNSUPPORTED_EVENT_WARNING_KEY);
+}
 
 function markInstanceUpdatedFromTarget(target) {
   if (!target || typeof target.closest !== 'function') return;
@@ -564,6 +587,8 @@ document.addEventListener('DOMContentLoaded', initialize);
 
 async function renderForm() {
   if (!currentSchema) return;
+
+  warnUnsupportedEvents(currentSchema);
 
   // Set schema in renderer and render form
   formRenderer.setSchema(currentSchema, { buildingPlanMeta: currentBuildingPlanMeta });
