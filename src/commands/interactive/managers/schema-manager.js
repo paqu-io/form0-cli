@@ -4,8 +4,8 @@ import chalk from 'chalk';
 import { validateSchema } from 'form0-core';
 import { ensureChoiceValuesForSchema } from '../../../utils/ensure-choice-values.js';
 import { initForInteractive } from '../../init.js';
-import { COMMON_SCHEMA_PATHS } from '../../../utils/constants.js';
-import { findExistingSchema } from '../../../utils/schema-utils.js';
+import { COMMON_SCHEMA_PATTERNS } from '../../../utils/constants.js';
+import { discoverSchemas, formatSchemaCandidate } from '../../../utils/schema-utils.js';
 import { showSchemaPreview } from '../../../utils/display-utils.js';
 import { t } from '../../../utils/i18n.js';
 import { colors } from '../../../utils/theme.js';
@@ -17,6 +17,7 @@ export class SchemaManager {
   constructor() {
     this.currentSchema = null;
     this.currentSchemaPath = null;
+    this.readlineInterface = null;
   }
 
   /**
@@ -41,23 +42,141 @@ export class SchemaManager {
   }
 
   /**
+   * Set readline interface for interactive prompts
+   */
+  setReadlineInterface(readlineInterface) {
+    this.readlineInterface = readlineInterface;
+  }
+
+  async askQuestion(prompt) {
+    if (!this.readlineInterface) {
+      return null;
+    }
+    return new Promise((resolve) => {
+      this.readlineInterface.question(prompt, (answer) => {
+        resolve(answer.trim());
+      });
+    });
+  }
+
+  async promptSchemaSelection(candidates) {
+    if (!this.readlineInterface) {
+      return null;
+    }
+
+    console.log(colors.accent1(t('interactive.schemaPickerTitle')));
+    candidates.forEach((candidate, index) => {
+      console.log(colors.textSecondary(`  ${index + 1}) ${formatSchemaCandidate(candidate)}`));
+    });
+
+    while (true) {
+      const answer = await this.askQuestion(
+        colors.text(t('interactive.schemaPickerPrompt', { count: candidates.length }))
+      );
+
+      if (!answer) {
+        console.log(colors.warning(t('interactive.schemaPickerCancelled')));
+        return null;
+      }
+
+      const selectedIndex = Number.parseInt(answer, 10);
+      if (
+        Number.isInteger(selectedIndex) &&
+        selectedIndex >= 1 &&
+        selectedIndex <= candidates.length
+      ) {
+        return candidates[selectedIndex - 1];
+      }
+
+      console.log(colors.warning(t('interactive.schemaPickerInvalid', { count: candidates.length })));
+    }
+  }
+
+  async resolveLoadTarget(args) {
+    const input = args[0];
+
+    if (!input) {
+      const { candidates } = await discoverSchemas();
+      if (candidates.length === 0) {
+        console.log(colors.error(t('interactive.noSchemaFilesFound')));
+        console.log(colors.textSecondary(t('interactive.typeLoad')));
+        return null;
+      }
+
+      if (candidates.length === 1) {
+        return candidates[0];
+      }
+
+      return await this.promptSchemaSelection(candidates);
+    }
+
+    if (this.isPathInput(input)) {
+      return { path: input, displayPath: input };
+    }
+
+    const { candidates } = await discoverSchemas();
+    const matches = candidates.filter((candidate) => candidate.formName === input);
+
+    if (matches.length === 1) {
+      return matches[0];
+    }
+
+    if (matches.length > 1) {
+      return await this.promptSchemaSelection(matches);
+    }
+
+    if (await fs.pathExists(input)) {
+      return { path: input, displayPath: input };
+    }
+
+    console.log(colors.error(t('interactive.formSchemaNotFound', { name: input })));
+    console.log(colors.textSecondary(t('interactive.typeLoad')));
+    return null;
+  }
+
+  isPathInput(input) {
+    if (!input) {
+      return false;
+    }
+    if (path.isAbsolute(input)) {
+      return true;
+    }
+    if (input.startsWith('./') || input.startsWith('../')) {
+      return true;
+    }
+    if (input.includes('/') || input.includes('\\')) {
+      return true;
+    }
+    const lower = input.toLowerCase();
+    if (lower.endsWith('.json') || lower.endsWith('.yml') || lower.endsWith('.yaml')) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Smart initialization: Auto-load schema or offer to initialize
    */
   async smartInit() {
-    // Try to auto-load existing schema
-    const existingSchema = await findExistingSchema();
-    if (existingSchema) {
+    const { candidates, formsDir } = await discoverSchemas();
+
+    if (candidates.length === 1) {
+      const [candidate] = candidates;
       try {
-        await this.loadSchema(existingSchema);
+        await this.loadSchema(candidate.path);
         console.log(
-          colors.success(t('interactive.autoLoadedSchema', { path: existingSchema }) + '\n')
+          colors.success(
+            t('interactive.autoLoadedSchema', { path: candidate.displayPath }) + '\n'
+          )
         );
         return true;
       } catch (err) {
         console.log(
           colors.warning(
-            t('interactive.foundButFailedToLoad', { path: existingSchema, message: err.message }) +
-              '\n'
+            t('interactive.foundButFailedToLoad', {
+              path: candidate.displayPath,
+              message: err.message,
+            }) + '\n'
           )
         );
         console.log(colors.accent1(t('interactive.wouldYouLikeToInit')));
@@ -68,13 +187,47 @@ export class SchemaManager {
       }
     }
 
+    if (candidates.length > 1) {
+      const selected = await this.promptSchemaSelection(candidates);
+      if (selected) {
+        try {
+          await this.loadSchema(selected.path);
+          console.log(
+            colors.success(
+              t('interactive.autoLoadedSchema', { path: selected.displayPath }) + '\n'
+            )
+          );
+          return true;
+        } catch (err) {
+          console.log(
+            colors.warning(
+              t('interactive.foundButFailedToLoad', {
+                path: selected.displayPath,
+                message: err.message,
+              }) + '\n'
+            )
+          );
+        }
+      }
+
+      console.log(chalk.gray(t('interactive.typeLoad')));
+      console.log(chalk.gray(t('interactive.continueWithOther') + '\n'));
+      return false;
+    }
+
     // No valid schema found, offer to initialize
     console.log(
       colors.warning(t('interactive.noSchemaFound', { dir: path.basename(process.cwd()) }))
     );
-    console.log(
-      chalk.gray(t('interactive.lookingFor', { files: COMMON_SCHEMA_PATHS.join(', ') }) + '\n')
-    );
+    const searchTargets = [...COMMON_SCHEMA_PATTERNS];
+    if (formsDir) {
+      const formsRelative = path.relative(process.cwd(), formsDir) || formsDir;
+      const formPatterns = COMMON_SCHEMA_PATTERNS.map((pattern) =>
+        path.join(formsRelative, '*', pattern)
+      );
+      searchTargets.push(...formPatterns);
+    }
+    console.log(chalk.gray(t('interactive.lookingFor', { files: searchTargets.join(', ') }) + '\n'));
 
     console.log(colors.accent1(t('interactive.wouldYouLikeToInit')));
     console.log(chalk.gray(t('interactive.typeInit')));
@@ -151,10 +304,15 @@ export class SchemaManager {
 
     if (dir === '.') {
       // Check if current directory already has a schema
-      const existingSchema = COMMON_SCHEMA_PATHS.find((p) => fs.pathExistsSync(p));
+      const { candidates } = await discoverSchemas();
+      const rootCandidates = candidates.filter((candidate) => candidate.source === 'root');
 
-      if (existingSchema) {
-        console.log(colors.warning(t('interactive.foundExistingSchema', { path: existingSchema })));
+      if (rootCandidates.length > 0) {
+        console.log(
+          colors.warning(
+            t('interactive.foundExistingSchema', { path: rootCandidates[0].displayPath })
+          )
+        );
         console.log(chalk.gray(t('interactive.useLoadOrSpecify')));
         return;
       }

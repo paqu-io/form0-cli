@@ -33,6 +33,7 @@ export class ShellCore {
       history: [], // Enable command history (↑/↓ arrows)
       historySize: READLINE_CONFIG.historySize,
     });
+    this.schemaManager.setReadlineInterface(this.rl);
 
     // Initialize managers
     this.serverManager = new ServerManager(this.schemaManager, this.fileWatcher, this.rl);

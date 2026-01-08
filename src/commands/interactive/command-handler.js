@@ -298,17 +298,21 @@ export class CommandHandler {
    * Handle load command
    */
   async handleLoadCommand(args) {
-    if (!args[0]) {
-      console.log(colors.error(t('interactive.usageLoad')));
+    const target = await this.schemaManager.resolveLoadTarget(args);
+    if (!target) {
       return;
     }
 
-    await this.schemaManager.loadSchema(args[0]);
+    await this.schemaManager.loadSchema(target.path);
     // Reset engine when schema changes
     this.engineRunner.resetEngine();
     // Update development server if running
     this.serverManager.updateDevServerSchema();
-    console.log(colors.success(t('common.schemaLoaded', { path: args[0] })));
+    console.log(
+      colors.success(
+        t('common.schemaLoaded', { path: target.displayPath || target.path })
+      )
+    );
   }
 
   /**
