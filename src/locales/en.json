@@ -109,7 +109,7 @@
     "list": {
       "title": "🔌 Configured Connectors:",
       "noConnectorsConfigured": "  No connectors configured.",
-      "useConfigFile": "  Add connectors to .form0-cli/config.json in your home directory.",
+      "useConfigFile": "  Add connectors to form0.config.js in your project root.",
       "configured": "  Configured Connectors:",
       "status": "Status",
       "config": "Config",
@@ -166,7 +166,7 @@
     "config": {
       "title": "⚙️ Connector Configuration:",
       "noConfiguration": "  No connector configuration found.",
-      "configLocation": "  Configuration file: ~/.form0-cli/config.json",
+      "configLocation": "  Configuration file: {path}",
       "exampleConfig": "  Example configuration:",
       "current": "  Current Configuration:",
       "failed": "❌ Failed to load connector configuration: {message}"

@@ -2,13 +2,14 @@ import fs from 'fs-extra';
 import path from 'path';
 import { execSync } from 'child_process';
 import { connectorManager } from '../utils/connector-manager.js';
-import { 
-  getConfig, 
-  updateConnectorConfig, 
-  getConnectorConfig, 
-  removeConnectorConfig 
-} from '../utils/config.js';
-import { t } from '../utils/i18n.js';
+import {
+  getProjectConnectorConfig,
+  getProjectConnectorsConfig,
+  removeProjectConnectorConfig,
+  resolveProjectConfig,
+  updateProjectConnectorConfig,
+} from '../utils/project-config.js';
+import { resolveProjectEnv, upsertProjectEnv } from '../utils/project-env.js';
 import readline from 'readline';
 
 /**
@@ -266,41 +267,47 @@ async function configurePostgreSQLConnector(rl, connectorName) {
   console.log('\n🔧 PostgreSQL Connector Configuration');
   console.log('====================================');
   
-  const currentConfig = getConnectorConfig(connectorName);
+  const currentConfig = await getProjectConnectorConfig(connectorName);
+  const { env } = await resolveProjectEnv();
+  const currentEnv = { ...process.env, ...env };
   
   // Get database connection details
   const host = await askQuestion(rl, 
-    `Database host (current: ${currentConfig.host || 'localhost'}): `
-  ) || currentConfig.host || 'localhost';
+    `Database host (current: ${currentEnv.FORM0_CONNECTOR_PG_HOST || 'localhost'}): `
+  ) || currentEnv.FORM0_CONNECTOR_PG_HOST || 'localhost';
   
   const port = await askQuestion(rl, 
-    `Database port (current: ${currentConfig.port || '5432'}): `
-  ) || currentConfig.port || '5432';
+    `Database port (current: ${currentEnv.FORM0_CONNECTOR_PG_PORT || '5432'}): `
+  ) || currentEnv.FORM0_CONNECTOR_PG_PORT || '5432';
   
   const database = await askQuestion(rl, 
-    `Database name (current: ${currentConfig.database || 'none'}): `
-  ) || currentConfig.database;
+    `Database name (current: ${currentEnv.FORM0_CONNECTOR_PG_DATABASE || 'none'}): `
+  ) || currentEnv.FORM0_CONNECTOR_PG_DATABASE;
   
   const username = await askQuestion(rl, 
-    `Database username (current: ${currentConfig.username || 'none'}): `
-  ) || currentConfig.username;
+    `Database username (current: ${currentEnv.FORM0_CONNECTOR_PG_USERNAME || 'none'}): `
+  ) || currentEnv.FORM0_CONNECTOR_PG_USERNAME;
   
   const password = await askQuestion(rl, 
-    `Database password (current: ${currentConfig.password ? '***' : 'none'}): `
-  ) || currentConfig.password;
+    `Database password (current: ${currentEnv.FORM0_CONNECTOR_PG_PASSWORD ? '***' : 'none'}): `
+  ) || currentEnv.FORM0_CONNECTOR_PG_PASSWORD;
   
   const sslInput = await askQuestion(rl, 
-    `Enable SSL? (y/n, current: ${currentConfig.ssl ? 'y' : 'n'}): `
+    `Enable SSL? (y/n, current: ${currentEnv.FORM0_CONNECTOR_PG_SSL === 'true' ? 'y' : 'n'}): `
   );
-  const ssl = convertInputToBoolean(sslInput, currentConfig.ssl);
+  const ssl = convertInputToBoolean(sslInput, currentEnv.FORM0_CONNECTOR_PG_SSL === 'true');
   
+  const currentTableName =
+    currentConfig.tableName || currentEnv.FORM0_CONNECTOR_PG_TABLE_NAME || 'form0_submissions';
   const tableName = await askQuestion(rl, 
-    `Table name (current: ${currentConfig.tableName || 'form0_submissions'}): `
-  ) || currentConfig.tableName || 'form0_submissions';
+    `Table name (current: ${currentTableName}): `
+  ) || currentTableName;
   
+  const currentSchema =
+    currentConfig.schema || currentEnv.FORM0_CONNECTOR_PG_SCHEMA || 'public';
   const schema = await askQuestion(rl, 
-    `Database schema (current: ${currentConfig.schema || 'public'}): `
-  ) || currentConfig.schema || 'public';
+    `Database schema (current: ${currentSchema}): `
+  ) || currentSchema;
   
   const enabledInput = await askQuestion(rl, 
     `Enable connector? (y/n, current: ${currentConfig.enabled ? 'y' : 'n'}): `
@@ -313,16 +320,20 @@ async function configurePostgreSQLConnector(rl, connectorName) {
   const autoLoad = convertInputToBoolean(autoLoadInput, currentConfig.autoLoad);
 
   return {
-    host,
-    port: parseInt(port),
-    database,
-    username,
-    password,
-    ssl,
-    tableName,
-    schema,
-    enabled,
-    autoLoad
+    connectorConfig: {
+      tableName,
+      schema,
+      enabled,
+      autoLoad,
+    },
+    envUpdates: {
+      FORM0_CONNECTOR_PG_HOST: host,
+      FORM0_CONNECTOR_PG_PORT: port,
+      FORM0_CONNECTOR_PG_DATABASE: database,
+      FORM0_CONNECTOR_PG_USERNAME: username,
+      FORM0_CONNECTOR_PG_PASSWORD: password,
+      FORM0_CONNECTOR_PG_SSL: ssl,
+    },
   };
 }
 
@@ -333,7 +344,7 @@ async function configureGenericConnector(rl, connectorName) {
   console.log(`\n🔧 ${connectorName} Configuration`);
   console.log('================================');
   
-  const currentConfig = getConnectorConfig(connectorName);
+  const currentConfig = await getProjectConnectorConfig(connectorName);
   
   const enabledInput = await askQuestion(rl, 
     `Enable connector? (y/n, current: ${currentConfig.enabled ? 'y' : 'n'}): `
@@ -350,8 +361,11 @@ async function configureGenericConnector(rl, connectorName) {
   console.log('   or configuration files that may be needed.');
 
   return {
-    enabled,
-    autoLoad
+    connectorConfig: {
+      enabled,
+      autoLoad,
+    },
+    envUpdates: null,
   };
 }
 
@@ -362,20 +376,33 @@ async function configureConnector(connectorName) {
   const rl = createReadlineInterface();
   
   try {
-    let config;
+    let result;
     
     // Provide specialized configuration for known connectors
     if (connectorName === 'form0-connector-pg') {
-      config = await configurePostgreSQLConnector(rl, connectorName);
+      result = await configurePostgreSQLConnector(rl, connectorName);
     } else {
-      config = await configureGenericConnector(rl, connectorName);
+      result = await configureGenericConnector(rl, connectorName);
     }
     
-    // Save configuration
-    const success = await updateConnectorConfig(connectorName, config);
+    const { connectorConfig, envUpdates } = result;
+
+    // Save configuration to project config
+    const { configPath, projectRoot } = await updateProjectConnectorConfig(
+      connectorName,
+      connectorConfig
+    );
+
+    if (envUpdates) {
+      await upsertProjectEnv(envUpdates, projectRoot);
+    }
     
-    if (success) {
+    if (configPath) {
       console.log(`\n✅ Configuration saved for ${connectorName}`);
+      console.log(`   Config: ${configPath}`);
+      if (envUpdates) {
+        console.log(`   Env: ${path.join(projectRoot, '.env.local')}`);
+      }
       
       // Offer to test the connection
       const testInput = await askQuestion(rl, 
@@ -385,8 +412,6 @@ async function configureConnector(connectorName) {
       if (convertInputToBoolean(testInput, false)) {
         await testConnectorConnection(connectorName);
       }
-    } else {
-      console.log(`\n❌ Failed to save configuration for ${connectorName}`);
     }
     
   } catch (error) {
@@ -403,7 +428,8 @@ async function testConnectorConnection(connectorName) {
   try {
     console.log(`\n🔄 Testing connection to ${connectorName}...`);
     
-    await connectorManager.loadConnectorConfig();
+    const { projectRoot } = await resolveProjectConfig();
+    await connectorManager.loadConnectorConfig({ projectDir: projectRoot });
     const testResult = await connectorManager.testConnector(connectorName);
     
     if (testResult.healthy) {
@@ -430,7 +456,8 @@ async function reloadConnector(connectorName) {
   try {
     console.log(`\n🔄 Reloading connector: ${connectorName}...`);
     
-    await connectorManager.loadConnectorConfig();
+    const { projectRoot } = await resolveProjectConfig();
+    await connectorManager.loadConnectorConfig({ projectDir: projectRoot });
     const success = await connectorManager.reloadConnector(connectorName);
     
     if (success) {
@@ -458,12 +485,13 @@ async function reloadConnector(connectorName) {
  */
 async function showConnectorStatus(connectorName = null) {
   try {
-    await connectorManager.loadConnectorConfig();
-    const config = getConfig();
+    const { projectRoot } = await resolveProjectConfig();
+    await connectorManager.loadConnectorConfig({ projectDir: projectRoot });
+    const connectorConfigs = await getProjectConnectorsConfig(projectRoot);
     
     if (connectorName) {
       // Show status for specific connector
-      const connectorConfig = getConnectorConfig(connectorName);
+      const connectorConfig = connectorConfigs[connectorName] || {};
       
       console.log(`\n📊 Status for ${connectorName}`);
       console.log('='.repeat(20 + connectorName.length));
@@ -504,8 +532,6 @@ async function showConnectorStatus(connectorName = null) {
       console.log('\n📊 Connector Status Overview');
       console.log('===========================');
       
-      const connectorConfigs = config.connectors || {};
-      
       if (Object.keys(connectorConfigs).length === 0) {
         console.log('No connectors configured.');
         return;
@@ -541,7 +567,7 @@ async function removeConnector(connectorName) {
   const rl = createReadlineInterface();
   
   try {
-    const currentConfig = getConnectorConfig(connectorName);
+    const currentConfig = await getProjectConnectorConfig(connectorName);
     
     if (Object.keys(currentConfig).length === 0) {
       console.log(`❌ Connector '${connectorName}' is not configured.`);
@@ -563,9 +589,9 @@ async function removeConnector(connectorName) {
       }
       
       // Remove configuration
-      const success = await removeConnectorConfig(connectorName);
+      const { removed } = await removeProjectConnectorConfig(connectorName);
       
-      if (success) {
+      if (removed) {
         console.log(`✅ Configuration removed for ${connectorName}`);
       } else {
         console.log(`❌ Failed to remove configuration for ${connectorName}`);

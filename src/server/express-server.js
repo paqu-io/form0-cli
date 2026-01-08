@@ -364,7 +364,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   // Initialize connector manager with configuration
   async function initializeConnectors() {
     try {
-      await connectorManager.loadConnectorConfig();
+      await connectorManager.loadConnectorConfig({ projectDir });
       
       // Auto-load connectors marked for auto-loading
       const config = connectorManager.config;

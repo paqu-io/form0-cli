@@ -2,6 +2,7 @@ import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
 import { connectorManager } from '../../../utils/connector-manager.js';
 import { getInstalledConnectors, validateConnectorForConfiguration } from '../../../utils/connector-validation.js';
+import { resolveProjectConfig } from '../../../utils/project-config.js';
 
 /**
  * Interactive connector manager for CLI commands
@@ -12,6 +13,12 @@ export class ConnectorManager {
     this.connectorManager = connectorManager;
     // Store reference to shell for readline coordination
     this.shell = shell;
+  }
+
+  async ensureProjectConfigLoaded() {
+    const { projectRoot } = await resolveProjectConfig();
+    await this.connectorManager.loadConnectorConfig({ projectDir: projectRoot });
+    return projectRoot;
   }
 
   /**
@@ -169,7 +176,7 @@ export class ConnectorManager {
    */
   async handleListCommand() {
     try {
-      await this.connectorManager.loadConnectorConfig();
+      await this.ensureProjectConfigLoaded();
       const loadedConnectors = this.connectorManager.getLoadedConnectors();
       const config = this.connectorManager.config || {};
       const installedConnectors = await getInstalledConnectors();
@@ -330,6 +337,7 @@ export class ConnectorManager {
     }
 
     try {
+      await this.ensureProjectConfigLoaded();
       console.log(colors.text(t('connectors.load.loading', { name: connectorName })));
       
       await this.connectorManager.loadConnector(connectorName);
@@ -391,6 +399,7 @@ export class ConnectorManager {
     }
 
     try {
+      await this.ensureProjectConfigLoaded();
       console.log(colors.text(t('connectors.test.testing', { name: connectorName })));
       
       const testResult = await this.connectorManager.testConnector(connectorName);
@@ -421,6 +430,7 @@ export class ConnectorManager {
     }
 
     try {
+      await this.ensureProjectConfigLoaded();
       console.log(colors.text(t('connectors.reload.reloading', { name: connectorName })));
       
       const success = await this.connectorManager.reloadConnector(connectorName);
@@ -448,25 +458,26 @@ export class ConnectorManager {
    */
   async handleConfigCommand() {
     try {
-      await this.connectorManager.loadConnectorConfig();
+      await this.ensureProjectConfigLoaded();
       const config = this.connectorManager.config || {};
+      const configPath = this.connectorManager.configPath || 'form0.config.js';
 
       console.log(colors.header('\n' + t('connectors.config.title')));
 
       if (Object.keys(config).length === 0) {
         console.log(colors.textSecondary(t('connectors.config.noConfiguration')));
         console.log();
-        console.log(colors.textMuted(t('connectors.config.configLocation')));
+        console.log(colors.textMuted(t('connectors.config.configLocation', { path: configPath })));
         console.log(colors.textMuted(t('connectors.config.exampleConfig')));
         console.log();
-        console.log(colors.code(`{
-  "connectors": {
-    "form0-connector-pg": {
-      "enabled": true,
-      "autoLoad": true
-    }
-  }
-}`));
+        console.log(colors.code(`export default {
+  connectors: {
+    'form0-connector-pg': {
+      enabled: true,
+      autoLoad: true,
+    },
+  },
+};`));
         console.log();
         return;
       }
