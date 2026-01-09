@@ -74,6 +74,7 @@ if (process.argv.length === 2) {
     .argument('[schema]', 'Path to schema JSON file (defaults to form.schema.json)')
     .option('-p, --port <port>', 'Port to run server on', '3030')
     .option('--host <host>', 'Host to bind server to', 'localhost')
+    .option('--app', 'Start the project dev server command from form0.config.js')
     .description('Start development server with live form preview')
     .action(serveCommand);
 

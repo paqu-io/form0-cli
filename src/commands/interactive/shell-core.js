@@ -7,6 +7,7 @@ import { colors } from '../../utils/theme.js';
 import { t } from '../../utils/i18n.js';
 import { ServerManager } from './managers/server-manager.js';
 import { CommandHandler } from './command-handler.js';
+import { resolveProjectConfig } from '../../utils/project-config.js';
 
 /**
  * Manages the interactive shell core functionality
@@ -76,7 +77,16 @@ export class ShellCore {
     console.log(colors.textSecondary(t('interactive.typeHelp') + '\n'));
 
     // Smart initialization: Auto-load schema or offer to initialize
-    await this.schemaManager.smartInit();
+    const { config } = await resolveProjectConfig(process.cwd());
+    const devServerCommand =
+      config?.devServer && typeof config.devServer.command === 'string'
+        ? config.devServer.command.trim()
+        : '';
+    const isAppProject = devServerCommand.length > 0;
+
+    if (!isAppProject) {
+      await this.schemaManager.smartInit();
+    }
 
     this.rl.prompt();
 

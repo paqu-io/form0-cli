@@ -44,10 +44,17 @@ export class CommandHandler {
       return { allowed: false, reason: 'command_blocked' };
     }
 
-    // For serve command, only allow stop and status
+    // For serve command, only allow stop/status or app start while server mode is active
     if (command.toLowerCase() === 'serve') {
       const [action] = args;
-      if (!['stop', 'status'].includes(action)) {
+      const wantsApp = args.includes('--app') || args.includes('app');
+      const allowedActions = ['stop', 'status', 'app', '--app'];
+
+      if (action === 'start' && wantsApp) {
+        return { allowed: true };
+      }
+
+      if (!allowedActions.includes(action)) {
         return { allowed: false, reason: 'serve_action_blocked', action };
       }
     }

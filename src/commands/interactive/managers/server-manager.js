@@ -1,6 +1,8 @@
+import path from 'path';
 import { Form0Server } from '../../serve.js';
 import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
+import { startAppDevServer, terminateAppDevServer } from '../../../utils/app-dev-server.js';
 
 /**
  * Manages development server operations for interactive mode
@@ -13,6 +15,12 @@ export class ServerManager {
     this.devServer = null;
     this.serverRunningMode = false;
     this.originalSigintHandlers = null;
+    this.appServerProcess = null;
+    this.appServerCommand = null;
+    this.appServerProjectRoot = null;
+    this.appServerSigintHandlers = null;
+    this.appServerReadlineSigintHandlers = null;
+    this.appServerUseProcessGroup = false;
   }
 
   /**
@@ -22,6 +30,10 @@ export class ServerManager {
     return this.serverRunningMode;
   }
 
+  isAppServerRunning() {
+    return !!this.appServerProcess;
+  }
+
   /**
    * Handle serve command
    */
@@ -29,8 +41,17 @@ export class ServerManager {
     const [action, ...rest] = args;
 
     switch (action) {
+      case 'app':
+      case '--app':
+        await this.startDevAndAppServers(rest);
+        break;
+
       case 'start':
-        await this.startDevServer(rest);
+        if (rest.includes('--app') || rest.includes('app')) {
+          await this.startDevAndAppServers(rest);
+        } else {
+          await this.startDevServer(rest);
+        }
         break;
 
       case 'stop':
@@ -46,17 +67,30 @@ export class ServerManager {
         break;
 
       default:
+        if (args.includes('--app')) {
+          await this.startDevAndAppServers(args);
+          break;
+        }
         // Default action: start server
         await this.startDevServer(args);
         break;
     }
   }
 
+  async startDevAndAppServers(args) {
+    await this.startDevServer(args, { allowNoSchema: true });
+
+    if (this.devServer && this.devServer.getStatus().running) {
+      await this.startAppServer(args, { allowDevServer: true, blocking: false });
+    }
+  }
+
   /**
    * Start the development server
    */
-  async startDevServer(args) {
-    if (!this.schemaManager.getCurrentSchema()) {
+  async startDevServer(args, options = {}) {
+    const { allowNoSchema = false } = options;
+    if (!this.schemaManager.getCurrentSchema() && !allowNoSchema) {
       console.log(colors.error(t('common.noSchemaLoaded')));
       return;
     }
@@ -69,11 +103,13 @@ export class ServerManager {
     try {
       // Parse options
       const options = {};
-      for (let i = 0; i < args.length; i += 2) {
+      for (let i = 0; i < args.length; i += 1) {
         if (args[i] === '--port' || args[i] === '-p') {
           options.port = args[i + 1];
+          i += 1;
         } else if (args[i] === '--host') {
           options.host = args[i + 1];
+          i += 1;
         }
       }
 
@@ -152,8 +188,93 @@ export class ServerManager {
         colors.brand('form0') + colors.textSecondary('(server)') + colors.brand('> ')
       );
       this.readline.prompt();
+
+      if (allowNoSchema && !this.schemaManager.getCurrentSchema()) {
+        console.log(
+          colors.textSecondary(
+            'ℹ️  No schema loaded. App submissions should provide the schema to the dev server.'
+          )
+        );
+        this.readline.prompt();
+      }
     } catch (err) {
       console.log(colors.error(t('common.failedToStart', { message: err.message })));
+    }
+  }
+
+  /**
+   * Start the app dev server defined in form0.config.js
+   */
+  async startAppServer(args, options = {}) {
+    const { allowDevServer = false, blocking = true } = options;
+
+    if (this.isAppServerRunning()) {
+      console.log(colors.warning('⚠️ App dev server is already running.'));
+      return;
+    }
+
+    if (!allowDevServer && this.devServer && this.devServer.getStatus().running) {
+      console.log(colors.warning('⚠️ Development server is already running. Stop it first.'));
+      return;
+    }
+
+    const schemaPath = this.schemaManager.getCurrentSchemaPath();
+    const startDir = schemaPath ? path.dirname(schemaPath) : process.cwd();
+
+    try {
+      if (blocking && this.readline) {
+        this.readline.pause();
+        this.setupAppServerSignalHandlers();
+      }
+
+      const { child, command, projectRoot, useProcessGroup } = await startAppDevServer(startDir, {
+        allowInput: blocking,
+      });
+      this.appServerProcess = child;
+      this.appServerCommand = command;
+      this.appServerProjectRoot = projectRoot;
+      this.appServerUseProcessGroup = useProcessGroup;
+
+      console.log(colors.success(`\n🚀 App dev server started: "${command}"`));
+      console.log(colors.textSecondary(`   cwd: ${projectRoot}`));
+      if (blocking) {
+        console.log(colors.textSecondary('   Press Ctrl+C to stop the app dev server.\n'));
+      } else {
+        console.log(colors.textSecondary('   Use "serve stop" or Ctrl+C to stop the servers.\n'));
+      }
+
+      const handleExit = () => {
+        this.appServerProcess = null;
+        this.appServerCommand = null;
+        this.appServerProjectRoot = null;
+        this.appServerUseProcessGroup = false;
+
+        if (blocking) {
+          this.restoreAppServerSignalHandlers();
+          if (this.readline) {
+            this.readline.resume();
+            this.readline.prompt();
+          }
+        } else if (this.readline) {
+          setTimeout(() => this.refreshPrompt(), 0);
+          setTimeout(() => this.refreshPrompt(), 120);
+        }
+      };
+
+      child.on('exit', handleExit);
+      child.on('error', handleExit);
+
+      if (blocking) {
+        await new Promise((resolve) => {
+          child.on('exit', resolve);
+          child.on('error', resolve);
+        });
+      }
+    } catch (err) {
+      if (blocking) {
+        this.restoreAppServerSignalHandlers();
+      }
+      console.log(colors.error(`❌ Failed to start app dev server: ${err.message}`));
     }
   }
 
@@ -182,6 +303,11 @@ export class ServerManager {
 
     // Add a no-op handler for server mode (ignore Ctrl+C completely)
     process.on('SIGINT', () => {
+      if (this.isAppServerRunning()) {
+        this.stopDevServer();
+        return;
+      }
+
       // Ignore Ctrl+C in server mode - only allow "serve stop"
       console.log(colors.warning('\n' + t('interactive.server.ctrlCBlocked')));
       if (this.readline) {
@@ -218,12 +344,39 @@ export class ServerManager {
     }
   }
 
+  refreshPrompt() {
+    if (!this.readline) {
+      return;
+    }
+
+    const prompt = this.serverRunningMode
+      ? colors.brand('form0') + colors.textSecondary('(server)') + colors.brand('> ')
+      : colors.brand('form0> ');
+
+    this.readline.setPrompt(prompt);
+    this.readline.prompt(true);
+  }
+
   /**
    * Stop the development server
    */
   async stopDevServer() {
-    if (!this.devServer || !this.devServer.getStatus().running) {
+    const devRunning = this.devServer && this.devServer.getStatus().running;
+    const appRunning = this.isAppServerRunning();
+    const hadAppRunning = appRunning;
+
+    if (!devRunning && !appRunning) {
       console.log(colors.warning(t('interactive.server.noServerRunning')));
+      return;
+    }
+
+    if (appRunning) {
+      this.stopAppServer();
+    }
+
+    if (!devRunning) {
+      console.log(colors.success('✅ App dev server stopped.'));
+      this.refreshPrompt();
       return;
     }
 
@@ -244,8 +397,13 @@ export class ServerManager {
       console.log(colors.textSecondary(t('interactive.server.returningToInteractive')));
 
       // Restore normal prompt
-      this.readline.setPrompt(colors.brand('form0> '));
-      this.readline.prompt();
+      if (hadAppRunning) {
+        console.log('');
+      }
+      this.refreshPrompt();
+      if (hadAppRunning) {
+        setTimeout(() => this.refreshPrompt(), 120);
+      }
     } catch (err) {
       console.log(colors.error(t('interactive.server.failedToStop', { message: err.message })));
     }
@@ -255,23 +413,25 @@ export class ServerManager {
    * Show development server status
    */
   showServeStatus() {
-    if (!this.devServer) {
+    const devRunning = this.devServer && this.devServer.getStatus().running;
+    const appRunning = this.isAppServerRunning();
+
+    if (!devRunning && !appRunning) {
       console.log(colors.textSecondary(t('interactive.server.notStarted')));
       return;
     }
 
-    const status = this.devServer.getStatus();
     console.log(colors.header(t('interactive.server.statusTitle')));
-    console.log(
-      colors.textSecondary(
-        t('interactive.server.running', {
-          status: status.running
-            ? t('interactive.server.statusYes')
-            : t('interactive.server.statusNo'),
-        })
-      )
-    );
-    if (status.running) {
+
+    if (devRunning) {
+      const status = this.devServer.getStatus();
+      console.log(
+        colors.textSecondary(
+          t('interactive.server.running', {
+            status: t('interactive.server.statusYes'),
+          })
+        )
+      );
       console.log(colors.textSecondary(t('interactive.server.port', { port: status.port })));
       console.log(colors.textSecondary(t('interactive.server.host', { host: status.host })));
       console.log(
@@ -286,6 +446,24 @@ export class ServerManager {
           })
         )
       );
+    } else {
+      console.log(
+        colors.textSecondary(
+          t('interactive.server.running', {
+            status: t('interactive.server.statusNo'),
+          })
+        )
+      );
+    }
+
+    if (appRunning) {
+      console.log(colors.textSecondary('  App dev server: ✅ Running'));
+      if (this.appServerCommand) {
+        console.log(colors.textSecondary(`  Command: ${this.appServerCommand}`));
+      }
+      if (this.appServerProjectRoot) {
+        console.log(colors.textSecondary(`  Directory: ${this.appServerProjectRoot}`));
+      }
     }
   }
 
@@ -334,10 +512,65 @@ export class ServerManager {
       }
     }
 
+    if (this.appServerProcess) {
+      this.stopAppServer();
+    }
+
     // Restore signal handlers if in server mode
     if (this.serverRunningMode) {
       this.serverRunningMode = false;
       this.restoreOriginalSignalHandlers();
     }
+  }
+
+  setupAppServerSignalHandlers() {
+    this.appServerSigintHandlers = process.listeners('SIGINT').slice();
+    process.removeAllListeners('SIGINT');
+    process.on('SIGINT', () => {
+      if (this.appServerProcess) {
+        this.stopAppServer();
+      }
+    });
+
+    if (this.readline) {
+      this.appServerReadlineSigintHandlers = this.readline.listeners('SIGINT').slice();
+      this.readline.removeAllListeners('SIGINT');
+    }
+  }
+
+  restoreAppServerSignalHandlers() {
+    if (this.appServerSigintHandlers) {
+      process.removeAllListeners('SIGINT');
+      this.appServerSigintHandlers.forEach((handler) => {
+        process.on('SIGINT', handler);
+      });
+      this.appServerSigintHandlers = null;
+    }
+
+    if (this.readline) {
+      this.readline.removeAllListeners('SIGINT');
+      if (this.appServerReadlineSigintHandlers) {
+        this.appServerReadlineSigintHandlers.forEach((handler) => {
+          this.readline.on('SIGINT', handler);
+        });
+      }
+      this.appServerReadlineSigintHandlers = null;
+    }
+  }
+
+  stopAppServer() {
+    if (!this.appServerProcess) {
+      return;
+    }
+
+    const child = this.appServerProcess;
+    const useProcessGroup = this.appServerUseProcessGroup;
+
+    this.appServerProcess = null;
+    this.appServerCommand = null;
+    this.appServerProjectRoot = null;
+    this.appServerUseProcessGroup = false;
+
+    terminateAppDevServer(child, { useProcessGroup });
   }
 }
