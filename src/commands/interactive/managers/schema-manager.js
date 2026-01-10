@@ -157,7 +157,8 @@ export class SchemaManager {
   /**
    * Smart initialization: Auto-load schema or offer to initialize
    */
-  async smartInit() {
+  async smartInit(options = {}) {
+    const { allowPrompt = true } = options;
     const { candidates, formsDir } = await discoverSchemas();
 
     if (candidates.length === 1) {
@@ -188,6 +189,12 @@ export class SchemaManager {
     }
 
     if (candidates.length > 1) {
+      if (!allowPrompt) {
+        console.log(colors.textSecondary(t('interactive.typeLoad')));
+        console.log(chalk.gray(t('interactive.continueWithOther') + '\n'));
+        return false;
+      }
+
       const selected = await this.promptSchemaSelection(candidates);
       if (selected) {
         try {

@@ -83,9 +83,15 @@ export class ShellCore {
         ? config.devServer.command.trim()
         : '';
     const isAppProject = devServerCommand.length > 0;
+    const schemaPromptOnStart =
+      config?.cli && typeof config.cli.schemaPromptOnStart === 'boolean'
+        ? config.cli.schemaPromptOnStart
+        : true;
 
-    if (!isAppProject) {
+    if (!isAppProject && schemaPromptOnStart) {
       await this.schemaManager.smartInit();
+    } else if (!isAppProject && !schemaPromptOnStart) {
+      await this.schemaManager.smartInit({ allowPrompt: false });
     }
 
     this.rl.prompt();

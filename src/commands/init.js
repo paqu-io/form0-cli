@@ -67,6 +67,7 @@ async function createFormProject(dir, showInstructions = true) {
   const compactSchema = dedentCodeInSchema(schema);
 
   const testScript = testScriptTemplate;
+  const projectConfigContents = `export default {\n  cli: {\n    schemaPromptOnStart: true,\n  },\n};\n`;
 
   // Create package.json for ES modules
   const packageJson = {
@@ -85,6 +86,7 @@ async function createFormProject(dir, showInstructions = true) {
 
   // Write all files
   await fs.writeJson(`${base}/package.json`, packageJson, { spaces: 2 });
+  await fs.writeFile(`${base}/form0.config.js`, projectConfigContents);
   await fs.writeJson(`${base}/form.schema.json`, compactSchema, { spaces: 2 });
   await fs.writeFile(`${base}/test.js`, testScript);
   await fs.writeFile(`${base}/README.md`, createReadmeTemplate(dir));
