@@ -130,6 +130,69 @@ async function configurePostgreSQLConnector(rl, connectorName) {
 }
 
 /**
+ * Interactive configuration for SQLite connector
+ */
+async function configureSQLiteConnector(rl, connectorName) {
+  console.log('\n🔧 SQLite Connector Configuration');
+  console.log('================================');
+  console.log(colors.textMuted('Type "exit" or "cancel" to abort configuration'));
+  console.log();
+
+  const currentConfig = await getProjectConnectorConfig(connectorName);
+  const { env } = await resolveProjectEnv();
+  const currentEnv = { ...process.env, ...env };
+
+  try {
+    const defaultPath = currentEnv.FORM0_CONNECTOR_SQLITE_PATH || './form0.db';
+    const databasePath =
+      (await askQuestion(rl, `Database file path (current: ${defaultPath}): `)) || defaultPath;
+
+    const currentTableName =
+      currentConfig.tableName || currentEnv.FORM0_CONNECTOR_SQLITE_TABLE_NAME || 'form0_submissions';
+    const tableName =
+      (await askQuestion(rl, `Main table name (current: ${currentTableName}): `)) ||
+      currentTableName;
+
+    const currentChildTableName =
+      currentConfig.childTableName ||
+      currentEnv.FORM0_CONNECTOR_SQLITE_CHILD_TABLE_NAME ||
+      'form0_submissions_children';
+    const childTableName =
+      (await askQuestion(rl, `Child table name (current: ${currentChildTableName}): `)) ||
+      currentChildTableName;
+
+    const enabledInput = await askQuestion(
+      rl,
+      `Enable connector? (y/n, current: ${currentConfig.enabled ? 'y' : 'n'}): `
+    );
+    const enabled = convertInputToBoolean(enabledInput, currentConfig.enabled);
+
+    const autoLoadInput = await askQuestion(
+      rl,
+      `Auto-load on server start? (y/n, current: ${currentConfig.autoLoad ? 'y' : 'n'}): `
+    );
+    const autoLoad = convertInputToBoolean(autoLoadInput, currentConfig.autoLoad);
+
+    return {
+      connectorConfig: {
+        tableName,
+        childTableName,
+        enabled,
+        autoLoad,
+      },
+      envUpdates: {
+        FORM0_CONNECTOR_SQLITE_PATH: databasePath,
+      },
+    };
+  } catch (error) {
+    if (error.message === 'EXIT_REQUESTED') {
+      throw new Error('Configuration cancelled by user');
+    }
+    throw error;
+  }
+}
+
+/**
  * Generic connector configuration
  */
 async function configureGenericConnector(rl, connectorName) {
@@ -219,6 +282,8 @@ export async function configureConnectorWithShellContext(connectorName, rl) {
     // Provide specialized configuration for known connectors
     if (connectorName === 'form0-connector-pg') {
       result = await configurePostgreSQLConnector(rl, connectorName);
+    } else if (connectorName === 'form0-connector-sqlite') {
+      result = await configureSQLiteConnector(rl, connectorName);
     } else {
       result = await configureGenericConnector(rl, connectorName);
     }

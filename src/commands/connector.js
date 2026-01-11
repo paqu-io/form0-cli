@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { execSync } from 'child_process';
 import { connectorManager } from '../utils/connector-manager.js';
+import { isReactNativeProject } from '../utils/project-detection.js';
 import {
   getProjectConnectorConfig,
   getProjectConnectorsConfig,
@@ -158,6 +159,14 @@ async function installConnector(connectorInput) {
       case 'local':
         console.log(`📁 Installing local connector from: ${resolution.path}`);
         connectorName = resolution.packageJson.name || path.basename(resolution.path);
+
+        if (await isReactNativeProject()) {
+          if (connectorName === 'form0-connector-pg' || connectorName === 'form0-connector-sqlite') {
+            console.error(`❌ Connector '${connectorName}' is not supported in React Native projects.`);
+            console.log('💡 Tip: Use local on-device storage in form0-react-native instead.');
+            return false;
+          }
+        }
         
         try {
           // Use npm install with file: protocol for local packages
@@ -177,17 +186,39 @@ async function installConnector(connectorInput) {
         console.log(`🔗 Found npm-linked connector: ${resolution.packageJson.name}`);
         console.log(`   Linked to: ${resolution.path}`);
         connectorName = resolution.packageJson.name;
+        if (await isReactNativeProject()) {
+          if (connectorName === 'form0-connector-pg' || connectorName === 'form0-connector-sqlite') {
+            console.error(`❌ Connector '${connectorName}' is not supported in React Native projects.`);
+            console.log('💡 Tip: Use local on-device storage in form0-react-native instead.');
+            return false;
+          }
+        }
         installSuccess = true; // Already linked
         break;
 
       case 'installed':
         console.log(`📦 Connector already installed: ${resolution.packageJson.name}`);
         connectorName = resolution.packageJson.name;
+        if (await isReactNativeProject()) {
+          if (connectorName === 'form0-connector-pg' || connectorName === 'form0-connector-sqlite') {
+            console.error(`❌ Connector '${connectorName}' is not supported in React Native projects.`);
+            console.log('💡 Tip: Use local on-device storage in form0-react-native instead.');
+            return false;
+          }
+        }
         installSuccess = true; // Already installed
         break;
 
       case 'npm':
         connectorName = resolution.name;
+
+        if (await isReactNativeProject()) {
+          if (connectorName === 'form0-connector-pg' || connectorName === 'form0-connector-sqlite') {
+            console.error(`❌ Connector '${connectorName}' is not supported in React Native projects.`);
+            console.log('💡 Tip: Use local on-device storage in form0-react-native instead.');
+            return false;
+          }
+        }
         
         try {
           // First try regular npm install
@@ -338,6 +369,60 @@ async function configurePostgreSQLConnector(rl, connectorName) {
 }
 
 /**
+ * Interactive configuration for SQLite connector
+ */
+async function configureSQLiteConnector(rl, connectorName) {
+  console.log('\n🔧 SQLite Connector Configuration');
+  console.log('================================');
+
+  const currentConfig = await getProjectConnectorConfig(connectorName);
+  const { env } = await resolveProjectEnv();
+  const currentEnv = { ...process.env, ...env };
+
+  const defaultPath = currentEnv.FORM0_CONNECTOR_SQLITE_PATH || './form0.db';
+  const databasePath =
+    (await askQuestion(rl, `Database file path (current: ${defaultPath}): `)) || defaultPath;
+
+  const currentTableName =
+    currentConfig.tableName || currentEnv.FORM0_CONNECTOR_SQLITE_TABLE_NAME || 'form0_submissions';
+  const tableName =
+    (await askQuestion(rl, `Main table name (current: ${currentTableName}): `)) ||
+    currentTableName;
+
+  const currentChildTableName =
+    currentConfig.childTableName ||
+    currentEnv.FORM0_CONNECTOR_SQLITE_CHILD_TABLE_NAME ||
+    'form0_submissions_children';
+  const childTableName =
+    (await askQuestion(rl, `Child table name (current: ${currentChildTableName}): `)) ||
+    currentChildTableName;
+
+  const enabledInput = await askQuestion(
+    rl,
+    `Enable connector? (y/n, current: ${currentConfig.enabled ? 'y' : 'n'}): `
+  );
+  const enabled = convertInputToBoolean(enabledInput, currentConfig.enabled);
+
+  const autoLoadInput = await askQuestion(
+    rl,
+    `Auto-load on server start? (y/n, current: ${currentConfig.autoLoad ? 'y' : 'n'}): `
+  );
+  const autoLoad = convertInputToBoolean(autoLoadInput, currentConfig.autoLoad);
+
+  return {
+    connectorConfig: {
+      tableName,
+      childTableName,
+      enabled,
+      autoLoad,
+    },
+    envUpdates: {
+      FORM0_CONNECTOR_SQLITE_PATH: databasePath,
+    },
+  };
+}
+
+/**
  * Generic connector configuration
  */
 async function configureGenericConnector(rl, connectorName) {
@@ -381,6 +466,8 @@ async function configureConnector(connectorName) {
     // Provide specialized configuration for known connectors
     if (connectorName === 'form0-connector-pg') {
       result = await configurePostgreSQLConnector(rl, connectorName);
+    } else if (connectorName === 'form0-connector-sqlite') {
+      result = await configureSQLiteConnector(rl, connectorName);
     } else {
       result = await configureGenericConnector(rl, connectorName);
     }
@@ -661,6 +748,7 @@ async function listConnectors() {
   // List suggested connectors
   console.log('\n💡 Suggested:');
   console.log('   - form0-connector-pg (PostgreSQL database storage)');
+  console.log('   - form0-connector-sqlite (SQLite database storage)');
   console.log('   - form0-connector-mysql (MySQL database storage)');
   console.log('   - form0-connector-mongodb (MongoDB database storage)');
   console.log('   - form0-connector-webhook (HTTP webhook integration)');
