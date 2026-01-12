@@ -93,3 +93,42 @@ export async function upsertProjectEnv(updates, startDir = process.cwd()) {
 
   return { projectRoot, envPath };
 }
+
+export async function removeProjectEnvKeys(keys = [], startDir = process.cwd()) {
+  const { projectRoot, envPath, envExists } = await resolveProjectEnv(startDir);
+  const keySet = new Set((keys || []).filter(Boolean));
+
+  if (!envExists || keySet.size === 0) {
+    return { projectRoot, envPath, removed: [] };
+  }
+
+  const existingContent = await fs.readFile(envPath, 'utf8');
+  const lines = existingContent.split(/\r?\n/);
+  const removed = [];
+
+  const keptLines = lines.filter((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      return true;
+    }
+
+    const eqIndex = line.indexOf('=');
+    if (eqIndex === -1) {
+      return true;
+    }
+
+    const key = line.slice(0, eqIndex).trim();
+    if (keySet.has(key)) {
+      removed.push(key);
+      return false;
+    }
+
+    return true;
+  });
+
+  const newContent = keptLines.join('\n');
+  const finalContent = newContent.endsWith('\n') ? newContent : `${newContent}\n`;
+  await fs.writeFile(envPath, finalContent);
+
+  return { projectRoot, envPath, removed };
+}

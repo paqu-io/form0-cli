@@ -2,7 +2,85 @@ import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
 import { connectorManager } from '../../../utils/connector-manager.js';
 import { getInstalledConnectors, validateConnectorForConfiguration } from '../../../utils/connector-validation.js';
-import { resolveProjectConfig } from '../../../utils/project-config.js';
+import {
+  getProjectConnectorConfig,
+  removeProjectConnectorConfig,
+  resolveProjectConfig,
+} from '../../../utils/project-config.js';
+import { removeProjectEnvKeys } from '../../../utils/project-env.js';
+
+function askQuestion(rl, question) {
+  return new Promise((resolve, reject) => {
+    rl.question(question, (answer) => {
+      const trimmedAnswer = answer.trim();
+      if (trimmedAnswer.toLowerCase() === 'exit' || trimmedAnswer.toLowerCase() === 'cancel') {
+        reject(new Error('EXIT_REQUESTED'));
+        return;
+      }
+      resolve(trimmedAnswer);
+    });
+  });
+}
+
+function convertInputToBoolean(input, defaultValue = false) {
+  if (!input || input.trim() === '') {
+    return defaultValue;
+  }
+  const lowerInput = input.toLowerCase().trim();
+  return ['y', 'yes', 'true', '1', 'on'].includes(lowerInput);
+}
+
+function getConnectorEnvKeys(connectorName) {
+  if (connectorName === 'form0-connector-pg') {
+    return [
+      'FORM0_CONNECTOR_PG_HOST',
+      'FORM0_CONNECTOR_PG_PORT',
+      'FORM0_CONNECTOR_PG_DATABASE',
+      'FORM0_CONNECTOR_PG_USERNAME',
+      'FORM0_CONNECTOR_PG_PASSWORD',
+      'FORM0_CONNECTOR_PG_SSL',
+      'FORM0_CONNECTOR_PG_SSL_REJECT_UNAUTHORIZED',
+      'FORM0_CONNECTOR_PG_MAX_CONNECTIONS',
+      'FORM0_CONNECTOR_PG_IDLE_TIMEOUT',
+      'FORM0_CONNECTOR_PG_CONNECTION_TIMEOUT',
+      'FORM0_CONNECTOR_PG_TABLE_NAME',
+      'FORM0_CONNECTOR_PG_SCHEMA',
+      'FORM0_CONNECTOR_PG_DEBUG',
+    ];
+  }
+
+  if (connectorName === 'form0-connector-sqlite') {
+    return [
+      'FORM0_CONNECTOR_SQLITE_PATH',
+      'FORM0_CONNECTOR_SQLITE_TABLE_NAME',
+      'FORM0_CONNECTOR_SQLITE_CHILD_TABLE_NAME',
+      'FORM0_CONNECTOR_SQLITE_DEBUG',
+    ];
+  }
+
+  return [];
+}
+
+function extractDatabasePath(metadata) {
+  if (!metadata) {
+    return null;
+  }
+  if (metadata.databasePath) {
+    return metadata.databasePath;
+  }
+  if (typeof metadata.database === 'string') {
+    const value = metadata.database;
+    if (
+      value.includes('/') ||
+      value.includes('\\') ||
+      value.endsWith('.db') ||
+      value.endsWith('.sqlite')
+    ) {
+      return value;
+    }
+  }
+  return null;
+}
 
 /**
  * Interactive connector manager for CLI commands
@@ -54,8 +132,10 @@ export class ConnectorManager {
         break;
 
       case 'unload':
-      case 'remove':
         await this.handleUnloadCommand(subArgs);
+        break;
+      case 'remove':
+        await this.handleRemoveCommand(subArgs);
         break;
 
       case 'test':
@@ -72,6 +152,11 @@ export class ConnectorManager {
 
       case 'configure':
         await this.handleConfigure(subArgs);
+        break;
+
+      case 'uninstall':
+        console.log(colors.warning('⚠️  Uninstall is CLI-only. Exit the interactive shell and run:'));
+        console.log(colors.textSecondary('   form0 connector uninstall <connector-name>'));
         break;
 
       default:
@@ -153,6 +238,7 @@ export class ConnectorManager {
     console.log(colors.text(t('connectors.help.statusCommand')));
     console.log(colors.text(t('connectors.help.loadCommand')));
     console.log(colors.text(t('connectors.help.unloadCommand')));
+    console.log(colors.text(t('connectors.help.removeCommand')));
     console.log();
     console.log(colors.accent1(t('connectors.help.development')));
     console.log(colors.text(t('connectors.help.testCommand')));
@@ -162,6 +248,7 @@ export class ConnectorManager {
     console.log();
     console.log(colors.accent1(t('connectors.help.cliOnly')));
     console.log(colors.text(t('connectors.help.installCommand')));
+    console.log(colors.text(t('connectors.help.uninstallCommand')));
     console.log();
     console.log(colors.textMuted(t('common.examples')));
     console.log(colors.textMuted(t('connectors.help.exampleList')));
@@ -276,6 +363,10 @@ export class ConnectorManager {
           console.log(colors.textSecondary(t('connectors.status.loadedFrom')), colors.value(metadata.loadedFrom));
           console.log(colors.textSecondary(t('connectors.status.sourceType')), colors.value(metadata.sourceType));
           console.log(colors.textSecondary(t('connectors.status.loadedAt')), colors.value(metadata.loadedAt));
+          const dbPath = extractDatabasePath(metadata);
+          if (dbPath) {
+            console.log(colors.textSecondary(t('connectors.status.databasePath')), colors.value(dbPath));
+          }
         }
 
         // Health check
@@ -384,6 +475,75 @@ export class ConnectorManager {
       }
     } catch (error) {
       console.log(colors.error(t('connectors.unload.failed', { name: connectorName, message: error.message })));
+    }
+  }
+
+  /**
+   * Handle remove command (remove config + optional env cleanup)
+   */
+  async handleRemoveCommand(args) {
+    const connectorName = args[0];
+
+    if (!connectorName) {
+      console.log(colors.error('❌ Connector name is required for remove action'));
+      console.log(colors.textSecondary('Usage: connector remove <connector-name>'));
+      return;
+    }
+
+    if (!this.shell || !this.shell.rl) {
+      console.log(colors.error('Error: Shell readline interface not available'));
+      return;
+    }
+
+    try {
+      const currentConfig = await getProjectConnectorConfig(connectorName);
+      if (Object.keys(currentConfig).length === 0) {
+        console.log(colors.error(`❌ Connector '${connectorName}' is not configured.`));
+        return;
+      }
+
+      console.log(colors.warning(`\n⚠️  This will remove the configuration for '${connectorName}'.`));
+      console.log(colors.textSecondary('The package will remain installed but will not be loaded or used.'));
+
+      const confirmInput = await askQuestion(
+        this.shell.rl,
+        'Are you sure you want to remove this connector configuration? (y/n): '
+      );
+
+      if (!convertInputToBoolean(confirmInput, false)) {
+        console.log(colors.textSecondary('Operation cancelled.'));
+        return;
+      }
+
+      if (this.connectorManager.isConnectorLoaded(connectorName)) {
+        await this.connectorManager.unloadConnector(connectorName);
+      }
+
+      const { removed } = await removeProjectConnectorConfig(connectorName);
+
+      if (removed) {
+        console.log(colors.success(`✅ Configuration removed for ${connectorName}`));
+
+        const envKeys = getConnectorEnvKeys(connectorName);
+        if (envKeys.length > 0) {
+          const envInput = await askQuestion(
+            this.shell.rl,
+            'Remove related environment variables from .env.local? (y/n): '
+          );
+          if (convertInputToBoolean(envInput, false)) {
+            await removeProjectEnvKeys(envKeys);
+            console.log(colors.success('✅ Environment variables removed.'));
+          }
+        }
+      } else {
+        console.log(colors.error(`❌ Failed to remove configuration for ${connectorName}`));
+      }
+    } catch (error) {
+      if (error.message === 'EXIT_REQUESTED') {
+        console.log(colors.textMuted('Operation cancelled.'));
+        return;
+      }
+      console.log(colors.error(`❌ Error removing connector: ${error.message}`));
     }
   }
 
