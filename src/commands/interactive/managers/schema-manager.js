@@ -300,7 +300,7 @@ export class SchemaManager {
       return;
     }
 
-    showSchemaPreview(this.currentSchema);
+    showSchemaPreview(this.currentSchema, { showIds: true });
   }
 
   /**

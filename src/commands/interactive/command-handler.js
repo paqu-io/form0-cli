@@ -6,18 +6,29 @@ import { colors } from '../../utils/theme.js';
 import { t } from '../../utils/i18n.js';
 import { importSchemaFromCsvFile, exportSchemaToCsvFile } from '../../utils/schema-csv.js';
 import { confirmOverwrite, resolveDefaultSchemaPath } from '../schema.js';
+import fs from 'fs-extra';
+import { ensureMissingKeysForSchema } from '../../utils/ensure-missing-keys.js';
 
 /**
  * Handles command processing for interactive shell
  */
 export class CommandHandler {
-  constructor(schemaManager, engineRunner, fileWatcher, serverManager, readline, shell = null) {
+  constructor(
+    schemaManager,
+    engineRunner,
+    fileWatcher,
+    serverManager,
+    readline,
+    shell = null,
+    schemaEditor = null
+  ) {
     this.schemaManager = schemaManager;
     this.engineRunner = engineRunner;
     this.fileWatcher = fileWatcher;
     this.serverManager = serverManager;
     this.readline = readline;
     this.shell = shell; // Reference to shell for readline coordination
+    this.schemaEditor = schemaEditor;
   }
 
   /**
@@ -89,6 +100,11 @@ export class CommandHandler {
     const [command, ...args] = input.split(' ');
 
     try {
+      if (this.schemaEditor && this.schemaEditor.isActive()) {
+        await this.schemaEditor.handleCommand(input);
+        return;
+      }
+
       // Check server mode restrictions
       if (this.serverManager.isServerRunning()) {
         const { allowed, reason, action } = this.isCommandAllowedInServerMode(command, args);
@@ -218,6 +234,18 @@ export class CommandHandler {
       return;
     }
 
+    if (action === 'edit') {
+      if (this.schemaEditor) {
+        this.schemaEditor.enter();
+      }
+      return;
+    }
+
+    if (action === 'keys') {
+      await this.handleSchemaKeys();
+      return;
+    }
+
     const { positional, force } = this.parseSchemaFlags(rest);
 
     if (action === 'import') {
@@ -284,6 +312,30 @@ export class CommandHandler {
     }
 
     console.log(colors.error(t('interactive.unknownCommand', { command: `schema ${action}` })));
+  }
+
+  async handleSchemaKeys() {
+    const schema = this.schemaManager.getCurrentSchema();
+    const schemaPath = this.schemaManager.getCurrentSchemaPath();
+
+    if (!schema || !schemaPath) {
+      console.log(colors.error(t('common.noSchemaLoaded')));
+      return;
+    }
+
+    const elements = schema.form?.elements || [];
+    const count = ensureMissingKeysForSchema(elements);
+
+    if (count === 0) {
+      console.log(colors.textSecondary(t('interactive.schemaEdit.noKeysNeeded')));
+      return;
+    }
+
+    await fs.writeJson(schemaPath, schema, { spaces: 2 });
+    this.engineRunner.resetEngine();
+    this.serverManager.updateDevServerSchema();
+
+    console.log(colors.success(t('interactive.schemaEdit.keysGenerated', { count })));
   }
 
   parseSchemaFlags(args) {

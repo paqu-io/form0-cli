@@ -8,10 +8,11 @@ import { startAppDevServer, terminateAppDevServer } from '../../../utils/app-dev
  * Manages development server operations for interactive mode
  */
 export class ServerManager {
-  constructor(schemaManager, fileWatcher, readline) {
+  constructor(schemaManager, fileWatcher, readline, shellCore = null) {
     this.schemaManager = schemaManager;
     this.fileWatcher = fileWatcher;
     this.readline = readline;
+    this.shellCore = shellCore;
     this.devServer = null;
     this.serverRunningMode = false;
     this.originalSigintHandlers = null;
@@ -184,10 +185,7 @@ export class ServerManager {
       this.setupServerModeSignalHandlers();
 
       // Show server mode prompt
-      this.readline.setPrompt(
-        colors.brand('form0') + colors.textSecondary('(server)') + colors.brand('> ')
-      );
-      this.readline.prompt();
+      this.refreshPrompt();
 
       if (allowNoSchema && !this.schemaManager.getCurrentSchema()) {
         console.log(
@@ -345,6 +343,11 @@ export class ServerManager {
   }
 
   refreshPrompt() {
+    if (this.shellCore) {
+      this.shellCore.refreshPrompt();
+      return;
+    }
+
     if (!this.readline) {
       return;
     }

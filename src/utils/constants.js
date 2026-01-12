@@ -42,6 +42,7 @@ export const COMMANDS = [
   'theme',
   'locale',
   'serve',
+  'schema',
 ];
 
 export const WATCH_OPTIONS = ['--auto-run', '--auto-validate', '--values', 'stop'];
