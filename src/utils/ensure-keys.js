@@ -55,7 +55,7 @@ export function ensureKeysForSchema(elements) {
   function normalizeFields(fields) {
     fields.forEach((field) => {
       // Normalize all known condition types
-      ['visible_conditions', 'requirement_conditions', 'read_only_conditions'].forEach(
+      ['visible_conditions', 'required_conditions', 'read_only_conditions'].forEach(
         (condKey) => {
           if (field[condKey]) normalizeConditionRefs(field[condKey]);
         }

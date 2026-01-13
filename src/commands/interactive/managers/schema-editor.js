@@ -242,7 +242,7 @@ function updateSchemaReferences(form, oldKey, newKey, oldDataName) {
       return;
     }
 
-    ['visible_conditions', 'requirement_conditions', 'read_only_conditions'].forEach((condKey) => {
+    ['visible_conditions', 'required_conditions', 'read_only_conditions'].forEach((condKey) => {
       if (field[condKey]) {
         updateConditionRefs(field[condKey], oldKey, newKey, oldDataName);
       }
