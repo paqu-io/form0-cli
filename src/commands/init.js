@@ -1,10 +1,47 @@
 import fs from 'fs-extra';
+import os from 'node:os';
 import path from 'path';
+import readline from 'node:readline';
+import { stdin as input, stdout as output } from 'node:process';
+import { spawn } from 'node:child_process';
+import * as tar from 'tar';
 import { ensureKeysForSchema } from '../utils/ensure-keys.js';
 import { defaultFormTemplate } from '../form0-forms/form-schema-template.js';
 import { testScriptTemplate } from '../utils/test-template.js';
 import { createReadmeTemplate } from '../utils/test-readme.js';
 import { t } from '../utils/i18n.js';
+import { colors } from '../utils/theme.js';
+
+// Update these if template repo names or owners change.
+const TEMPLATE_REPOS = {
+  webReactVite: {
+    repo: 'paqu-io/form0-test1',
+    ssh: 'git@github.com:paqu-io/form0-test1.git',
+    localDirName: 'form0-test1',
+  },
+  mobileExpo: {
+    repo: 'paqu-io/form0-mobile-test1',
+    ssh: 'git@github.com:paqu-io/form0-mobile-test1.git',
+    localDirName: 'form0-mobile-test1',
+  },
+};
+const TEMPLATE_CATALOG = [
+  { type: 'web', template: TEMPLATE_REPOS.webReactVite },
+  { type: 'mobile', template: TEMPLATE_REPOS.mobileExpo },
+];
+const SAFE_ENTRY_REGEX = /^(readme|license)(\.[^.]*)?$/i;
+const LOCAL_TEMPLATE_IGNORED = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'dist-ssr',
+  'web-build',
+  '.expo',
+  '.next',
+  '.turbo',
+  'build',
+  'coverage',
+]);
 
 // Dedent function to remove common leading whitespace
 function dedent(str) {
@@ -92,33 +129,654 @@ async function createFormProject(dir, showInstructions = true) {
   await fs.writeFile(`${base}/README.md`, createReadmeTemplate(dir));
   await fs.ensureDir(`${base}/supporting-images`);
 
-  // Show completion message
+  showStandardInstructions(dir, showInstructions);
+}
+
+function showStandardInstructions(dir, showInstructions) {
   const displayDir = dir === '.' ? path.basename(process.cwd()) : dir;
   console.log(t('commands.init.success', { dir: displayDir }));
 
-  if (showInstructions) {
-    console.log();
-    console.log(t('commands.init.nextSteps'));
-    if (dir !== '.') {
-      console.log(`  cd ${dir}`);
+  if (!showInstructions) {
+    return;
+  }
+
+  console.log();
+  console.log(t('commands.init.nextSteps'));
+  if (dir !== '.') {
+    console.log(`  cd ${dir}`);
+  }
+  console.log(`  ${t('commands.init.installDeps')}`);
+  console.log(`  ${t('commands.init.runTest')}`);
+  console.log();
+  console.log(t('commands.init.localFileNote'));
+  console.log(t('commands.init.makeAvailable'));
+  console.log();
+  console.log(t('commands.init.npmNotInPath'));
+  console.log(`  ${t('commands.init.manualRun')}`);
+}
+
+function showAppInstructions(dir, showInstructions) {
+  const displayDir = dir === '.' ? path.basename(process.cwd()) : dir;
+  console.log(t('commands.init.success', { dir: displayDir }));
+
+  if (!showInstructions) {
+    return;
+  }
+
+  console.log();
+  console.log(t('commands.init.nextSteps'));
+  if (dir !== '.') {
+    console.log(`  cd ${dir}`);
+  }
+  console.log(`  ${t('commands.init.installDeps')}`);
+  console.log(`  ${t('commands.init.runServeApp')}`);
+  console.log(`  ${t('commands.init.runServeOnly')}`);
+  console.log();
+  console.log(t('commands.init.localFileNote'));
+  console.log(t('commands.init.makeAvailable'));
+}
+
+function canPrompt(readlineInterface) {
+  return Boolean(readlineInterface || (input.isTTY && output.isTTY));
+}
+
+function isSafeEntry(name) {
+  if (name === '.git') {
+    return true;
+  }
+  return SAFE_ENTRY_REGEX.test(name);
+}
+
+function shouldIgnoreLocalPath(relativePath) {
+  if (!relativePath) {
+    return false;
+  }
+  const parts = relativePath.split(path.sep);
+  return parts.some((part) => LOCAL_TEMPLATE_IGNORED.has(part));
+}
+
+function createReadline(readlineInterface) {
+  if (readlineInterface) {
+    return { rl: readlineInterface, shouldClose: false };
+  }
+
+  return {
+    rl: readline.createInterface({ input, output }),
+    shouldClose: true,
+  };
+}
+
+async function askQuestion(rl, prompt) {
+  return new Promise((resolve) => {
+    rl.question(prompt, (answer) => {
+      resolve(answer.trim());
+    });
+  });
+}
+
+async function promptSelect({ title, options, defaultIndex = 0, readlineInterface }) {
+  if (!canPrompt(readlineInterface)) {
+    return null;
+  }
+
+  const { rl, shouldClose } = createReadline(readlineInterface);
+  try {
+    if (title) {
+      console.log(colors.accent1(title));
     }
-    console.log(`  ${t('commands.init.installDeps')}`);
-    console.log(`  ${t('commands.init.runTest')}`);
-    console.log();
-    console.log(t('commands.init.localFileNote'));
-    console.log(t('commands.init.makeAvailable'));
-    console.log();
-    console.log(t('commands.init.npmNotInPath'));
-    console.log(`  ${t('commands.init.manualRun')}`);
+
+    options.forEach((option, index) => {
+      const label = option.label || option.value;
+      console.log(colors.textSecondary(`  ${index + 1}) ${label}`));
+    });
+
+    while (true) {
+      const answer = await askQuestion(
+        rl,
+        colors.text(
+          t('commands.init.selectPrompt', {
+            count: options.length,
+            default: defaultIndex + 1,
+          })
+        )
+      );
+
+      if (!answer) {
+        return options[defaultIndex] || null;
+      }
+
+      if (/^(q|quit|exit)$/i.test(answer)) {
+        console.log(colors.warning(t('commands.init.initCancelled')));
+        return null;
+      }
+
+      const selectedIndex = Number.parseInt(answer, 10);
+      if (
+        Number.isInteger(selectedIndex) &&
+        selectedIndex >= 1 &&
+        selectedIndex <= options.length
+      ) {
+        const selected = options[selectedIndex - 1];
+        if (selected.available === false) {
+          console.log(
+            colors.warning(
+              t('commands.init.templateUnavailable', { label: selected.label || selected.value })
+            )
+          );
+          continue;
+        }
+        return selected;
+      }
+
+      console.log(colors.warning(t('commands.init.invalidSelection', { count: options.length })));
+    }
+  } finally {
+    if (shouldClose) {
+      rl.close();
+    }
   }
 }
 
+function resolveDisplayDir(dir) {
+  return dir === '.' ? path.basename(process.cwd()) : dir;
+}
+
+function normalizeTemplateSource(source) {
+  const raw =
+    typeof source === 'string' && source.trim().length > 0
+      ? source.trim()
+      : process.env.FORM0_TEMPLATE_SOURCE || '';
+  const normalized = raw.trim().toLowerCase();
+
+  if (!normalized || normalized === 'remote' || normalized === 'github') {
+    return 'remote';
+  }
+
+  if (normalized === 'local') {
+    return 'local';
+  }
+
+  throw new Error(t('commands.init.invalidTemplateSource', { source: raw }));
+}
+
+function resolveTemplateRoot(templateRoot) {
+  const root =
+    typeof templateRoot === 'string' && templateRoot.trim().length > 0
+      ? templateRoot.trim()
+      : process.env.FORM0_TEMPLATE_ROOT;
+
+  if (!root) {
+    return null;
+  }
+
+  return path.resolve(process.cwd(), root);
+}
+
+async function resolveLocalTemplateDir(template, templateRoot) {
+  const resolvedRoot = resolveTemplateRoot(templateRoot);
+  if (!resolvedRoot) {
+    throw new Error(t('commands.init.missingTemplateRoot'));
+  }
+
+  const isDirect = path.basename(resolvedRoot) === template.localDirName;
+  const candidate = isDirect ? resolvedRoot : path.join(resolvedRoot, template.localDirName);
+
+  if (!(await fs.pathExists(candidate))) {
+    throw new Error(t('commands.init.localTemplateMissing', { path: candidate }));
+  }
+
+  return candidate;
+}
+
+async function detectLocalTemplateSelection(templateRoot) {
+  const resolvedRoot = resolveTemplateRoot(templateRoot);
+  if (!resolvedRoot) {
+    return null;
+  }
+
+  const matches = [];
+
+  for (const entry of TEMPLATE_CATALOG) {
+    const { template } = entry;
+    if (!template.localDirName) {
+      continue;
+    }
+
+    const directCandidate =
+      path.basename(resolvedRoot) === template.localDirName ? resolvedRoot : null;
+    const nestedCandidate = path.join(resolvedRoot, template.localDirName);
+
+    if (directCandidate && (await fs.pathExists(directCandidate))) {
+      matches.push(entry);
+      continue;
+    }
+
+    if (await fs.pathExists(nestedCandidate)) {
+      matches.push(entry);
+    }
+  }
+
+  if (matches.length === 1) {
+    return matches[0];
+  }
+
+  return null;
+}
+
+function getGitHubHeaders() {
+  const headers = {
+    'User-Agent': 'form0-cli',
+  };
+
+  const token = process.env.FORM0_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+  if (token) {
+    headers.Authorization = `token ${token}`;
+  }
+
+  return headers;
+}
+
+function buildTarballUrl(repo, ref) {
+  if (ref) {
+    return `https://api.github.com/repos/${repo}/tarball/${ref}`;
+  }
+  return `https://api.github.com/repos/${repo}/tarball`;
+}
+
+async function ensureSafeTargetDirectory(dir, readlineInterface) {
+  const targetDir = path.resolve(process.cwd(), dir);
+
+  if (!(await fs.pathExists(targetDir))) {
+    return { ok: true, targetDir };
+  }
+
+  const entries = await fs.readdir(targetDir);
+  if (entries.length === 0) {
+    return { ok: true, targetDir };
+  }
+
+  const unsafe = entries.filter((entry) => !isSafeEntry(entry));
+  if (unsafe.length > 0) {
+    throw new Error(
+      t('commands.init.directoryNotEmpty', {
+        dir: targetDir,
+      })
+    );
+  }
+
+  if (!canPrompt(readlineInterface)) {
+    throw new Error(
+      t('commands.init.directoryNotEmpty', {
+        dir: targetDir,
+      })
+    );
+  }
+
+  const { rl, shouldClose } = createReadline(readlineInterface);
+  try {
+    const answer = await askQuestion(
+      rl,
+      colors.warning(
+        t('commands.init.safeDirPrompt', {
+          dir: targetDir,
+          entries: entries.join(', '),
+        })
+      )
+    );
+
+    if (!/^y(es)?$/i.test(answer.trim())) {
+      console.log(colors.warning(t('commands.init.initCancelled')));
+      return { ok: false, cancelled: true, targetDir };
+    }
+  } finally {
+    if (shouldClose) {
+      rl.close();
+    }
+  }
+
+  return { ok: true, targetDir };
+}
+
+async function copyLocalTemplate(sourceDir, targetDir) {
+  await fs.copy(sourceDir, targetDir, {
+    overwrite: true,
+    filter: (src) => {
+      const relative = path.relative(sourceDir, src);
+      if (!relative || relative === '') {
+        return true;
+      }
+      return !shouldIgnoreLocalPath(relative);
+    },
+  });
+}
+
+async function downloadTemplateTarball(template, targetDir) {
+  const { repo, ref } = template;
+  const tarballUrl = buildTarballUrl(repo, ref);
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-template-'));
+  const tarPath = path.join(tmpDir, 'template.tar.gz');
+  const extractDir = path.join(tmpDir, 'extract');
+
+  try {
+    const response = await fetch(tarballUrl, { headers: getGitHubHeaders() });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    await fs.writeFile(tarPath, buffer);
+
+    await fs.ensureDir(extractDir);
+    await tar.x({ file: tarPath, cwd: extractDir, strip: 1 });
+    await fs.copy(extractDir, targetDir, { overwrite: true });
+  } finally {
+    await fs.remove(tmpDir);
+  }
+}
+
+async function runCommand(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: 'inherit', ...options });
+    child.on('error', (err) => {
+      reject(err);
+    });
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${command} exited with code ${code}`));
+      }
+    });
+  });
+}
+
+async function cloneTemplateRepo(template, targetDir) {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-template-git-'));
+  const repoDir = path.join(tmpDir, 'repo');
+  const args = ['clone', '--depth', '1'];
+  if (template.ref) {
+    args.push('--branch', template.ref);
+  }
+  args.push(template.ssh, repoDir);
+
+  try {
+    await runCommand('git', args);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      throw new Error(t('commands.init.gitMissing'));
+    }
+    throw err;
+  }
+
+  try {
+    await fs.remove(path.join(repoDir, '.git'));
+    await fs.copy(repoDir, targetDir, { overwrite: true });
+  } finally {
+    await fs.remove(tmpDir);
+  }
+}
+
+async function scaffoldTemplateProject(dir, template, options = {}) {
+  const targetDir = path.resolve(process.cwd(), dir);
+  const displayDir = resolveDisplayDir(dir);
+  const { showInstructions = true, source, templateRoot } = options;
+  const resolvedSource = normalizeTemplateSource(source);
+
+  if (resolvedSource === 'local') {
+    const sourceDir = await resolveLocalTemplateDir(template, templateRoot);
+
+    const resolvedSourceDir = await fs.realpath(sourceDir);
+    let resolvedTargetDir = null;
+    try {
+      resolvedTargetDir = await fs.realpath(targetDir);
+    } catch {
+      resolvedTargetDir = path.resolve(targetDir);
+    }
+    if (resolvedSourceDir === resolvedTargetDir) {
+      throw new Error(t('commands.init.localTemplateSameDir'));
+    }
+
+    console.log(t('commands.init.copyingTemplate'));
+    await copyLocalTemplate(sourceDir, targetDir);
+    showAppInstructions(dir, showInstructions);
+    return displayDir;
+  }
+
+  try {
+    console.log(t('commands.init.downloadingTemplate'));
+    await downloadTemplateTarball(template, targetDir);
+  } catch (err) {
+    console.log(colors.warning(t('commands.init.downloadFailedFallback')));
+    console.log(t('commands.init.cloningTemplate'));
+    await cloneTemplateRepo(template, targetDir);
+  }
+
+  showAppInstructions(dir, showInstructions);
+  return displayDir;
+}
+
+async function promptProjectType(readlineInterface) {
+  const options = [
+    {
+      value: 'standard',
+      label: t('commands.init.projectTypeStandard'),
+      available: true,
+    },
+    {
+      value: 'web',
+      label: t('commands.init.projectTypeWeb'),
+      available: true,
+    },
+    {
+      value: 'mobile',
+      label: t('commands.init.projectTypeMobile'),
+      available: true,
+    },
+  ];
+
+  return await promptSelect({
+    title: t('commands.init.selectProjectTypeTitle'),
+    options,
+    defaultIndex: 0,
+    readlineInterface,
+  });
+}
+
+async function promptWebTemplate(readlineInterface) {
+  const options = [
+    {
+      value: 'react-vite',
+      label: t('commands.init.templateReactVite'),
+      available: true,
+      template: {
+        ...TEMPLATE_REPOS.webReactVite,
+      },
+    },
+    {
+      value: 'nextjs',
+      label: t('commands.init.templateNextjsComingSoon'),
+      available: false,
+    },
+    {
+      value: 'tanstack',
+      label: t('commands.init.templateTanstackComingSoon'),
+      available: false,
+    },
+  ];
+
+  const selected = await promptSelect({
+    title: t('commands.init.selectWebTemplateTitle'),
+    options,
+    defaultIndex: 0,
+    readlineInterface,
+  });
+
+  return selected?.template || null;
+}
+
+async function promptMobileTemplate(readlineInterface) {
+  const options = [
+    {
+      value: 'react-native-expo',
+      label: t('commands.init.templateReactNativeExpo'),
+      available: true,
+      template: {
+        ...TEMPLATE_REPOS.mobileExpo,
+      },
+    },
+  ];
+
+  const selected = await promptSelect({
+    title: t('commands.init.selectMobileTemplateTitle'),
+    options,
+    defaultIndex: 0,
+    readlineInterface,
+  });
+
+  return selected?.template || null;
+}
+
+async function initWithPrompts(
+  dir,
+  { showInstructions = true, readlineInterface, source, templateRoot } = {}
+) {
+  const resolvedSource = normalizeTemplateSource(source);
+
+  if (!canPrompt(readlineInterface)) {
+    const check = await ensureSafeTargetDirectory(dir, readlineInterface);
+    if (!check.ok) {
+      return;
+    }
+    return await createFormProject(dir, showInstructions);
+  }
+
+  if (!resolvedSource) {
+    return;
+  }
+
+  if (resolvedSource === 'local' && templateRoot) {
+    const matched = await detectLocalTemplateSelection(templateRoot);
+    if (matched) {
+      const check = await ensureSafeTargetDirectory(dir, readlineInterface);
+      if (!check.ok) {
+        return;
+      }
+      return await scaffoldTemplateProject(dir, matched.template, {
+        showInstructions,
+        source,
+        templateRoot,
+      });
+    }
+  }
+
+  const projectType = await promptProjectType(readlineInterface);
+  if (!projectType) {
+    return;
+  }
+
+  if (projectType.value === 'standard') {
+    const check = await ensureSafeTargetDirectory(dir, readlineInterface);
+    if (!check.ok) {
+      return;
+    }
+    return await createFormProject(dir, showInstructions);
+  }
+
+  if (projectType.value === 'web') {
+    const check = await ensureSafeTargetDirectory(dir, readlineInterface);
+    if (!check.ok) {
+      return;
+    }
+    const template = await promptWebTemplate(readlineInterface);
+    if (!template) {
+      return;
+    }
+    return await scaffoldTemplateProject(dir, template, { showInstructions, source, templateRoot });
+  }
+
+  if (projectType.value === 'mobile') {
+    const check = await ensureSafeTargetDirectory(dir, readlineInterface);
+    if (!check.ok) {
+      return;
+    }
+    const template = await promptMobileTemplate(readlineInterface);
+    if (!template) {
+      return;
+    }
+    return await scaffoldTemplateProject(dir, template, { showInstructions, source, templateRoot });
+  }
+}
+
+export function parseInitArgs(args = [], { defaultDir = '.' } = {}) {
+  const options = {};
+  let dir = null;
+
+  for (let i = 0; i < args.length; i += 1) {
+    const token = args[i];
+    if (!token) {
+      continue;
+    }
+
+    if (token.startsWith('--source=')) {
+      options.source = token.split('=')[1] || '';
+      continue;
+    }
+
+    if (token === '--source') {
+      options.source = args[i + 1] || '';
+      i += 1;
+      continue;
+    }
+
+    if (token === '--local') {
+      options.source = 'local';
+      continue;
+    }
+
+    if (token.startsWith('--template-root=')) {
+      options.templateRoot = token.split('=')[1] || '';
+      continue;
+    }
+
+    if (token === '--template-root') {
+      options.templateRoot = args[i + 1] || '';
+      i += 1;
+      continue;
+    }
+
+    if (token.startsWith('-')) {
+      continue;
+    }
+
+    if (!dir) {
+      dir = token;
+    }
+  }
+
+  return { dir: dir || defaultDir, options };
+}
+
 // Export the main command for CLI usage
-export async function initCommand(dir) {
-  return await createFormProject(dir, true);
+export async function initCommand(dir, options = {}) {
+  try {
+    const resolvedSource = options.source || (options.local ? 'local' : undefined);
+    return await initWithPrompts(dir, {
+      showInstructions: true,
+      source: resolvedSource,
+      templateRoot: options.templateRoot,
+    });
+  } catch (err) {
+    console.error(colors.error(t('commands.init.failedToInitialize', { message: err.message })));
+    process.exitCode = 1;
+  }
 }
 
 // Export a version for interactive usage without instructions
-export async function initForInteractive(dir) {
-  return await createFormProject(dir, false);
+export async function initForInteractive(dir, options = {}) {
+  return await initWithPrompts(dir, {
+    showInstructions: false,
+    readlineInterface: options.readlineInterface,
+    source: options.source,
+    templateRoot: options.templateRoot,
+  });
 }

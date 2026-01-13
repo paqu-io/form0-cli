@@ -29,6 +29,9 @@ if (process.argv.length === 2) {
   program
     .command('init')
     .argument('[dir]', 'Directory to create', 'my-form')
+    .option('--source <source>', 'Template source (remote|local)')
+    .option('--local', 'Use local templates (equivalent to --source local)')
+    .option('--template-root <path>', 'Local template root path')
     .description('Initialize a new form0 schema project')
     .action(initCommand);
 

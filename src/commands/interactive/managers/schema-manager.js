@@ -307,7 +307,15 @@ export class SchemaManager {
    * Handle init command
    */
   async handleInitCommand(args) {
-    const dir = args[0] || '.';
+    const { dir, ignoredFlags } = this.parseInitArgs(args);
+
+    if (ignoredFlags.length > 0) {
+      console.log(
+        colors.warning(
+          t('interactive.localInitFlagsIgnored', { flags: ignoredFlags.join(' ') })
+        )
+      );
+    }
 
     if (dir === '.') {
       // Check if current directory already has a schema
@@ -315,11 +323,19 @@ export class SchemaManager {
       const rootCandidates = candidates.filter((candidate) => candidate.source === 'root');
 
       if (rootCandidates.length > 0) {
-        console.log(
-          colors.warning(
-            t('interactive.foundExistingSchema', { path: rootCandidates[0].displayPath })
-          )
-        );
+        if (candidates.length > 1) {
+          console.log(
+            colors.warning(
+              t('interactive.foundExistingSchemas', { count: candidates.length })
+            )
+          );
+        } else {
+          console.log(
+            colors.warning(
+              t('interactive.foundExistingSchema', { path: rootCandidates[0].displayPath })
+            )
+          );
+        }
         console.log(chalk.gray(t('interactive.useLoadOrSpecify')));
         return;
       }
@@ -334,7 +350,7 @@ export class SchemaManager {
     }
 
     try {
-      await initForInteractive(dir);
+      await initForInteractive(dir, { readlineInterface: this.readlineInterface });
 
       // Auto-load the newly created schema if initialized in current directory
       if (dir === '.') {
@@ -344,6 +360,56 @@ export class SchemaManager {
     } catch (err) {
       console.log(colors.error(t('interactive.failedToInitialize', { message: err.message })));
     }
+  }
+
+  parseInitArgs(args = []) {
+    const ignoredFlags = [];
+    const skipValues = new Set();
+
+    for (let i = 0; i < args.length; i += 1) {
+      const token = args[i];
+      if (!token) {
+        continue;
+      }
+
+      if (token === '--local') {
+        ignoredFlags.push(token);
+        continue;
+      }
+
+      if (token === '--source' || token === '--template-root') {
+        ignoredFlags.push(token);
+        skipValues.add(i + 1);
+        continue;
+      }
+
+      if (token.startsWith('--source=') || token.startsWith('--template-root=')) {
+        ignoredFlags.push(token);
+      }
+    }
+
+    let dir = null;
+    for (let i = 0; i < args.length; i += 1) {
+      if (skipValues.has(i)) {
+        continue;
+      }
+      const token = args[i];
+      if (!token || token.startsWith('-')) {
+        continue;
+      }
+      dir = token;
+      break;
+    }
+
+    if (dir && ignoredFlags.length > 0) {
+      const lower = dir.toLowerCase();
+      const looksLikePath = dir.startsWith('.') || dir.includes('/') || dir.includes('\\');
+      if ((lower === 'source' || lower === 'local') && !looksLikePath) {
+        dir = null;
+      }
+    }
+
+    return { dir: dir || '.', ignoredFlags };
   }
 
   /**
