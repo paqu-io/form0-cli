@@ -1,200 +1,198 @@
 # form0-cli
 
-[![NPM Version](https://img.shields.io/npm/v/form0)](https://www.npmjs.com/package/form0)
-[![NPM Downloads](https://img.shields.io/npm/dt/form0)](https://www.npmjs.com/package/form0)
+[![NPM Version](https://img.shields.io/npm/v/form0-cli)](https://www.npmjs.com/package/form0-cli)
+[![NPM Downloads](https://img.shields.io/npm/dt/form0-cli)](https://www.npmjs.com/package/form0-cli)
+![NPM License](https://img.shields.io/npm/l/form0-cli)
+[![Docs](https://img.shields.io/badge/docs-docs.form0.dev-2563eb)](https://docs.form0.dev)
+[![Website](https://img.shields.io/badge/site-form0.dev-0f172a)](https://form0.dev)
+![NPM Last Update](https://img.shields.io/npm/last-update/form0-cli)
 
-Interactive CLI tools for form0-powered forms. Build, validate, and test form schemas with an intuitive command-line interface.
+> [!WARNING]
+> form0 is in active, very early development. Do not use in production. Expect breaking
+> changes and unstable behavior.
 
-## Installation
+form0-cli is the interactive command-line toolkit for building, validating, previewing, and
+serving schemas in the [form0 open-source ecosystem](https://form0.dev). It powers the local development workflow for form0 projects.
 
-Install form0-cli globally to use it from anywhere:
+## 🗂️ Documentation
+
+- Quickstart: https://docs.form0.dev/getting-started/quickstart
+- Edit your first schema: https://docs.form0.dev/getting-started/schema-edit
+- Full docs: https://docs.form0.dev
+
+## ⚙️ Installation
+
+Install the CLI globally to get the `form0` command:
 
 ```bash
 npm install -g form0-cli
 ```
 
-Or use it directly with npx:
+Or run without a global install:
 
 ```bash
 npx form0-cli
 ```
 
-## Quick Start
+## 🚀 Quickstart
 
-### Interactive Mode (Recommended)
+1. Start the interactive shell:
 
-Simply run `form0` to enter the interactive environment:
+   ```bash
+   form0
+   ```
 
-```bash
-form0
-```
+1. Initialize a standard project:
+   - Run `init`
+   - Choose **Standard project**
+   - Let the CLI auto-load your schema (if it is the only schema in the project root)
 
-This will:
+1. Start the dev server:
 
-- Auto-detect existing form schemas in your directory
-- Offer to initialize a new project if no schema is found
-- Provide tab completion and command history
-- Give you access to all form0 tools in one place
+   ```bash
+   form0> serve
+   ```
 
-### Initialize a New Project
+1. Open the live preview at `http://localhost:3030` (or the port printed in the terminal).
 
-Create a new form0 project with sample schema:
+What you get in a Standard project:
 
-```bash
-# In interactive mode
-form0> init
+- `form.schema.json` with a starter form
+- `form0.config.js` for CLI settings
+- `test.js` for local engine checks
+- `supporting-images/` for field assets
+- `package.json` and `README.md` scaffolding
 
-# Or run directly
-form0 init my-form-project
-```
+## ✏️ Edit your first schema
 
-This creates:
+This workflow assumes the dev server is running (`serve`) and the live preview is open.
 
-- `form.schema.json` - Sample form schema
-  - Convert existing CSV definitions with `form0 schema import form.schema.csv`
-  - Export the current JSON schema with `form0 schema export form.schema.csv`
-- `test.js` - Basic test script
-- `README.md` - Project documentation
+1. Enter schema edit mode:
 
-### Load and Preview Forms
+   ```ansi
+   form0(server)> schema edit
+   ```
 
-```bash
-# In interactive mode
-form0> load form.schema.json
-form0> preview
+   > Editor required: set `EDITOR` or `VISUAL` (for example, `export EDITOR=code`).
 
-# Or run directly
-form0 preview form.schema.json
-```
+1. Preview the schema:
 
-## Interactive Commands
+   ```ansi
+   form0(server,schema)> preview
+   ```
 
-Once in interactive mode (`form0`), you can use these commands:
+1. Add a NumericField after a field by row id:
 
-### Schema Management
+   ```ansi
+   form0(server,schema)> add NumericField after <id>
+   ```
 
-- `init [dir]` - Initialize new form0 project
-- `load <file>` - Load a form schema file
-- `preview` - Show form structure with field details
-- `validate` - Validate current schema
-- `reload` - Reload current schema file
+   Example template:
 
-### Engine Operations
+   ```json
+   {
+     "data_name": "quantity",
+     "label": "Quantity",
+     "min": 1,
+     "max": 100,
+     "format": "integer"
+   }
+   ```
 
-- `run [--values <input>]` - Execute form engine with optional test values
-- `watch [--auto-run] [--auto-validate]` - Watch schema for changes
-- `values` - Show stored test values
-- `fields` - Show valid field names from schema
+1. Add a CalculatedField after the new field:
 
-### Session Management
+   ```ansi
+   form0(server,schema)> add CalculatedField after <new-id>
+   ```
 
-- `status` - Show current session status
-- `clear` - Clear screen
-- `clear values` - Clear stored test values
-- `help` - Show all available commands
-- `exit` - Exit interactive mode
+   Example template:
 
-## Standalone Commands
+   ```json
+   {
+     "data_name": "total",
+     "label": "Total",
+     "display": { "style": "numeric" },
+     "calculate": "$quantity * 2"
+   }
+   ```
 
-You can also use form0-cli commands directly:
+1. Save and close your editor. The schema is saved and validated automatically.
 
-```bash
-# Initialize project
-form0 init my-project
+1. Exit schema edit mode:
 
-# Validate schema
-form0 validate form.schema.json
+   ```ansi
+   form0(server,schema)> q
+   ```
 
-# Preview form structure
-form0 preview form.schema.json
+   Stop the dev server:
 
-# Run engine with test values
-form0 run form.schema.json --values '{"name": "Alice", "age": 25}'
-form0 run form.schema.json --values test-values.json
+   ```ansi
+   form0(server)> serve stop
+   ```
 
-# Watch for changes
-form0 watch form.schema.json --auto-run --auto-validate
-```
+## Command reference summary
 
-## Working with Values
+### Interactive shell (`form0`)
 
-Form0-cli supports multiple ways to provide test values:
+- `init [dir]` - Initialize a project (Standard/Web/Mobile)
+- `load` / `load <file>` - Interactive load or load a specific schema file
+- `preview` - Show the schema summary
+- `validate` - Validate the current schema
+- `run [--values <input>]` - Run the engine with optional values
+- `watch [--auto-run] [--auto-validate]` - Watch schema changes
+- `serve [--app] [--port] [--host]` - Start live preview; `--app` runs the app dev server from `form0.config.js`
+- `schema edit` - Open the schema editor
+- `schema import <csv> [--force]` / `schema export [csv] [--force]` - Convert JSON ↔ CSV
+- `schema keys` - Generate missing field keys
+- `test [dir]` - Run the test.js file in a project
+- `connector <action>` - Manage connectors (install/configure/test/reload/status/remove/uninstall/list)
+- `values` / `fields` - Show stored values or valid field names
+- `reload` - Reload the current schema file
+- `status` - Show the current session status
+- `clear` / `clear values` - Clear screen or stored values
+- `theme [name]` / `locale [name]` - View or change theme/locale
+- `help` / `exit` - Help or quit
 
-### JSON String
-
-```bash
-form0> run --values {"first_name": "Alice", "age": 25}
-```
-
-### JSON File
-
-```bash
-form0> run --values values.json
-```
-
-### YAML File
-
-```bash
-form0> run --values test-data.yaml
-```
-
-### Value Validation
-
-All values are automatically validated against your schema's field names. Invalid fields are filtered out with helpful warnings.
-
-## Features
-
-- **🚀 Interactive Environment** - Tab completion, command history, smart initialization
-- **📋 Schema Validation** - Real-time validation with detailed error messages
-- **👀 File Watching** - Auto-reload schemas and re-run engines on changes
-- **🔧 Value Management** - Store and reuse test values across sessions
-- **🎯 Smart Filtering** - Automatic validation of field names against schema
-- **📊 Rich Output** - Color-coded, structured display of form data
-- **⚡ Fast Workflow** - Seamless switching between development tasks
-
-## Examples
-
-### Basic Workflow
+### Standalone commands
 
 ```bash
-# Start interactive mode
-form0
-
-# Initialize new project (if needed)
-form0> init
-
-# Load schema and preview
-form0> load form.schema.json
-form0> preview
-
-# Test with values
-form0> run --values {"first_name": "Alice", "age": 25}
-
-# Watch for changes during development
-form0> watch --auto-run --auto-validate
+form0 init [dir]
+form0 validate <schema>
+form0 preview <schema>
+form0 run <schema> --values <json|string|file>
+form0 watch [schema] --auto-run --auto-validate
+form0 serve [schema] --port 3030 --host localhost --app
+form0 schema import <csv> [-o <json>] [-f]
+form0 schema export [csv] [-i <json>] [-f]
+form0 test [dir]
+form0 connector <action> [name]
+form0 theme [name]
+form0 locale [name]
+form0 interactive   # or: form0 shell
 ```
 
-### Development Workflow
+## Working with values
+
+form0-cli accepts JSON strings or files for `--values`:
 
 ```bash
-# Watch schema file and auto-run engine on changes
-form0 watch form.schema.json --auto-run --values test-data.json
-
-# In another terminal, edit your schema
-# The engine will automatically re-run when you save
+form0 run form.schema.json --values '{"name":"Alice","age":25}'
+form0 run form.schema.json --values values.json
+form0 run form.schema.json --values values.yaml
 ```
+
+Invalid fields are filtered out with warnings based on the schema.
 
 ## Requirements
 
-- Node.js 16+
-- npm or yarn
+- Node.js 18+
 
-## Related Packages
+## Related repositories
 
-- [form0-core](https://www.npmjs.com/package/form0-core) - Core form engine
-- [form0-react](https://www.npmjs.com/package/form0-react) - React components
-- [form0-react-native](https://www.npmjs.com/package/form0-react-native) - React Native components
+- [form0-core](https://github.com/paqu-io/form0-core) - Core form engine
+- [form0-react](https://github.com/paqu-io/form0-react) - React components
+- [form0-react-native](https://github.com/paqu-io/form0-react-native) - React Native components
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues and pull requests.
+Contributions are welcome! Please feel free to submit [issues](https://github.com/paqu-io/form0-cli/issues) and [pull requests](https://github.com/paqu-io/form0-cli/pulls).

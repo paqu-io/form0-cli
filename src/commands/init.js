@@ -15,14 +15,14 @@ import { colors } from '../utils/theme.js';
 // Update these if template repo names or owners change.
 const TEMPLATE_REPOS = {
   webReactVite: {
-    repo: 'paqu-io/form0-test1',
-    ssh: 'git@github.com:paqu-io/form0-test1.git',
-    localDirName: 'form0-test1',
+    repo: 'paqu-io/form0-web-tmpl-react-vite',
+    ssh: 'git@github.com:paqu-io/form0-web-tmpl-react-vite.git',
+    localDirName: 'form0-web-tmpl-react-vite',
   },
   mobileExpo: {
-    repo: 'paqu-io/form0-mobile-test1',
-    ssh: 'git@github.com:paqu-io/form0-mobile-test1.git',
-    localDirName: 'form0-mobile-test1',
+    repo: 'paqu-io/form0-mobile-tmpl-react-native-expo',
+    ssh: 'git@github.com:paqu-io/form0-mobile-tmpl-react-native-expo.git',
+    localDirName: 'form0-mobile-tmpl-react-native-expo',
   },
 };
 const TEMPLATE_CATALOG = [
@@ -117,7 +117,7 @@ async function createFormProject(dir, showInstructions = true) {
       test: 'node test.js',
     },
     dependencies: {
-      'form0-core': 'file:../form0-core', // TODO: change to form0-core when published
+      'form0-core': '^0.1.0-0',
     },
   };
 

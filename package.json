@@ -1,9 +1,10 @@
 {
-  "name": "@form0-cli",
-  "version": "0.0.1-alpha.1",
+  "name": "form0-cli",
+  "version": "0.1.0-beta.1",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
+  "description": "Command-line interface for form0 ecosystem.",
   "type": "module",
   "scripts": {
     "format": "prettier --write \"**/*.{js,jsx,json,ts,tsx,md}\"",
@@ -15,15 +16,44 @@
   "bin": {
     "form0": "./bin/form0.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paqu-io/form0-ccligit"
+  },
+  "keywords": [
+    "form",
+    "form-builder",
+    "form-generator",
+    "form-engine",
+    "schema",
+    "json-schema",
+    "react",
+    "react-native",
+    "dynamic-forms",
+    "cli"
+  ],
+  "author": "paqu.io <hello@paqu.io> (https://paqu.io/)",
+  "contributors": [
+    {
+      "name": "aragornii"
+    }
+  ],
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/paqu-io/form0-cli/issues"
+  },
+  "homepage": "https://form0.dev",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "chalk": "^5.4.1",
     "chokidar": "^3.6.0",
     "commander": "^11.0.0",
     "dotenv": "^17.0.0",
     "express": "^5.1.0",
-    "form0-core": "file:../form0-core",
     "fs-extra": "^11.1.1",
+    "form0-core": "^0.1.0-0",
     "tar": "^7.4.3",
     "uuid": "^11.1.0",
     "ws": "^8.18.3",
