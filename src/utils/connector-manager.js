@@ -1,19 +1,29 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { getConfig } from './config.js';
+import { loadProjectEnv } from './project-env.js';
+import { resolveProjectConfig } from './project-config.js';
 
 export class ConnectorManager {
   constructor() {
     this.connectors = new Map();
     this.config = null;
+    this.projectRoot = null;
+    this.configPath = null;
   }
 
   /**
-   * Load connector configuration from the global config
+   * Load connector configuration from the project config
    */
-  async loadConnectorConfig() {
-    const globalConfig = getConfig();
-    this.config = globalConfig.connectors || {};
+  async loadConnectorConfig(options = {}) {
+    const { projectDir, schemaPath } = options;
+    const startDir = projectDir || (schemaPath ? path.dirname(schemaPath) : process.cwd());
+    const { projectRoot, configPath, config } = await resolveProjectConfig(startDir);
+
+    this.projectRoot = projectRoot;
+    this.configPath = configPath;
+    this.config = config && typeof config.connectors === 'object' ? config.connectors : {};
+
+    await loadProjectEnv(projectRoot);
     return this.config;
   }
 
@@ -193,6 +203,10 @@ export class ConnectorManager {
       if (this.connectors.has(connectorName)) {
         const connectorData = this.connectors.get(connectorName);
         return connectorData.instance;
+      }
+
+      if (!this.config) {
+        await this.loadConnectorConfig({ projectDir: this.projectRoot || process.cwd() });
       }
 
       // Enhanced module resolution

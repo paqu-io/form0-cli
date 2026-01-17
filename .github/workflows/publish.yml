@@ -22,8 +22,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@paqu-io'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm ci
@@ -41,40 +40,13 @@ jobs:
             echo "STABLE=false" >> $GITHUB_ENV
           fi
 
-      # ✅ Always publish to GitHub Packages
-      - name: Modify package.json for GitHub Packages
+      # Publish to npm.
+      - name: Publish to npm
         run: |
           if [[ "${{ env.STABLE }}" == "true" ]]; then
-            # For stable versions - set public access
-            jq '.name = "@paqu-io/form0-cli" | .publishConfig = {"access": "public"}' package.json > temp.json && mv temp.json package.json
+            npm publish
           else
-            # For non-stable versions - set restricted access
-            jq '.name = "@paqu-io/form0-cli" | .publishConfig = {"access": "restricted"}' package.json > temp.json && mv temp.json package.json
+            npm publish --tag next
           fi
-
-      - name: Publish to GitHub Packages
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          npm_config_registry: 'https://npm.pkg.github.com'
-
-      # For npm registry, modify package.json to remove scope
-      - name: Modify package.json for npm
-        if: env.STABLE == 'true'
-        run: |
-          jq '.name = "form0-cli" | .publishConfig = {"access": "public"}' package.json > temp.json && mv temp.json package.json
-
-      # For npm registry, we need to switch the configuration
-      - name: Setup npm registry
-        if: env.STABLE == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          registry-url: 'https://registry.npmjs.org'
-
-      # ✅ Only publish stable versions to npm
-      - name: Publish to npm
-        if: env.STABLE == 'true'
-        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

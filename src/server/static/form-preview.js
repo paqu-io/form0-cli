@@ -12,6 +12,29 @@ let translations = {};
 
 // Session-based warning deduplication (better than server-side throttling)
 const shownWarnings = new Set();
+const UNSUPPORTED_EVENT_WARNING_KEY = 'unsupported:event:edit-record';
+
+function schemaUsesEvent(schema, eventName) {
+  const code = schema?.form?.events?.code;
+  if (typeof code !== 'string') {
+    return false;
+  }
+  const pattern = new RegExp(`\\bON\\s*\\(\\s*['"]${eventName}['"]`, 'i');
+  return pattern.test(code);
+}
+
+function warnUnsupportedEvents(schema) {
+  if (shownWarnings.has(UNSUPPORTED_EVENT_WARNING_KEY)) {
+    return;
+  }
+  if (!schemaUsesEvent(schema, 'edit-record')) {
+    return;
+  }
+  console.warn(
+    "[form0-cli] The 'edit-record' event is not supported in form0-cli; its handlers will be skipped."
+  );
+  shownWarnings.add(UNSUPPORTED_EVENT_WARNING_KEY);
+}
 
 function markInstanceUpdatedFromTarget(target) {
   if (!target || typeof target.closest !== 'function') return;
@@ -104,6 +127,7 @@ let pendingLabelVisibility = { ...DEFAULT_LABEL_VISIBILITY };
 
 let settingsPreviouslyFocused = null;
 let settingsLabelCheckboxes = {};
+let lastSubmissionTimestamp = null;
 
 function loadFieldKeyModePreference() {
   try {
@@ -564,6 +588,8 @@ document.addEventListener('DOMContentLoaded', initialize);
 async function renderForm() {
   if (!currentSchema) return;
 
+  warnUnsupportedEvents(currentSchema);
+
   // Set schema in renderer and render form
   formRenderer.setSchema(currentSchema, { buildingPlanMeta: currentBuildingPlanMeta });
   formRenderer.renderForm();
@@ -808,6 +834,13 @@ function renderRecordHeaderAndMetadata() {
 
   // Initial header update
   updateHeaderStatusPill();
+
+  if (createdAtTimestamp) {
+    createdInput.value = createdAtTimestamp;
+  }
+  if (lastSubmissionTimestamp) {
+    updatedInput.value = lastSubmissionTimestamp;
+  }
 }
 
 function updateHeaderStatusPill() {
@@ -1052,7 +1085,8 @@ function addFormEventListeners() {
       const now = new Date().toISOString();
       if (!createdAtTimestamp) createdAtTimestamp = now;
       if (createdInput) createdInput.value = createdAtTimestamp;
-      if (updatedInput) updatedInput.value = now;
+      const effectiveUpdated = lastSubmissionTimestamp || now;
+      if (updatedInput) updatedInput.value = effectiveUpdated;
       // Update status pill color
       updateHeaderStatusPill();
     } catch (e) {
@@ -1099,7 +1133,7 @@ function addSubmitButtonEventListener() {
  * Handle form submission
  */
 async function handleFormSubmit() {
-  console.log('🚀 [RECORD SUBMIT] Starting form submission...');
+  console.log('🚀 [RECORD SUBMIT] Starting record submission...');
 
   const submitBtn = document.getElementById('submit-btn');
 
@@ -1158,6 +1192,16 @@ async function handleFormSubmit() {
     }
 
     // Create structured record using server-side API
+    const submissionTimestamp = new Date().toISOString();
+    lastSubmissionTimestamp = submissionTimestamp;
+    if (!createdAtTimestamp) {
+      createdAtTimestamp = submissionTimestamp;
+    }
+    const createdInputEl = document.getElementById('record-metadata-created-at');
+    if (createdInputEl) createdInputEl.value = createdAtTimestamp;
+    const updatedInputEl = document.getElementById('record-metadata-updated-at');
+    if (updatedInputEl) updatedInputEl.value = submissionTimestamp;
+
     const recordResponse = await fetch('/api/create-record', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1166,6 +1210,10 @@ async function handleFormSubmit() {
         options: {
           '@status': currentStatusValue,
           fieldKeyMode: currentFieldKeyMode,
+          created_at_client: createdAtTimestamp,
+          updated_at_client: submissionTimestamp,
+          created_at_server: null,
+          updated_at_server: null,
         },
       }),
     });
@@ -1222,7 +1270,7 @@ async function handleFormSubmit() {
     // Show success message
     showGlobalSuccess('Form submitted successfully! Check console for structured record.');
   } catch (error) {
-    console.error('❌ [RECORD SUBMIT] Error during form submission:', error);
+    console.error('❌ [RECORD SUBMIT] Error during record submission:', error);
     console.log('❌ [RECORD SUBMIT] Submission was not successful');
     showGlobalError(`Submission failed: ${error.message}`);
   } finally {

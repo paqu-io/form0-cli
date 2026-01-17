@@ -29,6 +29,9 @@ if (process.argv.length === 2) {
   program
     .command('init')
     .argument('[dir]', 'Directory to create', 'my-form')
+    .option('--source <source>', 'Template source (remote|local)')
+    .option('--local', 'Use local templates (equivalent to --source local)')
+    .option('--template-root <path>', 'Local template root path')
     .description('Initialize a new form0 schema project')
     .action(initCommand);
 
@@ -74,6 +77,7 @@ if (process.argv.length === 2) {
     .argument('[schema]', 'Path to schema JSON file (defaults to form.schema.json)')
     .option('-p, --port <port>', 'Port to run server on', '3030')
     .option('--host <host>', 'Host to bind server to', 'localhost')
+    .option('--app', 'Start the project dev server command from form0.config.js')
     .description('Start development server with live form preview')
     .action(serveCommand);
 
