@@ -49,7 +49,7 @@ npx form0-cli
 
 1. Start the dev server:
 
-   ```bash
+   ```ansi
    form0> serve
    ```
 
