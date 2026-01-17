@@ -35,6 +35,8 @@ export function showHelp() {
   console.log(colors.text(t('help.previewCommand')));
   console.log(colors.text(t('help.schemaImportCommand')));
   console.log(colors.text(t('help.schemaExportCommand')));
+  console.log(colors.text(t('help.schemaEditCommand')));
+  console.log(colors.text(t('help.schemaKeysCommand')));
   console.log();
   console.log(colors.accent1(t('help.engineOperations')));
   console.log(colors.text(t('help.runCommand')));
@@ -197,16 +199,25 @@ export function showValidFields(validFields, hasSchema) {
 /**
  * Print form fields in a tree structure
  */
-export function printFields(elements, indent = '') {
+export function printFields(elements, indentOrOptions = '', maybeOptions = {}) {
+  const hasIndent = typeof indentOrOptions === 'string';
+  const indent = hasIndent ? indentOrOptions : '';
+  const options = hasIndent ? maybeOptions : indentOrOptions || {};
+  const counter = options.counter || { value: 0 };
+  const showIds = options.showIds === true;
+
   elements.forEach((element, index) => {
     const isLast = index === elements.length - 1;
     const connector = isLast ? '└─' : '├─';
     const childIndent = indent + (isLast ? '  ' : '│ ');
+    counter.value += 1;
+    const idPrefix = showIds ? `${counter.value} | ` : '';
 
     let typeColor = colors.fieldDefault;
     switch (element.type) {
       case 'Section':
       case 'RepeatableSection':
+      case 'BuildingPlanSection':
         typeColor = colors.fieldSection;
         break;
       case 'TextField':
@@ -251,11 +262,16 @@ export function printFields(elements, indent = '') {
     const keyDisplay = element.key ? colors.textMuted(` (key: ${element.key})`) : '';
 
     console.log(
-      `${indent}${connector} ${typeColor(element.type)} ${colors.label(label)}${dataNameDisplay}${keyDisplay}`
+      `${indent}${connector} ${idPrefix}${typeColor(element.type)} ${colors.label(label)}${dataNameDisplay}${keyDisplay}`
     );
 
-    if ((element.type === 'Section' || element.type === 'RepeatableSection') && element.elements) {
-      printFields(element.elements, childIndent);
+    if (
+      (element.type === 'Section' ||
+        element.type === 'RepeatableSection' ||
+        element.type === 'BuildingPlanSection') &&
+      element.elements
+    ) {
+      printFields(element.elements, childIndent, { ...options, counter });
     }
   });
 }
@@ -263,7 +279,7 @@ export function printFields(elements, indent = '') {
 /**
  * Display schema preview
  */
-export function showSchemaPreview(schema) {
+export function showSchemaPreview(schema, options = {}) {
   const form = schema.form;
   console.log(
     colors.header(
@@ -275,7 +291,9 @@ export function showSchemaPreview(schema) {
   }
   console.log();
 
-  printFields(form.elements || []);
+  printFields(form.elements || [], '', {
+    showIds: options.showIds === true,
+  });
   console.log();
 }
 

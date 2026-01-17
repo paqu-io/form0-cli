@@ -342,11 +342,29 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
     enableCollection: true,
     throttleMs: 0, // No server-side throttling - client handles deduplication
   });
+  const unsupportedEventWarnings = new Set();
+
+  function warnUnsupportedEvents(preparedSchema) {
+    if (unsupportedEventWarnings.has('edit-record')) {
+      return;
+    }
+    const code = preparedSchema?.form?.events?.code;
+    if (typeof code !== 'string') {
+      return;
+    }
+    if (!/\bON\s*\(\s*['"]edit-record['"]/i.test(code)) {
+      return;
+    }
+    unsupportedEventWarnings.add('edit-record');
+    console.warn(
+      "[form0-cli] The 'edit-record' event is not supported in form0-cli; handlers will be skipped in preview."
+    );
+  }
 
   // Initialize connector manager with configuration
   async function initializeConnectors() {
     try {
-      await connectorManager.loadConnectorConfig();
+      await connectorManager.loadConnectorConfig({ projectDir });
       
       // Auto-load connectors marked for auto-loading
       const config = connectorManager.config;
@@ -368,16 +386,21 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   // Initialize connectors when the app is created
   initializeConnectors();
 
-  function getPreparedSchemaPayload() {
-    const schema = getCurrentSchema();
+  function getPreparedSchemaPayload(schemaOverride = null) {
+    const schema = schemaOverride || getCurrentSchema();
     if (!schema) {
       return null;
     }
 
     const { schema: preparedSchema, buildingPlanMeta } = expandBuildingPlanSchema(schema);
+    warnUnsupportedEvents(preparedSchema);
     return {
       schema: preparedSchema,
-      source: getSchemaSource ? getSchemaSource() : 'Current Schema',
+      source: schemaOverride
+        ? 'Request Schema'
+        : getSchemaSource
+          ? getSchemaSource()
+          : 'Current Schema',
       buildingPlanMeta,
     };
   }
@@ -517,7 +540,18 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   // API endpoint to create structured record
   app.post('/api/create-record', express.json(), (req, res) => {
     try {
-      const payload = getPreparedSchemaPayload();
+      const schemaOverride = req.body?.schema;
+      if (
+        schemaOverride !== undefined &&
+        schemaOverride !== null &&
+        (typeof schemaOverride !== 'object' || !schemaOverride.form)
+      ) {
+        return res
+          .status(400)
+          .json({ error: 'Invalid schema payload. Expected a schema with a form property.' });
+      }
+
+      const payload = getPreparedSchemaPayload(schemaOverride || null);
       if (!payload) {
         return res.status(404).json({ error: 'No schema loaded' });
       }

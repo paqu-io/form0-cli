@@ -6,18 +6,29 @@ import { colors } from '../../utils/theme.js';
 import { t } from '../../utils/i18n.js';
 import { importSchemaFromCsvFile, exportSchemaToCsvFile } from '../../utils/schema-csv.js';
 import { confirmOverwrite, resolveDefaultSchemaPath } from '../schema.js';
+import fs from 'fs-extra';
+import { ensureMissingKeysForSchema } from '../../utils/ensure-missing-keys.js';
 
 /**
  * Handles command processing for interactive shell
  */
 export class CommandHandler {
-  constructor(schemaManager, engineRunner, fileWatcher, serverManager, readline, shell = null) {
+  constructor(
+    schemaManager,
+    engineRunner,
+    fileWatcher,
+    serverManager,
+    readline,
+    shell = null,
+    schemaEditor = null
+  ) {
     this.schemaManager = schemaManager;
     this.engineRunner = engineRunner;
     this.fileWatcher = fileWatcher;
     this.serverManager = serverManager;
     this.readline = readline;
     this.shell = shell; // Reference to shell for readline coordination
+    this.schemaEditor = schemaEditor;
   }
 
   /**
@@ -44,10 +55,17 @@ export class CommandHandler {
       return { allowed: false, reason: 'command_blocked' };
     }
 
-    // For serve command, only allow stop and status
+    // For serve command, only allow stop/status or app start while server mode is active
     if (command.toLowerCase() === 'serve') {
       const [action] = args;
-      if (!['stop', 'status'].includes(action)) {
+      const wantsApp = args.includes('--app') || args.includes('app');
+      const allowedActions = ['stop', 'status', 'app', '--app'];
+
+      if (action === 'start' && wantsApp) {
+        return { allowed: true };
+      }
+
+      if (!allowedActions.includes(action)) {
         return { allowed: false, reason: 'serve_action_blocked', action };
       }
     }
@@ -82,6 +100,11 @@ export class CommandHandler {
     const [command, ...args] = input.split(' ');
 
     try {
+      if (this.schemaEditor && this.schemaEditor.isActive()) {
+        await this.schemaEditor.handleCommand(input);
+        return;
+      }
+
       // Check server mode restrictions
       if (this.serverManager.isServerRunning()) {
         const { allowed, reason, action } = this.isCommandAllowedInServerMode(command, args);
@@ -211,6 +234,18 @@ export class CommandHandler {
       return;
     }
 
+    if (action === 'edit') {
+      if (this.schemaEditor) {
+        this.schemaEditor.enter();
+      }
+      return;
+    }
+
+    if (action === 'keys') {
+      await this.handleSchemaKeys();
+      return;
+    }
+
     const { positional, force } = this.parseSchemaFlags(rest);
 
     if (action === 'import') {
@@ -279,6 +314,30 @@ export class CommandHandler {
     console.log(colors.error(t('interactive.unknownCommand', { command: `schema ${action}` })));
   }
 
+  async handleSchemaKeys() {
+    const schema = this.schemaManager.getCurrentSchema();
+    const schemaPath = this.schemaManager.getCurrentSchemaPath();
+
+    if (!schema || !schemaPath) {
+      console.log(colors.error(t('common.noSchemaLoaded')));
+      return;
+    }
+
+    const elements = schema.form?.elements || [];
+    const count = ensureMissingKeysForSchema(elements);
+
+    if (count === 0) {
+      console.log(colors.textSecondary(t('interactive.schemaEdit.noKeysNeeded')));
+      return;
+    }
+
+    await fs.writeJson(schemaPath, schema, { spaces: 2 });
+    this.engineRunner.resetEngine();
+    this.serverManager.updateDevServerSchema();
+
+    console.log(colors.success(t('interactive.schemaEdit.keysGenerated', { count })));
+  }
+
   parseSchemaFlags(args) {
     const positional = [];
     let force = false;
@@ -298,17 +357,21 @@ export class CommandHandler {
    * Handle load command
    */
   async handleLoadCommand(args) {
-    if (!args[0]) {
-      console.log(colors.error(t('interactive.usageLoad')));
+    const target = await this.schemaManager.resolveLoadTarget(args);
+    if (!target) {
       return;
     }
 
-    await this.schemaManager.loadSchema(args[0]);
+    await this.schemaManager.loadSchema(target.path);
     // Reset engine when schema changes
     this.engineRunner.resetEngine();
     // Update development server if running
     this.serverManager.updateDevServerSchema();
-    console.log(colors.success(t('common.schemaLoaded', { path: args[0] })));
+    console.log(
+      colors.success(
+        t('common.schemaLoaded', { path: target.displayPath || target.path })
+      )
+    );
   }
 
   /**

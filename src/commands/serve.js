@@ -8,6 +8,7 @@ import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
 import { t } from '../utils/i18n.js';
 import { createApp } from '../server/express-server.js';
 import { createWebSocketServer } from '../server/websocket.js';
+import { startAppDevServer, terminateAppDevServer } from '../utils/app-dev-server.js';
 
 class Form0Server {
   constructor(schemaPath, options = {}) {
@@ -347,6 +348,63 @@ class Form0Server {
 }
 
 export async function serveCommand(schemaPath = 'form.schema.json', options) {
+  if (options?.app) {
+    const server = new Form0Server(schemaPath, options);
+    let appProcess = null;
+    let appProcessUsesGroup = false;
+    let shuttingDown = false;
+
+    const stopAll = async (exitCode = 0) => {
+      if (shuttingDown) {
+        return;
+      }
+      shuttingDown = true;
+
+      if (appProcess) {
+        terminateAppDevServer(appProcess, { useProcessGroup: appProcessUsesGroup });
+      }
+
+      await server.stop();
+      process.exit(exitCode);
+    };
+
+    server.setupExitHandlers = () => {
+      if (server.exitHandler) {
+        process.off('SIGINT', server.exitHandler);
+        process.off('SIGTERM', server.exitHandler);
+      }
+
+      server.exitHandler = () => {
+        stopAll(0).catch(() => process.exit(1));
+      };
+
+      process.on('SIGINT', server.exitHandler);
+      process.on('SIGTERM', server.exitHandler);
+    };
+
+    try {
+      await server.start();
+
+      const startDir = path.resolve(process.cwd(), path.dirname(schemaPath || '.'));
+      const { child, command, projectRoot, useProcessGroup } = await startAppDevServer(startDir);
+      appProcess = child;
+      appProcessUsesGroup = useProcessGroup;
+      console.log(
+        colors.success(`\n🚀 App dev server started: "${command}" (${projectRoot})\n`)
+      );
+      child.on('exit', (code) => {
+        stopAll(typeof code === 'number' ? code : 0).catch(() => process.exit(1));
+      });
+      child.on('error', () => {
+        stopAll(1).catch(() => process.exit(1));
+      });
+    } catch (err) {
+      console.error(colors.error(`❌ Failed to start app dev server: ${err.message}`));
+      await stopAll(1);
+    }
+    return;
+  }
+
   const server = new Form0Server(schemaPath, options);
   await server.start();
 }

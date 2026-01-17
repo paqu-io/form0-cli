@@ -66,7 +66,7 @@ The CLI includes a connector system that allows form submissions to be persisted
 
 - **Connector Management** (`src/commands/connector.js`) - CLI command for installing and configuring connectors
 - **ConnectorManager** (`src/commands/interactive/managers/connector-manager.js`) - Manages connector lifecycle in interactive mode
-- **Connector Configuration** - Stores connector configs in `~/.form0-cli/connectors/` directory
+- **Connector Configuration** - Stores connector configs in each project's `form0.config.js` and secrets in `.env.local`
 - **Supported Connectors**:
   - **form0-connector-pg**: PostgreSQL database connector for storing form records
   - Future connectors planned: Google Sheets (form0-connector-gsheet), etc.
