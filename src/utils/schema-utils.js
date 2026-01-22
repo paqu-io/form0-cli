@@ -3,6 +3,7 @@ import path from 'path';
 import yaml from 'yaml';
 import { COMMON_SCHEMA_PATTERNS, COMMON_TEST_VALUE_FILES } from './constants.js';
 import { resolveProjectConfig } from './project-config.js';
+import { isReactNativeProject } from './project-detection.js';
 
 /**
  * Find existing schema files in the current project
@@ -144,6 +145,53 @@ export async function discoverSchemas(startDir = process.cwd()) {
   }
 
   return { candidates, formsDir, projectRoot: baseDir };
+}
+
+/**
+ * Detect schema project type and relevant paths.
+ * @param {string} startDir
+ * @returns {Promise<{type: 'standard'|'web'|'mobile', projectRoot: string, formsDir: string, registryPath: string|null, config: object}>}
+ */
+export async function detectSchemaProject(startDir = process.cwd()) {
+  const resolvedStart = path.resolve(startDir);
+  const { projectRoot, config } = await resolveProjectConfig(resolvedStart);
+  const baseDir = projectRoot || resolvedStart;
+  const configuredFormsDir = hasSchemasConfig(config)
+    ? normalizeConfiguredDir(config.schemas.directory, baseDir)
+    : null;
+  const fallbackFormsDir = path.join(baseDir, 'src', 'forms');
+  const formsDir = configuredFormsDir || fallbackFormsDir;
+  const registryPath = path.join(formsDir, 'registry.js');
+
+  const isMobile = await isReactNativeProject(baseDir);
+  if (isMobile) {
+    return {
+      type: 'mobile',
+      projectRoot: baseDir,
+      formsDir,
+      registryPath,
+      config,
+    };
+  }
+
+  const hasRegistry = await fs.pathExists(registryPath);
+  if (configuredFormsDir || hasRegistry) {
+    return {
+      type: 'web',
+      projectRoot: baseDir,
+      formsDir,
+      registryPath,
+      config,
+    };
+  }
+
+  return {
+    type: 'standard',
+    projectRoot: baseDir,
+    formsDir,
+    registryPath: null,
+    config,
+  };
 }
 
 export function formatSchemaCandidate(candidate) {
