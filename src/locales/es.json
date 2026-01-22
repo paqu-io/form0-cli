@@ -13,7 +13,7 @@
   },
   "commands": {
     "init": {
-      "installDeps": "npm install    # Instalar dependencias",
+      "installDeps": "{command}    # Instalar dependencias",
       "localFileNote": "💡 El proyecto usa una referencia local a form0-core.",
       "makeAvailable": "   Asegúrate de que form0-core está disponible en el directorio superior.",
       "manualRun": "   node test.js   # Después de instalar manualmente las dependencias",
@@ -29,6 +29,9 @@
       "projectTypeMobile": "Aplicación móvil",
       "selectWebTemplateTitle": "Selecciona plantilla web",
       "selectMobileTemplateTitle": "Selecciona plantilla móvil",
+      "selectPackageManagerTitle": "Selecciona el gestor de paquetes",
+      "packageManagerDefault": "Mantener valor por defecto de la plantilla",
+      "packageManagerDefaultWithCommand": "Mantener valor por defecto de la plantilla ({command})",
       "templateReactVite": "React + Vite",
       "templateNextjsComingSoon": "Next.js (próximamente)",
       "templateTanstackComingSoon": "TanStack Start (próximamente)",
@@ -46,9 +49,11 @@
       "gitMissing": "❌ git no está disponible en tu PATH.",
       "failedToInitialize": "❌ Error al inicializar: {message}",
       "invalidTemplateSource": "❌ Fuente de plantilla inválida: {source}. Usa \"remote\" o \"local\".",
+      "invalidPackageManager": "❌ Gestor de paquetes inválido: {manager}. Usa npm, pnpm, yarn o bun.",
       "missingTemplateRoot": "❌ La fuente local requiere --template-root o FORM0_TEMPLATE_ROOT.",
       "localTemplateMissing": "❌ No se encontró la plantilla local en {path}.",
-      "localTemplateSameDir": "❌ La ruta de la plantilla local apunta al directorio destino."
+      "localTemplateSameDir": "❌ La ruta de la plantilla local apunta al directorio destino.",
+      "packageManagerUpdateFailed": "⚠️ No se pudo actualizar devServer.command en form0.config.js. Actualízalo manualmente."
     },
     "preview": {
       "failedToPreview": "❌ No se pudo previsualizar el esquema: {message}",

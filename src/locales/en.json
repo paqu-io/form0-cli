@@ -3,7 +3,7 @@
     "init": {
       "success": "✅ Initialized form0 project in {dir}.",
       "nextSteps": "Next steps:",
-      "installDeps": "npm install    # Install dependencies",
+      "installDeps": "{command}    # Install dependencies",
       "runTest": "form0 test     # Run the test (will auto-install if needed)",
       "runServeApp": "form0 serve --app     # Start the app + form0 dev server",
       "runServeOnly": "form0 serve           # Start form0 dev server only",
@@ -17,6 +17,9 @@
       "projectTypeMobile": "Mobile app",
       "selectWebTemplateTitle": "Select web template",
       "selectMobileTemplateTitle": "Select mobile template",
+      "selectPackageManagerTitle": "Select package manager",
+      "packageManagerDefault": "Keep template default",
+      "packageManagerDefaultWithCommand": "Keep template default ({command})",
       "templateReactVite": "React + Vite",
       "templateNextjsComingSoon": "Next.js (coming soon)",
       "templateTanstackComingSoon": "TanStack Start (coming soon)",
@@ -34,9 +37,11 @@
       "gitMissing": "❌ git is not available in your PATH.",
       "failedToInitialize": "❌ Failed to initialize: {message}",
       "invalidTemplateSource": "❌ Invalid template source: {source}. Use \"remote\" or \"local\".",
+      "invalidPackageManager": "❌ Invalid package manager: {manager}. Use npm, pnpm, yarn, or bun.",
       "missingTemplateRoot": "❌ Local template source requires --template-root or FORM0_TEMPLATE_ROOT.",
       "localTemplateMissing": "❌ Local template not found at {path}.",
-      "localTemplateSameDir": "❌ Local template path resolves to the target directory."
+      "localTemplateSameDir": "❌ Local template path resolves to the target directory.",
+      "packageManagerUpdateFailed": "⚠️ Unable to update devServer.command in form0.config.js. Update it manually."
     },
     "test": {
       "noTestFile": "❌ No test.js file found in {base}.",

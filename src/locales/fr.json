@@ -13,7 +13,7 @@
   },
   "commands": {
     "init": {
-      "installDeps": "npm install    # Installer les dépendances",
+      "installDeps": "{command}    # Installer les dépendances",
       "localFileNote": "💡 Le projet utilise une référence de fichier local vers form0-core.",
       "makeAvailable": "   Assurez-vous que form0-core est disponible dans le dossier parent.",
       "manualRun": "   node test.js   # Après avoir installé les dépendances manuellement",
@@ -29,6 +29,9 @@
       "projectTypeMobile": "Application mobile",
       "selectWebTemplateTitle": "Sélectionnez le template web",
       "selectMobileTemplateTitle": "Sélectionnez le template mobile",
+      "selectPackageManagerTitle": "Sélectionnez le gestionnaire de paquets",
+      "packageManagerDefault": "Conserver la valeur par défaut du template",
+      "packageManagerDefaultWithCommand": "Conserver la valeur par défaut du template ({command})",
       "templateReactVite": "React + Vite",
       "templateNextjsComingSoon": "Next.js (bientôt disponible)",
       "templateTanstackComingSoon": "TanStack Start (bientôt disponible)",
@@ -46,9 +49,11 @@
       "gitMissing": "❌ git n'est pas disponible dans votre PATH.",
       "failedToInitialize": "❌ Échec de l'initialisation : {message}",
       "invalidTemplateSource": "❌ Source de template invalide : {source}. Utilisez \"remote\" ou \"local\".",
+      "invalidPackageManager": "❌ Gestionnaire de paquets invalide : {manager}. Utilisez npm, pnpm, yarn ou bun.",
       "missingTemplateRoot": "❌ La source locale nécessite --template-root ou FORM0_TEMPLATE_ROOT.",
       "localTemplateMissing": "❌ Template local introuvable à {path}.",
-      "localTemplateSameDir": "❌ Le chemin du template local correspond au dossier cible."
+      "localTemplateSameDir": "❌ Le chemin du template local correspond au dossier cible.",
+      "packageManagerUpdateFailed": "⚠️ Impossible de mettre à jour devServer.command dans form0.config.js. Modifiez-le manuellement."
     },
     "preview": {
       "failedToPreview": "❌ Impossible d'afficher l'aperçu du schéma : {message}",

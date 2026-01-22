@@ -1,0 +1,15 @@
+## Local templates
+
+To initialize from a local template folder, run:
+
+```
+form0 init --local --template-root /path/to/templates my-app
+```
+
+`--template-root` can point directly to `form0-web-tmpl-react-vite` /
+`form0-mobile-tmpl-react-native-expo`, or to a parent directory that contains those folders.
+You can also use environment variables:
+
+```
+FORM0_TEMPLATE_SOURCE=local FORM0_TEMPLATE_ROOT=/path/to/templates form0 init my-app
+```

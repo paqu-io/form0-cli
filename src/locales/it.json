@@ -13,7 +13,7 @@
   },
   "commands": {
     "init": {
-      "installDeps": "npm install    # Installa le dipendenze",
+      "installDeps": "{command}    # Installa le dipendenze",
       "localFileNote": "💡 Il progetto utilizza un riferimento locale a form0-core.",
       "makeAvailable": "   Assicurati che form0-core sia disponibile nella directory superiore.",
       "manualRun": "   node test.js   # Dopo aver installato manualmente le dipendenze",
@@ -29,6 +29,9 @@
       "projectTypeMobile": "App mobile",
       "selectWebTemplateTitle": "Seleziona template web",
       "selectMobileTemplateTitle": "Seleziona template mobile",
+      "selectPackageManagerTitle": "Seleziona il gestore di pacchetti",
+      "packageManagerDefault": "Mantieni il valore predefinito del template",
+      "packageManagerDefaultWithCommand": "Mantieni il valore predefinito del template ({command})",
       "templateReactVite": "React + Vite",
       "templateNextjsComingSoon": "Next.js (in arrivo)",
       "templateTanstackComingSoon": "TanStack Start (in arrivo)",
@@ -46,9 +49,11 @@
       "gitMissing": "❌ git non è disponibile nel tuo PATH.",
       "failedToInitialize": "❌ Impossibile inizializzare: {message}",
       "invalidTemplateSource": "❌ Sorgente template non valida: {source}. Usa \"remote\" o \"local\".",
+      "invalidPackageManager": "❌ Gestore di pacchetti non valido: {manager}. Usa npm, pnpm, yarn o bun.",
       "missingTemplateRoot": "❌ La sorgente locale richiede --template-root o FORM0_TEMPLATE_ROOT.",
       "localTemplateMissing": "❌ Template locale non trovato in {path}.",
-      "localTemplateSameDir": "❌ Il percorso del template locale coincide con la directory di destinazione."
+      "localTemplateSameDir": "❌ Il percorso del template locale coincide con la directory di destinazione.",
+      "packageManagerUpdateFailed": "⚠️ Impossibile aggiornare devServer.command in form0.config.js. Aggiornalo manualmente."
     },
     "preview": {
       "failedToPreview": "❌ Impossibile visualizzare l'anteprima dello schema: {message}",
