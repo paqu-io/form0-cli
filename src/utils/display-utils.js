@@ -35,6 +35,8 @@ export function showHelp() {
   console.log(colors.text(t('help.previewCommand')));
   console.log(colors.text(t('help.schemaImportCommand')));
   console.log(colors.text(t('help.schemaExportCommand')));
+  console.log(colors.text(t('help.schemaNewCommand')));
+  console.log(colors.text(t('help.schemaDeleteCommand')));
   console.log(colors.text(t('help.schemaEditCommand')));
   console.log(colors.text(t('help.schemaKeysCommand')));
   console.log();

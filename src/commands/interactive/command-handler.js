@@ -5,7 +5,12 @@ import { localeCommand } from '../locale.js';
 import { colors } from '../../utils/theme.js';
 import { t } from '../../utils/i18n.js';
 import { importSchemaFromCsvFile, exportSchemaToCsvFile } from '../../utils/schema-csv.js';
-import { confirmOverwrite, resolveDefaultSchemaPath } from '../schema.js';
+import {
+  confirmOverwrite,
+  resolveDefaultSchemaPath,
+  schemaNewCommand,
+  schemaDeleteCommand,
+} from '../schema.js';
 import fs from 'fs-extra';
 import { ensureMissingKeysForSchema } from '../../utils/ensure-missing-keys.js';
 
@@ -230,7 +235,7 @@ export class CommandHandler {
     const [action, ...rest] = args;
 
     if (!action) {
-      console.log(colors.error(t('interactive.schemaUsageImport')));
+      console.log(colors.error(t('interactive.schemaUsage')));
       return;
     }
 
@@ -243,6 +248,49 @@ export class CommandHandler {
 
     if (action === 'keys') {
       await this.handleSchemaKeys();
+      return;
+    }
+
+    if (action === 'new') {
+      const result = await schemaNewCommand({ readlineInterface: this.readline });
+      if (!result || result.cancelled || !result.schemaPath) {
+        return;
+      }
+
+      await this.schemaManager.loadSchema(result.schemaPath);
+      this.engineRunner.resetEngine();
+      this.serverManager.updateDevServerSchema();
+      console.log(colors.success(t('interactive.autoLoadedNewSchema')));
+      return;
+    }
+
+    if (action === 'delete') {
+      const [target] = rest;
+      const result = await schemaDeleteCommand(target, { readlineInterface: this.readline });
+      if (!result || result.cancelled) {
+        return;
+      }
+
+      const currentSchemaPath = this.schemaManager.getCurrentSchemaPath();
+      if (currentSchemaPath) {
+        const resolvedCurrent = path.resolve(currentSchemaPath);
+        const deletedSchemaPath = result.schemaPath
+          ? path.resolve(result.schemaPath)
+          : null;
+        const deletedDir = result.formDir ? path.resolve(result.formDir) : null;
+        const isDeletedCurrent =
+          (deletedSchemaPath && resolvedCurrent === deletedSchemaPath) ||
+          (deletedDir && resolvedCurrent.startsWith(deletedDir + path.sep));
+
+        if (isDeletedCurrent) {
+          if (this.fileWatcher.isCurrentlyWatching()) {
+            this.fileWatcher.stopWatching();
+          }
+          this.schemaManager.clearSchema();
+          this.engineRunner.resetEngine();
+          console.log(colors.warning(t('interactive.schemaDeletedCurrent')));
+        }
+      }
       return;
     }
 

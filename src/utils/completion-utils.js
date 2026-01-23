@@ -61,7 +61,7 @@ export function completer(line) {
 
   if (command === 'schema' && args.length >= 2) {
     // Complete schema subcommands
-    const schemaOptions = ['import', 'export', 'edit', 'keys'];
+    const schemaOptions = ['import', 'export', 'edit', 'keys', 'new', 'delete'];
     const lastArg = args[args.length - 1];
     const hits = schemaOptions.filter((opt) => opt.startsWith(lastArg));
     return [hits, lastArg];

@@ -42,6 +42,14 @@ export class SchemaManager {
   }
 
   /**
+   * Clear the current schema state
+   */
+  clearSchema() {
+    this.currentSchema = null;
+    this.currentSchemaPath = null;
+  }
+
+  /**
    * Set readline interface for interactive prompts
    */
   setReadlineInterface(readlineInterface) {

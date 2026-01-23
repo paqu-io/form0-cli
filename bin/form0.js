@@ -11,7 +11,12 @@ import { interactiveCommand } from '../src/commands/interactive.js';
 import { themeCommand } from '../src/commands/theme.js';
 import { localeCommand } from '../src/commands/locale.js';
 import { connectorCommand } from '../src/commands/connector.js';
-import { schemaImportCommand, schemaExportCommand } from '../src/commands/schema.js';
+import {
+  schemaImportCommand,
+  schemaExportCommand,
+  schemaNewCommand,
+  schemaDeleteCommand,
+} from '../src/commands/schema.js';
 import { loadConfig } from '../src/utils/config.js';
 
 const program = new Command();
@@ -100,6 +105,17 @@ if (process.argv.length === 2) {
     .option('-f, --force', 'Overwrite destination without prompting')
     .description('Export schema JSON to CSV')
     .action((csv, options) => schemaExportCommand(csv, options));
+
+  schemaProgram
+    .command('new')
+    .description('Create a new schema')
+    .action(() => schemaNewCommand());
+
+  schemaProgram
+    .command('delete')
+    .argument('[schema]', 'Schema file name or form id')
+    .description('Delete a schema')
+    .action((schema) => schemaDeleteCommand(schema));
 
   // Add explicit interactive command for those who want to use it
   program

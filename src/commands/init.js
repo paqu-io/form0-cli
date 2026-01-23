@@ -18,11 +18,18 @@ const TEMPLATE_REPOS = {
     repo: 'paqu-io/form0-web-tmpl-react-vite',
     ssh: 'git@github.com:paqu-io/form0-web-tmpl-react-vite.git',
     localDirName: 'form0-web-tmpl-react-vite',
+    devServerScript: 'dev',
   },
   mobileExpo: {
     repo: 'paqu-io/form0-mobile-tmpl-react-native-expo',
     ssh: 'git@github.com:paqu-io/form0-mobile-tmpl-react-native-expo.git',
     localDirName: 'form0-mobile-tmpl-react-native-expo',
+    devServerCommandByManager: {
+      npm: 'npx expo start --tunnel -c',
+      pnpm: 'pnpm exec expo start --tunnel -c',
+      yarn: 'yarn expo start --tunnel -c',
+      bun: 'bunx expo start --tunnel -c',
+    },
   },
 };
 const TEMPLATE_CATALOG = [
@@ -42,6 +49,7 @@ const LOCAL_TEMPLATE_IGNORED = new Set([
   'build',
   'coverage',
 ]);
+const PACKAGE_MANAGERS = ['npm', 'pnpm', 'yarn', 'bun'];
 
 // Dedent function to remove common leading whitespace
 function dedent(str) {
@@ -92,7 +100,7 @@ function dedentCodeInSchema(obj) {
   return obj;
 }
 
-async function createFormProject(dir, showInstructions = true) {
+async function createFormProject(dir, showInstructions = true, options = {}) {
   const base = path.resolve(process.cwd(), dir);
   await fs.ensureDir(base);
 
@@ -129,10 +137,10 @@ async function createFormProject(dir, showInstructions = true) {
   await fs.writeFile(`${base}/README.md`, createReadmeTemplate(dir));
   await fs.ensureDir(`${base}/supporting-images`);
 
-  showStandardInstructions(dir, showInstructions);
+  showStandardInstructions(dir, showInstructions, { packageManager: options.packageManager });
 }
 
-function showStandardInstructions(dir, showInstructions) {
+function showStandardInstructions(dir, showInstructions, { packageManager } = {}) {
   const displayDir = dir === '.' ? path.basename(process.cwd()) : dir;
   console.log(t('commands.init.success', { dir: displayDir }));
 
@@ -140,12 +148,13 @@ function showStandardInstructions(dir, showInstructions) {
     return;
   }
 
+  const installCommand = formatInstallCommand(packageManager);
   console.log();
   console.log(t('commands.init.nextSteps'));
   if (dir !== '.') {
     console.log(`  cd ${dir}`);
   }
-  console.log(`  ${t('commands.init.installDeps')}`);
+  console.log(`  ${t('commands.init.installDeps', { command: installCommand })}`);
   console.log(`  ${t('commands.init.runTest')}`);
   console.log();
   console.log(t('commands.init.localFileNote'));
@@ -155,7 +164,7 @@ function showStandardInstructions(dir, showInstructions) {
   console.log(`  ${t('commands.init.manualRun')}`);
 }
 
-function showAppInstructions(dir, showInstructions) {
+function showAppInstructions(dir, showInstructions, { packageManager } = {}) {
   const displayDir = dir === '.' ? path.basename(process.cwd()) : dir;
   console.log(t('commands.init.success', { dir: displayDir }));
 
@@ -163,12 +172,13 @@ function showAppInstructions(dir, showInstructions) {
     return;
   }
 
+  const installCommand = formatInstallCommand(packageManager);
   console.log();
   console.log(t('commands.init.nextSteps'));
   if (dir !== '.') {
     console.log(`  cd ${dir}`);
   }
-  console.log(`  ${t('commands.init.installDeps')}`);
+  console.log(`  ${t('commands.init.installDeps', { command: installCommand })}`);
   console.log(`  ${t('commands.init.runServeApp')}`);
   console.log(`  ${t('commands.init.runServeOnly')}`);
   console.log();
@@ -277,6 +287,35 @@ async function promptSelect({ title, options, defaultIndex = 0, readlineInterfac
   }
 }
 
+async function promptPackageManager({ defaultCommand, readlineInterface }) {
+  const options = [
+    {
+      value: 'template',
+      label: defaultCommand
+        ? t('commands.init.packageManagerDefaultWithCommand', { command: defaultCommand })
+        : t('commands.init.packageManagerDefault'),
+      available: true,
+    },
+    { value: 'npm', label: 'npm', available: true },
+    { value: 'pnpm', label: 'pnpm', available: true },
+    { value: 'yarn', label: 'yarn', available: true },
+    { value: 'bun', label: 'bun', available: true },
+  ];
+
+  const selected = await promptSelect({
+    title: t('commands.init.selectPackageManagerTitle'),
+    options,
+    defaultIndex: 0,
+    readlineInterface,
+  });
+
+  if (!selected || selected.value === 'template') {
+    return null;
+  }
+
+  return selected.value;
+}
+
 function resolveDisplayDir(dir) {
   return dir === '.' ? path.basename(process.cwd()) : dir;
 }
@@ -297,6 +336,111 @@ function normalizeTemplateSource(source) {
   }
 
   throw new Error(t('commands.init.invalidTemplateSource', { source: raw }));
+}
+
+function normalizePackageManager(value) {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized === 'template' || normalized === 'default') {
+    return null;
+  }
+
+  const name = normalized.split('@')[0];
+  return PACKAGE_MANAGERS.includes(name) ? name : null;
+}
+
+function resolvePackageManager(packageManager) {
+  const raw =
+    typeof packageManager === 'string' && packageManager.trim().length > 0
+      ? packageManager.trim()
+      : process.env.FORM0_PACKAGE_MANAGER || '';
+
+  if (!raw) {
+    return null;
+  }
+
+  const lowered = raw.trim().toLowerCase();
+  if (lowered === 'template' || lowered === 'default') {
+    return null;
+  }
+
+  const normalized = normalizePackageManager(raw);
+  if (!normalized) {
+    throw new Error(t('commands.init.invalidPackageManager', { manager: raw }));
+  }
+
+  return normalized;
+}
+
+function formatInstallCommand(packageManager) {
+  switch (packageManager) {
+    case 'pnpm':
+      return 'pnpm install';
+    case 'yarn':
+      return 'yarn install';
+    case 'bun':
+      return 'bun install';
+    case 'npm':
+    default:
+      return 'npm install';
+  }
+}
+
+function formatDevServerCommand(packageManager, script) {
+  if (!script) {
+    return null;
+  }
+
+  switch (packageManager) {
+    case 'pnpm':
+      return `pnpm ${script}`;
+    case 'yarn':
+      return `yarn ${script}`;
+    case 'bun':
+      return `bun run ${script}`;
+    case 'npm':
+    default:
+      return `npm run ${script}`;
+  }
+}
+
+function templateSupportsPackageManagerSelection(template) {
+  return Boolean(template?.devServerScript || template?.devServerCommandByManager);
+}
+
+function getTemplateDefaultDevServerCommand(template) {
+  if (template?.devServerCommandByManager?.npm) {
+    return template.devServerCommandByManager.npm;
+  }
+
+  if (template?.devServerScript) {
+    return formatDevServerCommand('npm', template.devServerScript);
+  }
+
+  return null;
+}
+
+function resolveTemplateDevServerCommand(template, packageManager) {
+  if (!packageManager) {
+    return null;
+  }
+
+  if (template?.devServerCommandByManager?.[packageManager]) {
+    return template.devServerCommandByManager[packageManager];
+  }
+
+  if (template?.devServerScript) {
+    return formatDevServerCommand(packageManager, template.devServerScript);
+  }
+
+  return null;
 }
 
 function resolveTemplateRoot(templateRoot) {
@@ -437,6 +581,168 @@ async function ensureSafeTargetDirectory(dir, readlineInterface) {
   return { ok: true, targetDir };
 }
 
+function escapeForQuote(value, quote) {
+  if (quote === "'") {
+    return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function findMatchingBrace(source, startIndex) {
+  let depth = 0;
+  let start = startIndex;
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let escape = false;
+
+  for (let i = startIndex; i < source.length; i += 1) {
+    const char = source[i];
+    const next = source[i + 1];
+
+    if (inLineComment) {
+      if (char === '\n') {
+        inLineComment = false;
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (char === '*' && next === '/') {
+        inBlockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+
+    if (inSingle) {
+      if (escape) {
+        escape = false;
+      } else if (char === '\\') {
+        escape = true;
+      } else if (char === "'") {
+        inSingle = false;
+      }
+      continue;
+    }
+
+    if (inDouble) {
+      if (escape) {
+        escape = false;
+      } else if (char === '\\') {
+        escape = true;
+      } else if (char === '"') {
+        inDouble = false;
+      }
+      continue;
+    }
+
+    if (inTemplate) {
+      if (escape) {
+        escape = false;
+      } else if (char === '\\') {
+        escape = true;
+      } else if (char === '`') {
+        inTemplate = false;
+      }
+      continue;
+    }
+
+    if (char === '/' && next === '/') {
+      inLineComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      inBlockComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (char === "'") {
+      inSingle = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inDouble = true;
+      continue;
+    }
+
+    if (char === '`') {
+      inTemplate = true;
+      continue;
+    }
+
+    if (char === '{') {
+      if (depth === 0) {
+        start = i;
+      }
+      depth += 1;
+      continue;
+    }
+
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return { start, end: i };
+      }
+    }
+  }
+
+  return null;
+}
+
+async function updateDevServerCommand(configPath, command) {
+  if (!command) {
+    return false;
+  }
+
+  if (!(await fs.pathExists(configPath))) {
+    return false;
+  }
+
+  const source = await fs.readFile(configPath, 'utf8');
+  const devServerMatch = source.match(/^[ \t]*devServer\s*:/m);
+  if (!devServerMatch) {
+    return false;
+  }
+
+  const braceIndex = source.indexOf('{', devServerMatch.index);
+  if (braceIndex === -1) {
+    return false;
+  }
+
+  const range = findMatchingBrace(source, braceIndex);
+  if (!range) {
+    return false;
+  }
+
+  const block = source.slice(range.start, range.end + 1);
+  const commandMatch = block.match(/(\bcommand\s*:\s*)(['"])([^'"]*)(\2)/);
+  if (!commandMatch) {
+    return false;
+  }
+
+  const quote = commandMatch[2];
+  const escaped = escapeForQuote(command, quote);
+  const updatedBlock = block.replace(
+    /(\bcommand\s*:\s*)(['"])([^'"]*)(\2)/,
+    `$1${quote}${escaped}${quote}`
+  );
+
+  if (updatedBlock === block) {
+    return false;
+  }
+
+  const updatedSource = source.slice(0, range.start) + updatedBlock + source.slice(range.end + 1);
+  await fs.writeFile(configPath, updatedSource);
+  return true;
+}
+
 async function copyLocalTemplate(sourceDir, targetDir) {
   await fs.copy(sourceDir, targetDir, {
     overwrite: true,
@@ -516,10 +822,27 @@ async function cloneTemplateRepo(template, targetDir) {
   }
 }
 
+async function applyPackageManagerSelection(targetDir, template, packageManager) {
+  if (!packageManager || !templateSupportsPackageManagerSelection(template)) {
+    return;
+  }
+
+  const devServerCommand = resolveTemplateDevServerCommand(template, packageManager);
+  if (!devServerCommand) {
+    return;
+  }
+
+  const configPath = path.join(targetDir, 'form0.config.js');
+  const updated = await updateDevServerCommand(configPath, devServerCommand);
+  if (!updated) {
+    console.log(colors.warning(t('commands.init.packageManagerUpdateFailed')));
+  }
+}
+
 async function scaffoldTemplateProject(dir, template, options = {}) {
   const targetDir = path.resolve(process.cwd(), dir);
   const displayDir = resolveDisplayDir(dir);
-  const { showInstructions = true, source, templateRoot } = options;
+  const { showInstructions = true, source, templateRoot, packageManager } = options;
   const resolvedSource = normalizeTemplateSource(source);
 
   if (resolvedSource === 'local') {
@@ -538,7 +861,8 @@ async function scaffoldTemplateProject(dir, template, options = {}) {
 
     console.log(t('commands.init.copyingTemplate'));
     await copyLocalTemplate(sourceDir, targetDir);
-    showAppInstructions(dir, showInstructions);
+    await applyPackageManagerSelection(targetDir, template, packageManager);
+    showAppInstructions(dir, showInstructions, { packageManager });
     return displayDir;
   }
 
@@ -551,7 +875,8 @@ async function scaffoldTemplateProject(dir, template, options = {}) {
     await cloneTemplateRepo(template, targetDir);
   }
 
-  showAppInstructions(dir, showInstructions);
+  await applyPackageManagerSelection(targetDir, template, packageManager);
+  showAppInstructions(dir, showInstructions, { packageManager });
   return displayDir;
 }
 
@@ -638,16 +963,19 @@ async function promptMobileTemplate(readlineInterface) {
 
 async function initWithPrompts(
   dir,
-  { showInstructions = true, readlineInterface, source, templateRoot } = {}
+  { showInstructions = true, readlineInterface, source, templateRoot, packageManager } = {}
 ) {
   const resolvedSource = normalizeTemplateSource(source);
+  const resolvedPackageManager = resolvePackageManager(packageManager);
 
   if (!canPrompt(readlineInterface)) {
     const check = await ensureSafeTargetDirectory(dir, readlineInterface);
     if (!check.ok) {
       return;
     }
-    return await createFormProject(dir, showInstructions);
+    return await createFormProject(dir, showInstructions, {
+      packageManager: resolvedPackageManager,
+    });
   }
 
   if (!resolvedSource) {
@@ -661,10 +989,19 @@ async function initWithPrompts(
       if (!check.ok) {
         return;
       }
+      let selectedPackageManager = resolvedPackageManager;
+      if (!selectedPackageManager && templateSupportsPackageManagerSelection(matched.template)) {
+        const defaultCommand = getTemplateDefaultDevServerCommand(matched.template);
+        selectedPackageManager = await promptPackageManager({
+          defaultCommand,
+          readlineInterface,
+        });
+      }
       return await scaffoldTemplateProject(dir, matched.template, {
         showInstructions,
         source,
         templateRoot,
+        packageManager: selectedPackageManager,
       });
     }
   }
@@ -679,7 +1016,9 @@ async function initWithPrompts(
     if (!check.ok) {
       return;
     }
-    return await createFormProject(dir, showInstructions);
+    return await createFormProject(dir, showInstructions, {
+      packageManager: resolvedPackageManager,
+    });
   }
 
   if (projectType.value === 'web') {
@@ -691,7 +1030,20 @@ async function initWithPrompts(
     if (!template) {
       return;
     }
-    return await scaffoldTemplateProject(dir, template, { showInstructions, source, templateRoot });
+    let selectedPackageManager = resolvedPackageManager;
+    if (!selectedPackageManager && templateSupportsPackageManagerSelection(template)) {
+      const defaultCommand = getTemplateDefaultDevServerCommand(template);
+      selectedPackageManager = await promptPackageManager({
+        defaultCommand,
+        readlineInterface,
+      });
+    }
+    return await scaffoldTemplateProject(dir, template, {
+      showInstructions,
+      source,
+      templateRoot,
+      packageManager: selectedPackageManager,
+    });
   }
 
   if (projectType.value === 'mobile') {
@@ -703,7 +1055,20 @@ async function initWithPrompts(
     if (!template) {
       return;
     }
-    return await scaffoldTemplateProject(dir, template, { showInstructions, source, templateRoot });
+    let selectedPackageManager = resolvedPackageManager;
+    if (!selectedPackageManager && templateSupportsPackageManagerSelection(template)) {
+      const defaultCommand = getTemplateDefaultDevServerCommand(template);
+      selectedPackageManager = await promptPackageManager({
+        defaultCommand,
+        readlineInterface,
+      });
+    }
+    return await scaffoldTemplateProject(dir, template, {
+      showInstructions,
+      source,
+      templateRoot,
+      packageManager: selectedPackageManager,
+    });
   }
 }
 
@@ -744,6 +1109,22 @@ export function parseInitArgs(args = [], { defaultDir = '.' } = {}) {
       continue;
     }
 
+    if (token.startsWith('--package-manager=')) {
+      options.packageManager = token.split('=')[1] || '';
+      continue;
+    }
+
+    if (token.startsWith('--pm=')) {
+      options.packageManager = token.split('=')[1] || '';
+      continue;
+    }
+
+    if (token === '--package-manager' || token === '--pm') {
+      options.packageManager = args[i + 1] || '';
+      i += 1;
+      continue;
+    }
+
     if (token.startsWith('-')) {
       continue;
     }
@@ -764,6 +1145,7 @@ export async function initCommand(dir, options = {}) {
       showInstructions: true,
       source: resolvedSource,
       templateRoot: options.templateRoot,
+      packageManager: options.packageManager,
     });
   } catch (err) {
     console.error(colors.error(t('commands.init.failedToInitialize', { message: err.message })));
@@ -778,5 +1160,6 @@ export async function initForInteractive(dir, options = {}) {
     readlineInterface: options.readlineInterface,
     source: options.source,
     templateRoot: options.templateRoot,
+    packageManager: options.packageManager,
   });
 }

@@ -1,29 +1,49 @@
 export const defaultFormTemplate = {
   form: {
-    name: 'MyForm',
+    name: 'MyFormWSL',
     description: 'This is a test description',
-    id: null, //This should be the unique identifier of the form (UUIDv4 or UUIDv7 - TBD).
-    record_count: 0, //This should count the number of records in the form. Available in reform.
-    record_last_change_at: null, //This should be the date and time of the last record change in ISO 8601 format. Available in reform.
-    form_created_at: null, //This should be the date and time of the form creation in ISO 8601 format. Available in reform.
-    form_updated_at: null, //This should be the date and time of the form update in ISO 8601 format. Available in reform.
-    form_created_by: null, //This should be the user who created the form. Available in reform. Available in reform.
-    form_updated_by: null, //This should be the user who updated the form. Available in reform. Available in reform.
-    status: 'active', //status can be active or inactive. Available in reform.
-    version: 1, //This should be the version of the form and it's updated every time the form is saved. Available in reform.
-    main_org_id: 'personal', //This should be the unique identifier of the main organization of the form (it can be 'personal' or one of the main organizations in the account). Available in reform.
-    main_org_metadata: null, //This should be the metadata of the main organization of the form (it can be null or an array of fields to be included in each form). Available in reform.
-    sub_org_id: null, //This should be the unique identifier of the sub-organization of the form (it can be null or one of the sub-organizations in the account). Available in reform.
-    sub_org_metadata: null, //This should be the metadata of the sub-organization of the form (it can be null or an array of fields to be included in each form). Available in reform.
-    project_id: null, //This should be the unique identifier of the project of the form (it can be null or one of the projects in the account). Available in reform.
-    project_metadata: null, //This should be the metadata of the project of the form (it can be null or an array of fields to be included in each form). Available in reform.
+    id: null,
+    record_count: 0,
+    record_last_change_at: null,
+    form_created_at: null,
+    form_updated_at: null,
+    form_created_by: null,
+    form_updated_by: null,
+    status: 'active',
+    version: '1',
+    main_org_id: 'personal',
+    main_org_metadata: null,
+    sub_org_id: null,
+    sub_org_metadata: null,
+    project_id: null,
+    project_metadata: null,
+    ai: {
+      context: [
+        'safety_inspections',
+        'incident_reporting'
+      ],
+      instructions: [
+        'Keep data identifiers in English',
+        'Avoid personal identifiers in suggestions'
+      ],
+      namingPolicy: {
+        language: 'en',
+        case: 'snake',
+        asciiOnly: true,
+        maxLength: 32
+      },
+      tasks: [
+        'suggestFieldNames',
+        'suggestFieldValues'
+      ]
+    },
     status_field: {
       type: 'StatusField',
       key: '@status',
       data_name: 'status',
       label: 'Status',
-      display: 'default', //StatusField can only be 'default'
-      enabled: true, //StatusField can be true or false
+      display: 'default',
+      enabled: true,
       visible: true,
       visible_conditions: null,
       read_only: false,
@@ -33,50 +53,53 @@ export const defaultFormTemplate = {
         {
           label: 'Enrolled',
           value: 'enrolled',
-          color: '#87D30F',
+          color: '#87D30F'
         },
         {
           label: 'Not Enrolled',
           value: 'not_enrolled',
-          color: '#FF0000',
+          color: '#FF0000'
         },
         {
           label: 'Pending',
           value: 'pending',
-          color: '#FFA500',
-        },
-      ],
+          color: '#FFA500'
+        }
+      ]
     },
     title_field: {
       type: 'TitleField',
       key: '@title',
       data_name: 'title',
       label: 'Title',
-      display: 'default', //TitleField   can only be 'default'
-      enabled: true, //TitleField can only be true
-      visible: true, //TitleField can only be true
+      display: 'default',
+      enabled: true,
+      visible: true,
       visible_conditions: null,
-      read_only: true, //TitleField is always read_only = true
+      read_only: true,
       read_only_conditions: null,
       elements: [
-        //Elements can be an array of elements or a single element. Elements should be field keys but field data_name can be used as fallback. Elements, when rendered, will be concatenated with each other with a comma and displayed at the top of the record as a title.
         'first_name',
-        'city', //If a key/data_name refers to a SingleChoiceField, MultiChoiceField or BooleanField, we should always show the choice label.
-      ],
+        'city'
+      ]
     },
-    bounding_box: [0, 0, 0, 0], //Bounding box containing all the form's records. Format is [min_lat, min_long, max_lat, max_long]. Available in reform.
-    location_enabled: true, //location_enabled can be true or false
-    location_required: true, //location_required can be true or false
-    image: null, //The URL to the original image which was uploaded as this app's icon. Available in reform.
-    image_thumbnail: null, //The URL to the thumbnail-sized image which was uploaded as this app's icon. 160x160 px. Available in reform.
-    image_small: null, //The URL to the small-sized image which was uploaded as this app's icon. 320x320 px. Available in reform.
-    image_large: null, //The URL to the medium-sized image which was uploaded as this app's icon. 640x640 px. Available in reform.
+    bounding_box: [
+      0,
+      0,
+      0,
+      0
+    ],
+    location_enabled: true,
+    location_required: true,
+    image: null,
+    image_thumbnail: null,
+    image_small: null,
+    image_large: null,
     events: {
       code: `
         function alertTest(event) {
           ALERT('Warning!', 'Welcome to South America!');
           ALERT('Warning!', 'Welcome to Colombia!');
-          ALERT($email);
         }
 
         ON('load-record', alertTest);
@@ -108,9 +131,9 @@ export const defaultFormTemplate = {
         type: 'Section',
         data_name: 'personal_info',
         label: 'Personal Info',
-        display: 'inline', //Section can be 'inline' or 'drilldown'
-        description: 'This is a test description', //description can be null or a string
-        description_mode: 'default', //description_mode can be null,'default' or 'subtext'
+        display: 'inline',
+        description: 'This is a test description',
+        description_mode: 'default',
         visible: true,
         visible_conditions: null,
         elements: [
@@ -118,9 +141,9 @@ export const defaultFormTemplate = {
             type: 'TextField',
             data_name: 'first_name',
             label: 'First Name',
-            display: 'default', //TextField can only be 'default'
-            description: 'This is a test description', //description can be null or a string
-            description_mode: 'subtext', //description_mode can be null, 'default' or 'subtext'
+            display: 'default',
+            description: 'This is a test description',
+            description_mode: 'subtext',
             required: true,
             required_conditions: null,
             visible: true,
@@ -129,19 +152,19 @@ export const defaultFormTemplate = {
             read_only_conditions: null,
             default_value: null,
             pattern: '^[a-zA-Z]+$',
-            pattern_description:
-              'One or more letters (uppercase or lowercase), with no spaces, numbers, or symbols',
-            supporting_image: true, //supporting_image can be true or false
-            supporting_image_path: 'first_name.jpg', //supporting_image_path can be null or a string
-            supporting_image_display: 'default', //supporting_image_display can be 'default', 'dialog' or null
+            pattern_description: 'One or more letters (uppercase or lowercase), with no spaces, numbers, or symbols',
+            supporting_image: true,
+            supporting_image_path: null,
+            supporting_image_display: null,
+            key: 'fbbf2ac1'
           },
           {
             type: 'SingleChoiceField',
             data_name: 'city',
             label: 'City',
-            display: 'default', //SingleChoiceField can be 'default' or 'radio'
-            description: null, //description can be null or a string
-            description_mode: null, //description_mode can be null, 'default' or 'subtext'
+            display: 'default',
+            description: null,
+            description_mode: null,
             required: true,
             required_conditions: null,
             visible: true,
@@ -149,38 +172,39 @@ export const defaultFormTemplate = {
             read_only: false,
             read_only_conditions: null,
             default_value: null,
-            allow_other: true, //SingleChoiceField can be true or false
-            supporting_image: false, //supporting_image can be true or false
-            supporting_image_path: null, //supporting_image_path can be null or a string
-            supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+            allow_other: true,
+            supporting_image: false,
+            supporting_image_path: null,
+            supporting_image_display: null,
             is_searchable: true,
             is_searchable_mode: 'default',
             choices: [
               {
                 label: 'Bogotá',
-                value: 'bogota',
+                value: 'bogota'
               },
               {
                 label: 'Recanati',
-                value: 'recanati',
+                value: 'recanati'
               },
               {
                 label: 'New York',
-                value: 'new_york',
+                value: 'new_york'
               },
               {
                 label: 'São Paulo - Centro',
-                value: 'sao_paulo_centro',
-              },
+                value: 'sao_paulo_centro'
+              }
             ],
+            key: 'dc48142'
           },
           {
             type: 'MultiChoiceField',
             data_name: 'colors',
             label: 'Please select your favorite colors',
-            display: 'default', //MultiChoiceField can be 'default' or 'checkbox'
-            description: null, //description can be null or a string
-            description_mode: null, //description_mode can be null, 'default' or 'subtext'
+            display: 'default',
+            description: null,
+            description_mode: null,
             required: true,
             required_conditions: null,
             visible: true,
@@ -188,77 +212,80 @@ export const defaultFormTemplate = {
             read_only: false,
             read_only_conditions: null,
             default_value: null,
-            allow_other: true, //MultiChoiceField can be true or false
-            supporting_image: false, //supporting_image can be true or false
-            supporting_image_path: null, //supporting_image_path can be null or a string
-            supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+            allow_other: true,
+            supporting_image: false,
+            supporting_image_path: null,
+            supporting_image_display: null,
             is_searchable: false,
             is_searchable_mode: null,
             choices: [
               {
                 label: 'Red',
-                value: 'red',
+                value: 'red'
               },
               {
                 label: 'Blue',
-                value: 'blue',
+                value: 'blue'
               },
               {
                 label: 'Orange',
-                value: 'orange',
+                value: 'orange'
               },
               {
                 label: 'Yellow',
-                value: 'yellow',
-              },
+                value: 'yellow'
+              }
             ],
+            key: 'f8f489b1'
           },
           {
             type: 'CalculatedField',
             data_name: 'city_calc',
             label: 'city_calc',
             display: {
-              style: 'text', // or numeric, date, currency
+              style: 'text'
             },
-            description: null, //description can be null or a string
-            description_mode: null, //description_mode can be null, 'default' or 'subtext'
-            required: false, //CalcualtedField is always required = false
+            description: null,
+            description_mode: null,
+            required: false,
             visible: true,
             visible_conditions: null,
-            read_only: true, //CalcualtedField is always read_only = true
+            read_only: true,
             calculate: `
-            const citySelection = CHOICEVALUE($city);
-            SETRESULT(IF(OR(citySelection === "bogota", OTHER($city) === "Bogotá"), "Welcome to Bogotá!", "Welcome!"));
+              const citySelection = CHOICEVALUE($city);
+              SETRESULT(IF(OR(citySelection === "bogota", OTHER($city) === "Bogotá"), "Welcome to Bogotá!", "Welcome!"));
             `,
-            supporting_image: false, //supporting_image can be true or false
-            supporting_image_path: null, //supporting_image_path can be null or a string
-            supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+            supporting_image: false,
+            supporting_image_path: null,
+            supporting_image_display: null,
+            key: '8cd7d66'
           },
           {
             type: 'CalculatedField',
             data_name: 'colors_calc',
             label: 'colors_calc',
             display: {
-              style: 'text', // or numeric, date, currency
+              style: 'text'
             },
-            description: null, //description can be null or a string
-            description_mode: null, //description_mode can be null, 'default' or 'subtext'
-            required: false, //CalcualtedField is always required = false
+            description: null,
+            description_mode: null,
+            required: false,
             visible: true,
             visible_conditions: null,
-            read_only: true, //CalcualtedField is always read_only = true
+            read_only: true,
             calculate: 'CHOICELABELS($colors) + " -> Other: " + OTHER($colors)',
-            supporting_image: false, //supporting_image can be true or false
-            supporting_image_path: null, //supporting_image_path can be null or a string
-            supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+            supporting_image: false,
+            supporting_image_path: null,
+            supporting_image_display: null,
+            key: 'b9ebebaf'
           },
           {
             type: 'NumericField',
             data_name: 'age',
             label: 'Age',
-            display: 'default', //NumericField can only be 'default'
-            description: null, //description can be null or a string
-            description_mode: null, //description_mode can be null, 'default' or 'subtext'
+            display: 'default',
+            description: null,
+            description_mode: null,
             required: true,
             required_conditions: null,
             visible: true,
@@ -268,104 +295,111 @@ export const defaultFormTemplate = {
             default_value: null,
             min: 16,
             max: 100,
-            format: 'integer', //NumericField can be 'integer' or 'float'
-            supporting_image: false, //supporting_image can be true or false
-            supporting_image_path: null, //supporting_image_path can be null or a string
-            supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
-          },
+            format: 'integer',
+            supporting_image: false,
+            supporting_image_path: null,
+            supporting_image_display: null,
+            key: '2c41499c'
+          }
         ],
+        key: '4c958746'
       },
       {
         type: 'CalculatedField',
         data_name: 'can_vote',
         label: 'Eligible',
         display: {
-          style: 'text', // or numeric, date, currency
+          style: 'text'
         },
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
-        required: false, //CalcualtedField is always required = false
+        description: null,
+        description_mode: null,
+        required: false,
         visible: true,
         visible_conditions: null,
-        read_only: true, //CalcualtedField is always read_only = true
+        read_only: true,
         calculate: 'IF($age >= 18, "yes", "no")',
-        supporting_image: false, //supporting_image can be true or false
-        supporting_image_path: null, //supporting_image_path can be null or a string
-        supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null,
+        key: '7a2d9eb2'
       },
       {
         type: 'CalculatedField',
         data_name: 'calc_test',
         label: 'calc_test',
         display: {
-          style: 'text', // or numeric, date, currency
+          style: 'text'
         },
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
-        required: false, //CalcualtedField is always required = false
+        description: null,
+        description_mode: null,
+        required: false,
         visible: true,
         visible_conditions: null,
-        read_only: true, //CalcualtedField is always read_only = true
+        read_only: true,
         calculate: 'SETRESULT($age + 10 >= 30 ? true : false)',
-        supporting_image: false, //supporting_image can be true or false
-        supporting_image_path: null, //supporting_image_path can be null or a string
-        supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null,
+        key: '78233e9'
       },
       {
         type: 'CalculatedField',
         data_name: 'calc_test_new',
         label: 'calc_test_new',
         display: {
-          style: 'text', // or numeric, date, currency
+          style: 'text'
         },
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
-        required: false, //CalcualtedField is always required = false
+        description: null,
+        description_mode: null,
+        required: false,
         visible: true,
         visible_conditions: null,
-        read_only: true, //CalcualtedField is always read_only = true
+        read_only: true,
         calculate: '$age + 88',
-        supporting_image: false, //supporting_image can be true or false
-        supporting_image_path: null, //supporting_image_path can be null or a string
-        supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null,
+        key: '3914090c'
       },
       {
         type: 'DateField',
         data_name: 'field_visit_date',
         label: 'Field visit date',
-        display: 'default', //DateField can only be 'default'
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+        display: 'default',
+        description: null,
+        description_mode: null,
         required: false,
         required_conditions: null,
         visible: true,
         visible_conditions: null,
         read_only: false,
         read_only_conditions: null,
-        default_value: 'now', // can only be 'now' or null
+        default_value: 'now',
+        key: 'b1628410'
       },
       {
         type: 'TimeField',
         data_name: 'field_visit_time',
         label: 'Field visit time',
-        display: 'default', //TimeField can only be 'default'
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+        display: 'default',
+        description: null,
+        description_mode: null,
         required: false,
         required_conditions: null,
         visible: true,
         visible_conditions: null,
         read_only: false,
         read_only_conditions: null,
-        default_value: 'now', // can only be 'now' or null
+        default_value: 'now',
+        key: 'b205e715'
       },
       {
         type: 'BooleanField',
         data_name: 'gender',
         label: 'Gender',
-        display: 'default', //BooleanField can only be 'default'
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+        display: 'default',
+        description: null,
+        description_mode: null,
         required: true,
         required_conditions: null,
         visible: true,
@@ -373,117 +407,229 @@ export const defaultFormTemplate = {
         read_only: false,
         read_only_conditions: null,
         default_value: null,
-        third_option_enabled: true, //BooleanField can be true or false
-        supporting_image: false, //supporting_image can be true or false
-        supporting_image_path: null, //supporting_image_path can be null or a string
-        supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+        third_option_enabled: true,
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null,
         choices: [
           {
             label: 'Male',
-            value: 'm',
+            value: 'm'
           },
           {
             label: 'Female',
-            value: 'f',
+            value: 'f'
           },
           {
             label: 'Other',
-            value: 'other',
-          },
+            value: 'other'
+          }
         ],
+        key: '5e9c9580'
       },
       {
         type: 'LabelField',
         data_name: 'photo_consent',
-        label:
-          'Please be aware that photographs may be taken at this Community Engagement event. By submitting this form, you consent to the use of any photos in which you appear in reports related to the Housing Improvement under PDUNM project and in Build Change marketing materials. You also acknowledge that the information you provide on this form will only be used for the purposes of this project.',
-        display: 'default', //LabelField can only be 'default'
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
-        required: false, //LabelField is always required = false
+        label: 'Please be aware that photographs may be taken at this Community Engagement event. By submitting this form, you consent to the use of any photos in which you appear in reports related to the Housing Improvement under PDUNM project and in Build Change marketing materials. You also acknowledge that the information you provide on this form will only be used for the purposes of this project.',
+        display: 'default',
+        description: null,
+        description_mode: null,
+        required: false,
         visible: true,
         visible_conditions: null,
-        read_only: true, //LabelField is always read_only = true
-        default_value: null, //LabelField is always default_value = null
-        supporting_image: false, //supporting_image can be true or false
-        supporting_image_path: null, //supporting_image_path can be null or a string
-        supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+        read_only: true,
+        default_value: null,
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null,
+        key: 'bb41535e'
       },
       {
         type: 'CalculatedField',
         data_name: 'calc_test_new_bis',
         label: 'calc_test_new_bis',
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+        description: null,
+        description_mode: null,
         required: false,
         visible: true,
         visible_conditions: null,
         read_only: true,
         calculate: '$calc_test_new + 1000',
         display: {
-          style: 'text',
+          style: 'text'
         },
-        supporting_image: false, //supporting_image can be true or false
-        supporting_image_path: null, //supporting_image_path can be null or a string
-        supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null,
+        key: '9b86a281'
       },
       {
         type: 'SignatureField',
         data_name: 'signature',
         label: 'Please add your signature below',
-        display: 'default', //SignatureField can only be 'default'
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+        display: 'default',
+        description: null,
+        description_mode: null,
         required: true,
         required_conditions: null,
         visible: true,
         visible_conditions: null,
         read_only: false,
         read_only_conditions: null,
-        default_value: null, //SignatureField is always default_value = null
-        agreement_text: 'I agree to the terms and conditions', //agreement_text can be null or a string
+        default_value: null,
+        agreement_text: 'I agree to the terms and conditions',
+        key: '5fab696d'
       },
       {
         type: 'PhotoField',
         data_name: 'house_photo',
         label: 'Take a photo of the house',
-        display: 'default', //PhotoField can only be 'default'
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+        display: 'default',
+        description: null,
+        description_mode: null,
         required: false,
         required_conditions: null,
         visible: true,
         visible_conditions: null,
         read_only: false,
         read_only_conditions: null,
-        default_value: null, //PhotoField is always default_value = null
-        min_length: null, //min_length can be null or a number representing minimum number of photos
-        max_length: null, //max_length can be null or a number representing maximum number of photos
+        default_value: null,
+        min_length: null,
+        max_length: null,
+        key: 'c8f98960'
       },
       {
         type: 'VideoField',
         data_name: 'house_video',
         label: 'Take a video of the house',
-        display: 'default', //PhotoField can only be 'default'
-        description: 'This is a description of the video field', //description can be null or a string
-        description_mode: 'subtext', //description_mode can be null, 'default' or 'subtext'
+        display: 'default',
+        description: 'This is a description of the video field',
+        description_mode: 'subtext',
         required: false,
         required_conditions: null,
         visible: true,
         visible_conditions: null,
         read_only: false,
         read_only_conditions: null,
-        default_value: null, //PhotoField is always default_value = null
-        min_length: null, //min_length can be null or a number representing minimum number of video minutes
-        max_length: null, //max_length can be null or a number representing maximum number of video minutes
+        default_value: null,
+        min_length: null,
+        max_length: null,
+        key: 'c7a781d7'
+      },
+      {
+        type: 'FormLinkField',
+        key: '1f92ff',
+        data_name: 'test_form_link',
+        label: 'This is a form link test',
+        display: 'default',
+        description: null,
+        description_mode: null,
+        required: false,
+        required_conditions: null,
+        visible: true,
+        visible_conditions: null,
+        read_only: false,
+        read_only_conditions: null,
+        default_value: null,
+        allow_creating_records: true,
+        allow_existing_records: true,
+        allow_updating_records: false,
+        allow_multiple_records: false,
+        form_id: '01936b8e-7f2a-7c3d-9e4f-123456789abc',
+        record_conditions: {
+          and: [
+            {
+              linked_form_field_id: 'sample123',
+              operator: 'equal_to',
+              value: 'test_value_1'
+            },
+            {
+              or: [
+                {
+                  linked_form_field_id: 'sample456',
+                  operator: 'greater_than',
+                  value: 1.55
+                },
+                {
+                  linked_form_field_id: 'sample789',
+                  operator: 'equal_to',
+                  value: 'test_value_3'
+                }
+              ]
+            }
+          ]
+        },
+        record_defaults: [
+          {
+            source_field_id: 'sample567',
+            destination_field_id: 'ee748'
+          },
+          {
+            source_field_id: 'sample234',
+            destination_field_id: 'ee749'
+          }
+        ]
+      },
+      {
+        type: 'TextField',
+        key: 'ee748',
+        data_name: 'first_import',
+        label: 'First IMPORT',
+        display: 'default',
+        description: null,
+        description_mode: null,
+        required: false,
+        required_conditions: null,
+        visible: true,
+        visible_conditions: null,
+        read_only: true,
+        read_only_conditions: null,
+        default_value: null,
+        pattern: null,
+        pattern_description: null,
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null
+      },
+      {
+        type: 'SingleChoiceField',
+        key: 'ee749',
+        data_name: 'second_import',
+        label: 'Second IMPORT',
+        display: 'default',
+        description: null,
+        description_mode: null,
+        required: false,
+        required_conditions: null,
+        visible: true,
+        visible_conditions: null,
+        read_only: true,
+        read_only_conditions: null,
+        default_value: null,
+        allow_other: false,
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null,
+        is_searchable: false,
+        is_searchable_mode: null,
+        choices: [
+          {
+            label: 'Airplane',
+            value: 'airplane'
+          },
+          {
+            label: 'Car',
+            value: 'car'
+          }
+        ]
       },
       {
         type: 'Section',
         data_name: 'section_drill',
         label: 'Drilldown section test',
-        display: 'drilldown', //Section can be 'inline' or 'drilldown'
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+        display: 'drilldown',
+        description: null,
+        description_mode: null,
         visible: true,
         visible_conditions: null,
         elements: [
@@ -491,9 +637,9 @@ export const defaultFormTemplate = {
             type: 'TextField',
             data_name: 'comments',
             label: 'Comments',
-            display: 'default', //TextField can only be 'default'
-            description: null, //description can be null or a string
-            description_mode: null, //description_mode can be null, 'default' or 'subtext'
+            display: 'default',
+            description: null,
+            description_mode: null,
             required: false,
             required_conditions: null,
             visible: true,
@@ -503,49 +649,64 @@ export const defaultFormTemplate = {
             default_value: null,
             pattern: null,
             pattern_description: null,
-            supporting_image: false, //supporting_image can be true or false
-            supporting_image_path: null, //supporting_image_path can be null or a string
-            supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
-          },
+            supporting_image: false,
+            supporting_image_path: null,
+            supporting_image_display: null,
+            key: '5886d2d7'
+          }
         ],
+        key: '153949b2'
       },
       {
         type: 'TextField',
         data_name: 'who_voted',
         label: 'Who voted?',
-        display: 'default', //TextField can only be 'default'
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+        display: 'default',
+        description: null,
+        description_mode: null,
         required: true,
         required_conditions: null,
         visible: false,
         visible_conditions: {
           and: [
-            { field_id: 'can_vote', operator: 'equal_to', value: 'yes' },
+            {
+              field_id: '7a2d9eb2',
+              operator: 'equal_to',
+              value: 'yes'
+            },
             {
               or: [
-                { field_id: 'age', operator: 'greater_than', value: 20 },
-                { field_id: 'first_name', operator: 'equal_to', value: 'Bob' },
-              ],
-            },
-          ],
+                {
+                  field_id: '2c41499c',
+                  operator: 'greater_than',
+                  value: 20
+                },
+                {
+                  field_id: 'fbbf2ac1',
+                  operator: 'equal_to',
+                  value: 'Bob'
+                }
+              ]
+            }
+          ]
         },
         read_only: true,
         read_only_conditions: null,
         default_value: null,
         pattern: null,
         pattern_description: null,
-        supporting_image: false, //supporting_image can be true or false
-        supporting_image_path: null, //supporting_image_path can be null or a string
-        supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null,
+        key: '91e56640'
       },
       {
         type: 'SingleChoiceField',
         data_name: 'fruit',
         label: 'Fruit',
         display: 'default',
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+        description: null,
+        description_mode: null,
         required: true,
         required_conditions: null,
         visible: true,
@@ -554,33 +715,192 @@ export const defaultFormTemplate = {
         read_only_conditions: null,
         default_value: null,
         allow_other: false,
-        supporting_image: false, //supporting_image can be true or false
-        supporting_image_path: null, //supporting_image_path can be null or a string
-        supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null,
         is_searchable: false,
         is_searchable_mode: null,
         choices: [
           {
             label: 'Mela',
-            value: 'mela',
+            value: 'mela'
           },
           {
             label: 'Banana',
-            value: 'banana',
+            value: 'banana'
           },
           {
             label: 'Fragola',
-            value: 'fragola',
-          },
+            value: 'fragola'
+          }
         ],
+        key: 'd76a9191'
+      },
+      {
+        type: 'BuildingPlanSection',
+        key: 'd76a8181',
+        data_name: 'building_plan',
+        label: 'Building Plan',
+        description: null,
+        description_mode: null,
+        visible: true,
+        visible_conditions: null,
+        read_only: false,
+        read_only_conditions: null,
+        node_overrides: {
+          floors: {
+            extra_elements: [
+              {
+                type: 'TextField',
+                key: 'c96a8181',
+                data_name: 'floor_reference',
+                label: 'Floor Reference Code',
+                display: 'default',
+                description: null,
+                description_mode: null,
+                required: false,
+                required_conditions: null,
+                visible: true,
+                visible_conditions: null,
+                read_only: false,
+                read_only_conditions: null,
+                default_value: null,
+                pattern: null,
+                pattern_description: null,
+                supporting_image: false,
+                supporting_image_path: null,
+                supporting_image_display: null
+              }
+            ]
+          },
+          columns: {
+            extra_elements: [
+              {
+                type: 'SingleChoiceField',
+                key: 'e96a8181',
+                data_name: 'column_material',
+                label: 'Column Material',
+                display: 'default',
+                description: null,
+                description_mode: null,
+                required: false,
+                required_conditions: null,
+                visible: true,
+                visible_conditions: null,
+                read_only: false,
+                read_only_conditions: null,
+                default_value: null,
+                allow_other: true,
+                supporting_image: false,
+                supporting_image_path: null,
+                supporting_image_display: null,
+                is_searchable: false,
+                is_searchable_mode: null,
+                choices: [
+                  {
+                    label: 'Concrete',
+                    value: 'concrete'
+                  },
+                  {
+                    label: 'Steel',
+                    value: 'steel'
+                  },
+                  {
+                    label: 'Timber',
+                    value: 'timber'
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        type: 'BuildingPlanSection',
+        key: 'd76a8199',
+        data_name: 'building_plan_bis',
+        label: 'Building Plan Bis',
+        description: null,
+        description_mode: null,
+        visible: true,
+        visible_conditions: null,
+        read_only: false,
+        read_only_conditions: null,
+        node_overrides: {
+          floors: {
+            extra_elements: [
+              {
+                type: 'TextField',
+                key: 'c96a8199',
+                data_name: 'floor_reference_bis',
+                label: 'Floor Reference Code',
+                display: 'default',
+                description: null,
+                description_mode: null,
+                required: false,
+                required_conditions: null,
+                visible: true,
+                visible_conditions: null,
+                read_only: false,
+                read_only_conditions: null,
+                default_value: null,
+                pattern: null,
+                pattern_description: null,
+                supporting_image: false,
+                supporting_image_path: null,
+                supporting_image_display: null
+              }
+            ]
+          },
+          columns: {
+            extra_elements: [
+              {
+                type: 'SingleChoiceField',
+                key: 'e96a8199',
+                data_name: 'column_material_bis',
+                label: 'Column Material',
+                display: 'default',
+                description: null,
+                description_mode: null,
+                required: false,
+                required_conditions: null,
+                visible: true,
+                visible_conditions: null,
+                read_only: false,
+                read_only_conditions: null,
+                default_value: null,
+                allow_other: true,
+                supporting_image: false,
+                supporting_image_path: null,
+                supporting_image_display: null,
+                is_searchable: false,
+                is_searchable_mode: null,
+                choices: [
+                  {
+                    label: 'Concrete',
+                    value: 'concrete'
+                  },
+                  {
+                    label: 'Steel',
+                    value: 'steel'
+                  },
+                  {
+                    label: 'Timber',
+                    value: 'timber'
+                  }
+                ]
+              }
+            ]
+          }
+        }
       },
       {
         type: 'MultiChoiceField',
         data_name: 'food',
         label: 'Please select your favorite food!',
         display: 'default',
-        description: null, //description can be null or a string
-        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+        description: null,
+        description_mode: null,
         required: true,
         required_conditions: null,
         visible: true,
@@ -589,49 +909,50 @@ export const defaultFormTemplate = {
         read_only_conditions: null,
         default_value: null,
         allow_other: false,
-        supporting_image: false, //supporting_image can be true or false
-        supporting_image_path: null, //supporting_image_path can be null or a string
-        supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+        supporting_image: false,
+        supporting_image_path: null,
+        supporting_image_display: null,
         is_searchable: false,
         is_searchable_mode: null,
         choices: [
           {
             label: 'Pasta',
-            value: 'pasta',
+            value: 'pasta'
           },
           {
             label: 'Pizza',
-            value: 'pizza',
+            value: 'pizza'
           },
           {
             label: 'Focaccia',
-            value: 'focaccia',
+            value: 'focaccia'
           },
           {
             label: 'Salumi',
-            value: 'salumi',
-          },
+            value: 'salumi'
+          }
         ],
+        key: '3d5073c9'
       },
       {
         type: 'RepeatableSection',
         data_name: 'evaluation_tests',
         label: 'Evaluation tests',
-        display: 'drilldown', //Section can be only 'drilldown'
-        description: 'This is a repeatable section for evaluation tests', //description can be null or a string
-        description_mode: 'default', //description_mode can be null,'default' or 'subtext'
+        display: 'drilldown',
+        description: 'This is a repeatable section for evaluation tests',
+        description_mode: 'default',
         visible: true,
         visible_conditions: null,
-        location_enabled: true, //location_enabled can be true or false
-        location_required: true, //location_required can be true or false
+        location_enabled: true,
+        location_required: true,
         elements: [
           {
             type: 'TextField',
             data_name: 'email',
             label: 'Email',
-            display: 'default', //TextField can only be 'default'
-            description: null, //description can be null or a string
-            description_mode: null, //description_mode can be null, 'default' or 'subtext'
+            display: 'default',
+            description: null,
+            description_mode: null,
             required: true,
             required_conditions: null,
             visible: true,
@@ -641,27 +962,70 @@ export const defaultFormTemplate = {
             default_value: null,
             pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$',
             pattern_description: 'Valid email address format (e.g., user@example.com)',
-            supporting_image: false, //supporting_image can be true or false
-            supporting_image_path: null, //supporting_image_path can be null or a string
-            supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+            supporting_image: false,
+            supporting_image_path: null,
+            supporting_image_display: null,
+            key: '8a8753c7'
           },
           {
             type: 'CalculatedField',
             data_name: 'age_division',
             label: 'Age divided by 2',
             display: {
-              style: 'numeric', // or numeric, date, currency
+              style: 'numeric'
             },
-            description: null, //description can be null or a string
-            description_mode: null, //description_mode can be null, 'default' or 'subtext'
-            required: false, //CalcualtedField is always required = false
+            description: null,
+            description_mode: null,
+            required: false,
             visible: true,
             visible_conditions: null,
-            read_only: true, //CalcualtedField is always read_only = true
+            read_only: true,
             calculate: '$age/2',
-            supporting_image: false, //supporting_image can be true or false
-            supporting_image_path: null, //supporting_image_path can be null or a string
-            supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+            supporting_image: false,
+            supporting_image_path: null,
+            supporting_image_display: null,
+            key: '6572e98a'
+          },
+          {
+            type: 'NumericField',
+            data_name: 'number',
+            label: 'Number',
+            display: 'default',
+            description: null,
+            description_mode: null,
+            required: true,
+            required_conditions: null,
+            visible: true,
+            visible_conditions: null,
+            read_only: false,
+            read_only_conditions: null,
+            default_value: null,
+            min: null,
+            max: null,
+            format: 'integer',
+            supporting_image: false,
+            supporting_image_path: null,
+            supporting_image_display: null,
+            key: '2c41499d'
+          },
+          {
+            type: 'CalculatedField',
+            data_name: 'age_multiplication_internal',
+            label: 'Age multiplied by 8 and Number added',
+            display: {
+              style: 'numeric'
+            },
+            description: null,
+            description_mode: null,
+            required: false,
+            visible: true,
+            visible_conditions: null,
+            read_only: true,
+            calculate: '$age_division*8 + $number',
+            supporting_image: false,
+            supporting_image_path: null,
+            supporting_image_display: null,
+            key: '6572e98b'
           },
           {
             type: 'Section',
@@ -682,8 +1046,8 @@ export const defaultFormTemplate = {
                 description_mode: 'default',
                 visible: true,
                 visible_conditions: null,
-                location_enabled: true, //location_enabled can be true or false
-                location_required: true, //location_required can be true or false
+                location_enabled: true,
+                location_required: true,
                 elements: [
                   {
                     type: 'Section',
@@ -714,14 +1078,15 @@ export const defaultFormTemplate = {
                         supporting_image: false,
                         supporting_image_path: null,
                         supporting_image_display: null,
+                        key: 'f35360a1'
                       },
                       {
                         type: 'NumericField',
                         data_name: 'random_number',
                         label: 'Random number',
-                        display: 'default', //NumericField can only be 'default'
-                        description: null, //description can be null or a string
-                        description_mode: null, //description_mode can be null, 'default' or 'subtext'
+                        display: 'default',
+                        description: null,
+                        description_mode: null,
                         required: true,
                         required_conditions: null,
                         visible: true,
@@ -731,19 +1096,65 @@ export const defaultFormTemplate = {
                         default_value: 10.84,
                         min: null,
                         max: null,
-                        format: 'float', //NumericField can be 'integer' or 'float'
-                        supporting_image: false, //supporting_image can be true or false
-                        supporting_image_path: null, //supporting_image_path can be null or a string
-                        supporting_image_display: null, //supporting_image_display can be 'default', 'dialog' or null
+                        format: 'float',
+                        supporting_image: false,
+                        supporting_image_path: null,
+                        supporting_image_display: null,
+                        key: 'de7d5586'
                       },
+                      {
+                        type: 'NumericField',
+                        data_name: 'number_bis',
+                        label: 'Number',
+                        display: 'default',
+                        description: null,
+                        description_mode: null,
+                        required: true,
+                        required_conditions: null,
+                        visible: true,
+                        visible_conditions: null,
+                        read_only: false,
+                        read_only_conditions: null,
+                        default_value: null,
+                        min: null,
+                        max: null,
+                        format: 'integer',
+                        supporting_image: false,
+                        supporting_image_path: null,
+                        supporting_image_display: null,
+                        key: '2c41499e'
+                      },
+                      {
+                        type: 'CalculatedField',
+                        data_name: 'calculus',
+                        label: 'Calculus',
+                        display: {
+                          style: 'numeric'
+                        },
+                        description: null,
+                        description_mode: null,
+                        required: false,
+                        visible: true,
+                        visible_conditions: null,
+                        read_only: true,
+                        calculate: '$random_number + $number_bis',
+                        supporting_image: false,
+                        supporting_image_path: null,
+                        supporting_image_display: null,
+                        key: '6572e98e'
+                      }
                     ],
-                  },
+                    key: 'adeb3b41'
+                  }
                 ],
-              },
+                key: '43b53a75'
+              }
             ],
-          },
+            key: 'cc77ee19'
+          }
         ],
-      },
-    ],
-  },
+        key: '9a4d5455'
+      }
+    ]
+  }
 };
