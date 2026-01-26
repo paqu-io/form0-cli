@@ -362,8 +362,11 @@ export class SchemaManager {
 
       // Auto-load the newly created schema if initialized in current directory
       if (dir === '.') {
-        await this.loadSchema('form.schema.json');
-        console.log(colors.success(t('interactive.autoLoadedNewSchema')));
+        const schemaPath = path.join(process.cwd(), 'form.schema.json');
+        if (await fs.pathExists(schemaPath)) {
+          await this.loadSchema('form.schema.json');
+          console.log(colors.success(t('interactive.autoLoadedNewSchema')));
+        }
       }
     } catch (err) {
       console.log(colors.error(t('interactive.failedToInitialize', { message: err.message })));
