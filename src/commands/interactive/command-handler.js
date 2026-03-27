@@ -13,6 +13,7 @@ import {
 } from '../schema.js';
 import fs from 'fs-extra';
 import { ensureMissingKeysForSchema } from '../../utils/ensure-missing-keys.js';
+import { handleReformCommand } from '../reform.js';
 
 /**
  * Handles command processing for interactive shell
@@ -54,6 +55,7 @@ export class CommandHandler {
       'conn',
       'c',
       'schema',
+      'reform',
     ];
 
     if (!allowedCommands.includes(command.toLowerCase())) {
@@ -204,6 +206,12 @@ export class CommandHandler {
 
         case 'schema':
           await this.handleSchemaCommand(args);
+          break;
+
+        case 'reform':
+          await handleReformCommand(args, {
+            readlineInterface: this.readline,
+          });
           break;
 
         case 'exit':

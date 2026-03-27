@@ -149,6 +149,122 @@
       "deleteNoSchemas": "❌ No schemas found to delete.",
       "deleteRefused": "❌ Cannot delete without confirmation in a non-interactive terminal.",
       "deleteFailed": "❌ Failed to delete schema: {message}"
+    },
+    "reform": {
+      "selection": {
+        "none": "None",
+        "prompt": "Select an option or press Enter to cancel: ",
+        "invalid": "Invalid selection."
+      },
+      "common": {
+        "unknown": "unknown",
+        "unknownUser": "unknown user",
+        "notApplicable": "n/a"
+      },
+      "auth": {
+        "notLoggedIn": "Not logged in. Run `form0 reform login` first.",
+        "sessionExpired": "Your stored reform session has expired. Run `form0 reform login` again."
+      },
+      "login": {
+        "title": "reform login",
+        "verificationUrl": "Verification URL: {url}",
+        "verificationPage": "Verification page: {url}",
+        "userCode": "User code: {code}",
+        "manualUrlHint": "If automatic browser launch is unavailable, copy the verification URL above into any browser session.",
+        "manualPageHint": "If needed, open the verification page and enter the user code manually.",
+        "browserOpened": "Opened the verification page in your browser.",
+        "browserUnavailable": "Automatic browser launch was not available. Use the verification URL and code shown above.",
+        "waiting": "Waiting for approval. Press Ctrl+C to cancel.",
+        "success": "Logged in to reform as {email}. Credentials stored in {storage}.",
+        "failed": "reform login failed: {message}"
+      },
+      "logout": {
+        "success": "reform credentials cleared.",
+        "failed": "reform logout failed: {message}"
+      },
+      "whoami": {
+        "title": "reform account",
+        "user": "User: {user}",
+        "name": "Name: {name}",
+        "sessionExpires": "Session expires: {expiry}",
+        "scope": "Scope: {scope}",
+        "failed": "reform whoami failed: {message}"
+      },
+      "orgs": {
+        "title": "Accessible organizations",
+        "none": "No accessible organizations were found.",
+        "mainLine": "- {name} [{id}]",
+        "subLine": "    sub: {name} [{id}]",
+        "failed": "reform orgs list failed: {message}"
+      },
+      "scope": {
+        "title": "reform scope",
+        "notSelected": "not selected",
+        "format": {
+          "mainOnly": "main={mainOrgId}",
+          "mainAndSub": "main={mainOrgId}, sub={subOrgId}"
+        },
+        "showFailed": "reform scope show failed: {message}",
+        "nonInteractiveMainRequired": "A main organization is required in non-interactive mode. Pass `--main <id>`.",
+        "selectMainTitle": "Select a main organization",
+        "selectSubTitle": "Select a sub-organization",
+        "noneOption": "No sub-organization",
+        "cancelled": "Scope selection cancelled.",
+        "saved": "Saved reform scope: {scope}",
+        "useFailed": "reform scope use failed: {message}"
+      },
+      "sync": {
+        "manifest": "Manifest: {path}",
+        "savedScope": "Saved scope: {scope}",
+        "noScope": "No reform scope is selected. Run `form0 reform scope use --main <id>` first.",
+        "pullFailed": "reform sync pull failed: {message}",
+        "summary": {
+          "title": "reform sync summary",
+          "createdLabel": "Created",
+          "updatedLabel": "Updated",
+          "unchangedLabel": "Unchanged",
+          "deletedLabel": "Deleted remotely",
+          "unreachableLabel": "Unreachable",
+          "conflictsLabel": "Conflicts",
+          "importErrorsLabel": "Import errors",
+          "createdItems": "Created: {items}",
+          "updatedItems": "Updated: {items}",
+          "skippedLocalModifications": "Skipped local modifications: {items}",
+          "missingFromRemoteScope": "Missing from the current remote scope: {items}",
+          "importErrorItem": "Import error for {localAlias}: {message}"
+        },
+        "status": {
+          "title": "reform sync status",
+          "none": "No forms have been synced from reform yet.",
+          "entry": "- {localAlias}: {syncStatus}, remote={remoteState}, revision={revision}{suffix}",
+          "localPath": "    {path}",
+          "importError": "    import error: {message}",
+          "failed": "reform sync status failed: {message}",
+          "flags": {
+            "modifiedLocally": "modified locally",
+            "missingLocally": "missing locally"
+          }
+        },
+        "prune": {
+          "title": "reform sync prune",
+          "none": "No remotely deleted synced forms are available to prune.",
+          "prunable": "Prunable forms: {items}",
+          "skippedModified": "Skipped because they were modified locally: {items}",
+          "dryRun": "Dry run only. No local files were removed.",
+          "nonInteractiveRefusal": "Refusing to prune in non-interactive mode without `--force`.",
+          "confirm": "Remove the prunable local forms now?",
+          "cancelled": "Prune cancelled.",
+          "noneRemoved": "No local forms were removed.",
+          "pruned": "Pruned: {items}",
+          "failed": "reform sync prune failed: {message}"
+        }
+      },
+      "usage": {
+        "orgs": "Usage: reform orgs list",
+        "scope": "Usage: reform scope <show|use>",
+        "sync": "Usage: reform sync <pull|status|prune>",
+        "root": "Usage: reform <login|logout|whoami|orgs list|scope show|scope use|sync pull|sync status|sync prune>"
+      }
     }
   },
   "connectors": {
@@ -407,6 +523,16 @@
     "connectorStatusCommand": "    connector status     Show connector health",
     "connectorLoadCommand": "    connector load       Load a connector",
     "connectorTestCommand": "    connector test       Test connector connection",
+    "reformSection": "  reform:",
+    "reformLoginCommand": "    reform login         Log in to reform using your browser",
+    "reformLogoutCommand": "    reform logout        Clear stored reform credentials",
+    "reformWhoamiCommand": "    reform whoami        Show the current reform account",
+    "reformOrgsListCommand": "    reform orgs list     List accessible reform organizations",
+    "reformScopeShowCommand": "    reform scope show    Show the saved reform scope",
+    "reformScopeUseCommand": "    reform scope use     Save the reform scope for sync",
+    "reformSyncPullCommand": "    reform sync pull     Pull forms from reform",
+    "reformSyncStatusCommand": "    reform sync status   Show local reform sync state",
+    "reformSyncPruneCommand": "    reform sync prune    Remove forms deleted in reform",
     "sessionManagement": "  Session Management:",
     "statusCommand": "    status, s            Show session status",
     "themeCommand": "    theme [name]         View or change theme (dark, light)",

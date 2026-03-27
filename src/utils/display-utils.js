@@ -63,6 +63,17 @@ export function showHelp() {
   console.log(colors.text(t('help.connectorLoadCommand')));
   console.log(colors.text(t('help.connectorTestCommand')));
   console.log();
+  console.log(colors.accent1(t('help.reformSection')));
+  console.log(colors.text(t('help.reformLoginCommand')));
+  console.log(colors.text(t('help.reformLogoutCommand')));
+  console.log(colors.text(t('help.reformWhoamiCommand')));
+  console.log(colors.text(t('help.reformOrgsListCommand')));
+  console.log(colors.text(t('help.reformScopeShowCommand')));
+  console.log(colors.text(t('help.reformScopeUseCommand')));
+  console.log(colors.text(t('help.reformSyncPullCommand')));
+  console.log(colors.text(t('help.reformSyncStatusCommand')));
+  console.log(colors.text(t('help.reformSyncPruneCommand')));
+  console.log();
   console.log(colors.accent1(t('help.sessionManagement')));
   console.log(colors.text(t('help.statusCommand')));
   console.log(colors.text(t('help.themeCommand')));
