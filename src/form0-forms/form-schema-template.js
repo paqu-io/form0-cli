@@ -3,8 +3,6 @@ export const defaultFormTemplate = {
     name: 'MyFormWSL',
     description: 'This is a test description',
     id: null,
-    record_count: 0,
-    record_last_change_at: null,
     form_created_at: null,
     form_updated_at: null,
     form_created_by: null,
