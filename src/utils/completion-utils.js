@@ -67,5 +67,29 @@ export function completer(line) {
     return [hits, lastArg];
   }
 
+  if (command === 'reform' && args.length >= 2) {
+    const reformOptions = [
+      'login',
+      'logout',
+      'whoami',
+      'orgs',
+      'scope',
+      'sync',
+      'list',
+      'show',
+      'use',
+      'pull',
+      'status',
+      'prune',
+      '--main',
+      '--sub',
+      '--force',
+      '--dry-run',
+    ];
+    const lastArg = args[args.length - 1];
+    const hits = reformOptions.filter((opt) => opt.startsWith(lastArg));
+    return [hits, lastArg];
+  }
+
   return [[], line];
 }

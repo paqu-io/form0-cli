@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { createRequire } from 'node:module';
 import { initCommand } from '../src/commands/init.js';
 import { testCommand } from '../src/commands/test.js';
 import { validateCommand } from '../src/commands/validate.js';
@@ -12,6 +13,17 @@ import { themeCommand } from '../src/commands/theme.js';
 import { localeCommand } from '../src/commands/locale.js';
 import { connectorCommand } from '../src/commands/connector.js';
 import {
+  reformLoginCommand,
+  reformLogoutCommand,
+  reformOrgsListCommand,
+  reformScopeShowCommand,
+  reformScopeUseCommand,
+  reformSyncPruneCommand,
+  reformSyncPullCommand,
+  reformSyncStatusCommand,
+  reformWhoamiCommand,
+} from '../src/commands/reform.js';
+import {
   schemaImportCommand,
   schemaExportCommand,
   schemaNewCommand,
@@ -19,9 +31,12 @@ import {
 } from '../src/commands/schema.js';
 import { loadConfig } from '../src/utils/config.js';
 
+const require = createRequire(import.meta.url);
+const { version } = require('../package.json');
+
 const program = new Command();
 
-program.name('form0').description('CLI tools for form0-powered forms').version('0.0.1-alpha.1');
+program.name('form0').description('CLI tools for form0-powered forms').version(version);
 
 // Load configuration (theme settings, etc.)
 await loadConfig();
@@ -145,6 +160,72 @@ if (process.argv.length === 2) {
     .argument('[name]', 'Connector name (e.g., form0-connector-pg)')
     .description('Manage form connectors for data storage and integration')
     .action(connectorCommand);
+
+  const reformProgram = program
+    .command('reform')
+    .description('Authenticate with Reform and sync forms into the current project');
+
+  reformProgram
+    .command('login')
+    .description('Log in to Reform using the browser device flow')
+    .action(reformLoginCommand);
+
+  reformProgram
+    .command('logout')
+    .description('Log out from Reform and clear local credentials')
+    .action(reformLogoutCommand);
+
+  reformProgram
+    .command('whoami')
+    .description('Show the current Reform account and selected scope')
+    .action(reformWhoamiCommand);
+
+  const reformOrgsProgram = reformProgram
+    .command('orgs')
+    .description('List accessible Reform organizations');
+
+  reformOrgsProgram
+    .command('list')
+    .description('List accessible main organizations and sub-organizations')
+    .action(reformOrgsListCommand);
+
+  const reformScopeProgram = reformProgram
+    .command('scope')
+    .description('View or change the saved Reform organization scope');
+
+  reformScopeProgram
+    .command('show')
+    .description('Show the saved Reform scope')
+    .action(reformScopeShowCommand);
+
+  reformScopeProgram
+    .command('use')
+    .option('--main <id>', 'Main organization id')
+    .option('--sub <id>', 'Sub-organization id')
+    .description('Save the Reform scope used for sync operations')
+    .action((options) => reformScopeUseCommand(options));
+
+  const reformSyncProgram = reformProgram
+    .command('sync')
+    .description('Pull synced forms from Reform and manage synced files');
+
+  reformSyncProgram
+    .command('pull')
+    .option('--force', 'Overwrite locally modified synced forms')
+    .description('Pull active forms from Reform into the current project')
+    .action((options) => reformSyncPullCommand(options));
+
+  reformSyncProgram
+    .command('status')
+    .description('Show the local Reform sync manifest and file status')
+    .action(reformSyncStatusCommand);
+
+  reformSyncProgram
+    .command('prune')
+    .option('--dry-run', 'Show what would be pruned without deleting files')
+    .option('--force', 'Prune even if synced files were modified locally')
+    .description('Remove local forms that were confirmed deleted in Reform')
+    .action((options) => reformSyncPruneCommand(options));
 
   program.parse();
 }

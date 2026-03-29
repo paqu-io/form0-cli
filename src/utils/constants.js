@@ -3,7 +3,12 @@
 export const BRAND_COLOR = '#DB3700';
 
 export const COMMON_SCHEMA_PATHS = ['form.schema.json', 'schema.json', 'form.json'];
-export const COMMON_SCHEMA_PATTERNS = ['form.schema*.json', 'schema*.json', 'form*.json'];
+export const COMMON_SCHEMA_PATTERNS = [
+  'form.schema*.json',
+  'schema*.json',
+  'form*.json',
+  '*.schema.json',
+];
 
 export const COMMON_TEST_VALUE_FILES = [
   'test-values.json',
@@ -43,6 +48,7 @@ export const COMMANDS = [
   'locale',
   'serve',
   'schema',
+  'reform',
 ];
 
 export const WATCH_OPTIONS = ['--auto-run', '--auto-validate', '--values', 'stop'];

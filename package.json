@@ -52,7 +52,7 @@
     "commander": "^11.0.0",
     "dotenv": "^17.0.0",
     "express": "^5.1.0",
-    "form0-core": "^0.1.10",
+    "form0-core": "^0.1.11",
     "fs-extra": "^11.1.1",
     "tar": "^7.4.3",
     "uuid": "^11.1.0",
@@ -62,5 +62,8 @@
   "devDependencies": {
     "ignore": "^7.0.5",
     "prettier": "^3.5.3"
+  },
+  "optionalDependencies": {
+    "keytar": "npm:null@*"
   }
 }

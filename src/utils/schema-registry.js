@@ -346,6 +346,38 @@ export async function addFormToRegistry(registryPath, entry) {
   await fs.writeFile(registryPath, updated);
 }
 
+export async function updateFormInRegistry(registryPath, entry) {
+  const source = await fs.readFile(registryPath, 'utf8');
+  const range = findFormsArrayRange(source);
+  if (!range) {
+    throw new Error('forms array not found in registry');
+  }
+
+  const inner = source.slice(range.start + 1, range.end);
+  const entryRange = findEntryRangeById(inner, entry.id);
+  if (!entryRange) {
+    return { updated: false };
+  }
+
+  const { itemIndent, propIndent } = getIndentation(source, range.start);
+  const entryString = buildEntryString(entry, itemIndent, propIndent);
+  const updatedInner =
+    inner.slice(0, entryRange.start) + entryString + inner.slice(entryRange.end + 1);
+  const updated = source.slice(0, range.start + 1) + updatedInner + source.slice(range.end);
+  await fs.writeFile(registryPath, updated);
+  return { updated: true };
+}
+
+export async function upsertFormInRegistry(registryPath, entry) {
+  const result = await updateFormInRegistry(registryPath, entry);
+  if (result.updated) {
+    return result;
+  }
+
+  await addFormToRegistry(registryPath, entry);
+  return { updated: false, inserted: true };
+}
+
 export async function registryHasForm(registryPath, formId) {
   const source = await fs.readFile(registryPath, 'utf8');
   const range = findFormsArrayRange(source);
