@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { createRequire } from 'node:module';
 import { initCommand } from '../src/commands/init.js';
 import { testCommand } from '../src/commands/test.js';
 import { validateCommand } from '../src/commands/validate.js';
@@ -30,9 +31,12 @@ import {
 } from '../src/commands/schema.js';
 import { loadConfig } from '../src/utils/config.js';
 
+const require = createRequire(import.meta.url);
+const { version } = require('../package.json');
+
 const program = new Command();
 
-program.name('form0').description('CLI tools for form0-powered forms').version('0.0.1-alpha.1');
+program.name('form0').description('CLI tools for form0-powered forms').version(version);
 
 // Load configuration (theme settings, etc.)
 await loadConfig();
