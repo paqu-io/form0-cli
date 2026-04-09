@@ -98,6 +98,7 @@ if (process.argv.length === 2) {
     .option('-p, --port <port>', 'Port to run server on', '3030')
     .option('--host <host>', 'Host to bind server to', 'localhost')
     .option('--app', 'Start the project dev server command from form0.config.js')
+    .option('--public-url <url>', 'Override the public app URL used by structured Expo dev servers')
     .description('Start development server with live form preview')
     .action(serveCommand);
 
@@ -115,7 +116,11 @@ if (process.argv.length === 2) {
 
   schemaProgram
     .command('export')
-    .argument('[csv]', 'Path for generated CSV file (defaults to form.schema.csv)', 'form.schema.csv')
+    .argument(
+      '[csv]',
+      'Path for generated CSV file (defaults to form.schema.csv)',
+      'form.schema.csv'
+    )
     .option('-i, --input <json>', 'Path to source schema JSON', 'form.schema.json')
     .option('-f, --force', 'Overwrite destination without prompting')
     .description('Export schema JSON to CSV')

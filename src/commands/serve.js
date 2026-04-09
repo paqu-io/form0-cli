@@ -386,12 +386,18 @@ export async function serveCommand(schemaPath = 'form.schema.json', options) {
       await server.start();
 
       const startDir = path.resolve(process.cwd(), path.dirname(schemaPath || '.'));
-      const { child, command, projectRoot, useProcessGroup } = await startAppDevServer(startDir);
+      const { child, command, projectRoot, useProcessGroup, publicUrl } = await startAppDevServer(
+        startDir,
+        {
+          publicUrl: options?.publicUrl,
+        }
+      );
       appProcess = child;
       appProcessUsesGroup = useProcessGroup;
-      console.log(
-        colors.success(`\n🚀 App dev server started: "${command}" (${projectRoot})\n`)
-      );
+      console.log(colors.success(`\n🚀 App dev server started: "${command}" (${projectRoot})\n`));
+      if (publicUrl) {
+        console.log(colors.textSecondary(`   Public URL: ${publicUrl}`));
+      }
       child.on('exit', (code) => {
         stopAll(typeof code === 'number' ? code : 0).catch(() => process.exit(1));
       });

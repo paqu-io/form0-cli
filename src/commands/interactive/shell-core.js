@@ -9,6 +9,7 @@ import { ServerManager } from './managers/server-manager.js';
 import { CommandHandler } from './command-handler.js';
 import { resolveProjectConfig } from '../../utils/project-config.js';
 import { SchemaEditor } from './managers/schema-editor.js';
+import { hasConfiguredAppDevServer } from '../../utils/app-dev-server.js';
 
 /**
  * Manages the interactive shell core functionality
@@ -40,12 +41,7 @@ export class ShellCore {
     this.schemaManager.setReadlineInterface(this.rl);
 
     // Initialize managers
-    this.serverManager = new ServerManager(
-      this.schemaManager,
-      this.fileWatcher,
-      this.rl,
-      this
-    );
+    this.serverManager = new ServerManager(this.schemaManager, this.fileWatcher, this.rl, this);
     this.schemaEditor = new SchemaEditor(
       this.schemaManager,
       this.engineRunner,
@@ -94,11 +90,7 @@ export class ShellCore {
 
     // Smart initialization: Auto-load schema or offer to initialize
     const { config } = await resolveProjectConfig(process.cwd());
-    const devServerCommand =
-      config?.devServer && typeof config.devServer.command === 'string'
-        ? config.devServer.command.trim()
-        : '';
-    const isAppProject = devServerCommand.length > 0;
+    const isAppProject = hasConfiguredAppDevServer(config?.devServer);
     const schemaPromptOnStart =
       config?.cli && typeof config.cli.schemaPromptOnStart === 'boolean'
         ? config.cli.schemaPromptOnStart
@@ -160,9 +152,7 @@ export class ShellCore {
     }
 
     return (
-      colors.brand('form0') +
-      colors.textSecondary(`(${parts.join(',')})`) +
-      colors.brand('> ')
+      colors.brand('form0') + colors.textSecondary(`(${parts.join(',')})`) + colors.brand('> ')
     );
   }
 

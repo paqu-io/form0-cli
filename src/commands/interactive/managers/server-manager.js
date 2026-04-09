@@ -218,6 +218,14 @@ export class ServerManager {
 
     const schemaPath = this.schemaManager.getCurrentSchemaPath();
     const startDir = schemaPath ? path.dirname(schemaPath) : process.cwd();
+    const appOptions = {};
+
+    for (let i = 0; i < args.length; i += 1) {
+      if (args[i] === '--public-url') {
+        appOptions.publicUrl = args[i + 1];
+        i += 1;
+      }
+    }
 
     try {
       if (blocking && this.readline) {
@@ -225,9 +233,13 @@ export class ServerManager {
         this.setupAppServerSignalHandlers();
       }
 
-      const { child, command, projectRoot, useProcessGroup } = await startAppDevServer(startDir, {
-        allowInput: blocking,
-      });
+      const { child, command, projectRoot, useProcessGroup, publicUrl } = await startAppDevServer(
+        startDir,
+        {
+          allowInput: blocking,
+          publicUrl: appOptions.publicUrl,
+        }
+      );
       this.appServerProcess = child;
       this.appServerCommand = command;
       this.appServerProjectRoot = projectRoot;
@@ -235,6 +247,9 @@ export class ServerManager {
 
       console.log(colors.success(`\n🚀 App dev server started: "${command}"`));
       console.log(colors.textSecondary(`   cwd: ${projectRoot}`));
+      if (publicUrl) {
+        console.log(colors.textSecondary(`   Public URL: ${publicUrl}`));
+      }
       if (blocking) {
         console.log(colors.textSecondary('   Press Ctrl+C to stop the app dev server.\n'));
       } else {

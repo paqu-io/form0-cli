@@ -16,12 +16,32 @@ const LOCKFILE_CANDIDATES = {
 };
 
 const LOCKFILE_ORDER = ['pnpm', 'yarn', 'bun', 'npm'];
+const EXPO_HOST_MODES = new Set(['lan', 'localhost', 'tunnel']);
+const EXPO_COMMAND_BY_MANAGER = {
+  npm: 'npx expo start',
+  pnpm: 'pnpm exec expo start',
+  yarn: 'yarn expo start',
+  bun: 'bunx expo start',
+};
 
 function normalizeCommand(value) {
   if (typeof value !== 'string') {
     return '';
   }
   return value.trim();
+}
+
+function normalizeBoolean(value, defaultValue) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  return defaultValue;
+}
+
+function normalizeInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function parsePackageManager(value) {
@@ -131,6 +151,118 @@ async function detectPackageManager(projectRoot, command) {
   };
 }
 
+export function isStructuredExpoDevServer(devServer = {}) {
+  return devServer?.type === 'app' && devServer?.provider === 'expo';
+}
+
+export function hasConfiguredAppDevServer(devServer = {}) {
+  return Boolean(normalizeCommand(devServer?.command) || isStructuredExpoDevServer(devServer));
+}
+
+export function resolvePublicUrl(devServer = {}, options = {}, env = process.env) {
+  const cliValue = normalizeCommand(options?.publicUrl);
+  if (cliValue) {
+    return cliValue;
+  }
+
+  const envName = normalizeCommand(devServer?.publicUrlEnv);
+  if (envName && env && typeof env[envName] === 'string') {
+    const envValue = normalizeCommand(env[envName]);
+    if (envValue) {
+      return envValue;
+    }
+  }
+
+  return normalizeCommand(devServer?.publicUrl);
+}
+
+function validateExpoHostMode(hostMode) {
+  if (!EXPO_HOST_MODES.has(hostMode)) {
+    throw new Error(
+      `Unsupported Expo devServer.host "${hostMode}". Use one of: lan, localhost, tunnel.`
+    );
+  }
+}
+
+function resolveExpoHostMode(devServer = {}) {
+  const hostMode = normalizeCommand(devServer?.host) || 'lan';
+  validateExpoHostMode(hostMode);
+  return hostMode;
+}
+
+export function buildExpoStartCommand(packageManager = 'npm', options = {}) {
+  const manager = parsePackageManager(packageManager) || 'npm';
+  const baseCommand = EXPO_COMMAND_BY_MANAGER[manager] || EXPO_COMMAND_BY_MANAGER.npm;
+  const hostMode = options.hostMode || 'lan';
+  validateExpoHostMode(hostMode);
+
+  const args = [];
+  if (hostMode === 'localhost') {
+    args.push('--localhost');
+  } else if (hostMode === 'tunnel') {
+    args.push('--tunnel');
+  } else {
+    args.push('--lan');
+  }
+
+  if (normalizeBoolean(options.clearCache, true)) {
+    args.push('-c');
+  }
+
+  const port = normalizeInteger(options.port, 8081);
+  args.push('-p', String(port));
+
+  return `${baseCommand} ${args.join(' ')}`;
+}
+
+export async function resolveStructuredExpoLaunch(projectRoot, devServer = {}, options = {}) {
+  const hostMode = resolveExpoHostMode(devServer);
+  const publicUrl = resolvePublicUrl(devServer, options, options.env);
+
+  if (publicUrl && hostMode === 'tunnel') {
+    throw new Error(
+      'Structured Expo dev server cannot use devServer.host="tunnel" together with publicUrl/publicUrlEnv. Use host "lan" or "localhost" when setting a public URL.'
+    );
+  }
+
+  const managerInfo = await detectPackageManager(projectRoot, '');
+  const command = buildExpoStartCommand(managerInfo.manager, {
+    hostMode,
+    port: devServer?.port,
+    clearCache: devServer?.clearCache,
+  });
+
+  return {
+    mode: 'structured-expo',
+    command,
+    spawnCommand: command,
+    envOverrides: publicUrl ? { EXPO_PACKAGER_PROXY_URL: publicUrl } : {},
+    publicUrl: publicUrl || null,
+    packageManager: managerInfo.manager,
+  };
+}
+
+export async function resolveAppDevServerLaunch(projectRoot, devServer = {}, options = {}) {
+  const legacyCommand = normalizeCommand(devServer?.command);
+  if (legacyCommand) {
+    return {
+      mode: 'legacy',
+      command: legacyCommand,
+      spawnCommand: legacyCommand,
+      envOverrides: {},
+      publicUrl: null,
+    };
+  }
+
+  if (isStructuredExpoDevServer(devServer)) {
+    return resolveStructuredExpoLaunch(projectRoot, devServer, options);
+  }
+
+  throw new Error(
+    'App dev server is not configured. Add devServer.command or use structured Expo devServer settings in form0.config.js.'
+  );
+}
+
 async function readInstallState(projectRoot) {
   const statePath = path.join(projectRoot, INSTALL_STATE_DIR, INSTALL_STATE_FILE);
   if (!(await fs.pathExists(statePath))) {
@@ -236,9 +368,7 @@ async function ensureDependenciesInstalled(projectRoot, command) {
     await writeInstallState(projectRoot, {
       hash: updatedHash,
       manager: managerInfo.manager,
-      lockfile: managerInfo.lockfilePath
-        ? path.basename(managerInfo.lockfilePath)
-        : null,
+      lockfile: managerInfo.lockfilePath ? path.basename(managerInfo.lockfilePath) : null,
       updatedAt: new Date().toISOString(),
     });
   }
@@ -257,6 +387,7 @@ export async function resolveAppDevServerConfig(startDir = process.cwd()) {
     configExists,
     devServer,
     command,
+    isStructuredExpo: isStructuredExpoDevServer(devServer),
   };
 }
 
@@ -288,35 +419,42 @@ export function terminateAppDevServer(child, options = {}) {
 }
 
 export async function startAppDevServer(startDir = process.cwd(), options = {}) {
-  const { projectRoot, configPath, configExists, command } =
+  const { projectRoot, configPath, configExists, devServer } =
     await resolveAppDevServerConfig(startDir);
 
   if (!configExists) {
-    throw new Error(`No ${path.basename(configPath)} found. Add devServer.command to configure.`);
-  }
-
-  if (!command) {
     throw new Error(
-      `devServer.command is missing in ${path.basename(
-        configPath
-      )}. If this is not an app project, run "serve" without --app.`
+      `No ${path.basename(configPath)} found. Add an app dev server configuration before using --app.`
     );
   }
 
-  await ensureDependenciesInstalled(projectRoot, command);
+  await loadProjectEnv(projectRoot);
+
+  const launch = await resolveAppDevServerLaunch(projectRoot, devServer, {
+    publicUrl: options?.publicUrl,
+    env: process.env,
+  });
+
+  await ensureDependenciesInstalled(projectRoot, launch.spawnCommand);
 
   const { allowInput = true, detached = process.platform !== 'win32' } = options;
   const useProcessGroup = detached && process.platform !== 'win32';
 
-  await loadProjectEnv(projectRoot);
-
-  const child = spawn(command, {
+  const child = spawn(launch.spawnCommand, {
     cwd: projectRoot,
-    env: { ...process.env },
+    env: { ...process.env, ...launch.envOverrides },
     shell: true,
     detached,
     stdio: allowInput ? 'inherit' : ['ignore', 'inherit', 'inherit'],
   });
 
-  return { child, command, projectRoot, configPath, useProcessGroup };
+  return {
+    child,
+    command: launch.command,
+    projectRoot,
+    configPath,
+    useProcessGroup,
+    publicUrl: launch.publicUrl,
+    mode: launch.mode,
+  };
 }
