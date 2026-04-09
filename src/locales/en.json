@@ -514,7 +514,7 @@
     "fieldsCommand": "    fields, f            Show valid field names from schema",
     "development": "  Development Server:",
     "serveCommand": "    serve [--app]        Start development server",
-    "serveOptions": "      options: --port <port>, --host <host>, --app",
+    "serveOptions": "      options: --port <port>, --host <host>, --app, --public-url <url>",
     "serveStopCommand": "    serve stop           Stop development server",
     "serveStatusCommand": "    serve status         Show server status",
     "dataConnectivity": "  Data Connectivity:",

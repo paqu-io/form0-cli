@@ -24,12 +24,6 @@ const TEMPLATE_REPOS = {
     repo: 'paqu-io/form0-mobile-tmpl-react-native-expo',
     ssh: 'git@github.com:paqu-io/form0-mobile-tmpl-react-native-expo.git',
     localDirName: 'form0-mobile-tmpl-react-native-expo',
-    devServerCommandByManager: {
-      npm: 'npx expo start --tunnel -c',
-      pnpm: 'pnpm exec expo start --tunnel -c',
-      yarn: 'yarn expo start --tunnel -c',
-      bun: 'bunx expo start --tunnel -c',
-    },
   },
 };
 const TEMPLATE_CATALOG = [
