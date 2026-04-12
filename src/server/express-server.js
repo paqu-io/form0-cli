@@ -12,53 +12,297 @@ import {
 } from 'form0-core';
 import { fileURLToPath } from 'url';
 import { getLocale, t, getRawTranslation } from '../utils/i18n.js';
-import { v4 as uuidv4, v7 as uuidv7 } from 'uuid';
+import { v7 as uuidv7 } from 'uuid';
 import { connectorManager } from '../utils/connector-manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/**
- * Generate UUIDs for media fields (PhotoField, VideoField, SignatureField)
- * @param {Object} state - Form state with values
- * @param {Array} flattenedFields - Flattened field definitions
- * @returns {Object} Enhanced state with UUIDs injected into media field values
- */
-function generateUUIDs(state, flattenedFields) {
-  const enhancedState = JSON.parse(JSON.stringify(state)); // Deep clone
+const MEDIA_FIELD_TYPES = new Set(['PhotoField', 'VideoField', 'SignatureField']);
+const MEDIA_PRESERVED_FIELDS = [
+  'photo_id',
+  'video_id',
+  'signature_id',
+  'media_id',
+  'asset_id',
+  'upload_id',
+  'upload_status',
+  'filename',
+  'duration',
+  'caption',
+  'data',
+  'mime_type',
+  'size',
+  'size_bytes',
+  'checksum_sha256',
+  'original_filename',
+  'thumbnail_url',
+  'preview_url',
+  'url',
+  'public_url',
+  'field_key',
+  'field_data_name',
+  'attached_at_client',
+  'captured_at_client',
+  'signed_at_client',
+  'uploaded_at_server',
+  'ready_at_server',
+  'error',
+];
 
+function ensureIsoString(value, fallback) {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value;
+  }
+  return fallback;
+}
+
+function isObjectRecord(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function useDataNameKeys(fieldKeyMode) {
+  const normalized = typeof fieldKeyMode === 'string' ? fieldKeyMode.toLowerCase() : '';
+  return normalized === 'data-name' || normalized === 'data_name' || normalized === 'dataname';
+}
+
+function resolveFieldOutputKey(field, preferredKey, fieldKeyMode) {
+  if (useDataNameKeys(fieldKeyMode)) {
+    return field?.data_name || preferredKey;
+  }
+  return preferredKey || field?.key || field?.data_name;
+}
+
+function resolveRepeatableOutputKey(repInfo, fieldKeyMode) {
+  if (useDataNameKeys(fieldKeyMode)) {
+    return repInfo?.field?.data_name || repInfo?.preferredKey;
+  }
+  return repInfo?.preferredKey || repInfo?.field?.data_name;
+}
+
+function readFieldValue(values, field) {
+  if (!values || !field) {
+    return undefined;
+  }
+  const keys = [field.data_name, field.key].filter(
+    (key) => typeof key === 'string' && key.trim().length > 0
+  );
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(values, key)) {
+      return values[key];
+    }
+  }
+  return undefined;
+}
+
+function copyMediaFields(source, target) {
+  if (!isObjectRecord(source)) {
+    return target;
+  }
+  const output = isObjectRecord(target) ? target : {};
+  MEDIA_PRESERVED_FIELDS.forEach((fieldName) => {
+    if (Object.prototype.hasOwnProperty.call(source, fieldName)) {
+      output[fieldName] = source[fieldName];
+    }
+  });
+  return output;
+}
+
+function preserveMediaValue(source, target) {
+  if (Array.isArray(source)) {
+    const targetArray = Array.isArray(target) ? target : [];
+    return source.map((item, index) => copyMediaFields(item, targetArray[index]));
+  }
+  return copyMediaFields(source, target);
+}
+
+function mediaIdFor(value, idKey) {
+  return value.media_id || value[idKey] || value.asset_id || value.upload_id || uuidv7();
+}
+
+function enrichMediaObject(value, idKey, timestamp, extra = {}) {
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+  const mediaId = mediaIdFor(value, idKey);
+  value[idKey] = value[idKey] || mediaId;
+  value.media_id = value.media_id || mediaId;
+  value.attached_at_client = ensureIsoString(value.attached_at_client, timestamp);
+  Object.entries(extra).forEach(([key, fallback]) => {
+    if (value[key] === undefined || value[key] === null || value[key] === '') {
+      value[key] = typeof fallback === 'function' ? fallback(value) : fallback;
+    }
+  });
+  return value;
+}
+
+function applyMediaDefaultsToValues(values, flattenedFields, timestamp) {
+  if (!values || typeof values !== 'object') {
+    return;
+  }
   flattenedFields.forEach((field) => {
-    const fieldValue = enhancedState.values[field.data_name];
+    const fieldKeys = [field.data_name, field.key].filter(
+      (key) => typeof key === 'string' && key.trim().length > 0
+    );
+    const fieldKey = fieldKeys.find((key) => Object.prototype.hasOwnProperty.call(values, key));
+    if (!fieldKey) {
+      return;
+    }
+    const fieldValue = values[fieldKey];
 
     if (!fieldValue) return; // Skip if no value
 
     if (field.type === 'SignatureField') {
-      // SignatureField: {signature_id: null, data: base64String}
-      if (typeof fieldValue === 'object' && fieldValue.data) {
-        fieldValue.signature_id = uuidv4();
+      if (typeof fieldValue === 'object' && (fieldValue.data || fieldValue.asset_id)) {
+        enrichMediaObject(fieldValue, 'signature_id', timestamp, {
+          signed_at_client: (value) => ensureIsoString(value.signed_at_client, timestamp),
+          mime_type: (value) => value.mime_type || (value.data ? 'image/png' : null),
+          original_filename: (value) =>
+            value.original_filename || `${field.data_name || field.key || 'signature'}.png`,
+        });
       }
     } else if (field.type === 'PhotoField') {
-      // PhotoField: array of {photo_id: null, filename: string, caption: string|null}
       if (Array.isArray(fieldValue)) {
-        fieldValue.forEach((photo, index) => {
+        fieldValue.forEach((photo) => {
           if (typeof photo === 'object' && photo !== null) {
-            photo.photo_id = uuidv4();
+            enrichMediaObject(photo, 'photo_id', timestamp, {
+              original_filename: (value) => value.original_filename || value.filename || null,
+            });
           }
         });
       }
     } else if (field.type === 'VideoField') {
-      // VideoField: array of {video_id: null, filename: string, duration: number, caption: string|null}
       if (Array.isArray(fieldValue)) {
-        fieldValue.forEach((video, index) => {
+        fieldValue.forEach((video) => {
           if (typeof video === 'object' && video !== null) {
-            video.video_id = uuidv4();
+            enrichMediaObject(video, 'video_id', timestamp, {
+              original_filename: (value) => value.original_filename || value.filename || null,
+            });
           }
         });
       }
     }
   });
+}
+
+function applyMediaDefaultsToRepeatable(repeatable, flattenedFields, timestamp) {
+  if (!repeatable || typeof repeatable !== 'object') {
+    return;
+  }
+  Object.values(repeatable).forEach((rows) => {
+    if (!Array.isArray(rows)) {
+      return;
+    }
+    rows.forEach((row) => {
+      if (!row || typeof row !== 'object') {
+        return;
+      }
+      applyMediaDefaultsToValues(row.values, flattenedFields, timestamp);
+      applyMediaDefaultsToRepeatable(row.repeatable, flattenedFields, timestamp);
+    });
+  });
+}
+
+/**
+ * Preserve or generate storage-agnostic media metadata for media fields.
+ * @param {Object} state - Form state with values/repeatable values
+ * @param {Array} flattenedFields - Flattened field definitions
+ * @returns {Object} Enhanced state with stable media ids and client timestamps
+ */
+function generateUUIDs(state, flattenedFields) {
+  const enhancedState = JSON.parse(JSON.stringify(state)); // Deep clone
+  const timestamp = new Date().toISOString();
+
+  applyMediaDefaultsToValues(enhancedState.values, flattenedFields, timestamp);
+  applyMediaDefaultsToRepeatable(enhancedState.repeatable, flattenedFields, timestamp);
 
   return enhancedState;
+}
+
+function preserveMediaMetadataInFormValues(formValues, values, fields, fieldKeyMode) {
+  if (!formValues || !values || !Array.isArray(fields)) {
+    return;
+  }
+  fields.forEach((fieldInfo) => {
+    const field = fieldInfo.field || fieldInfo;
+    if (!MEDIA_FIELD_TYPES.has(field?.type)) {
+      return;
+    }
+    const sourceValue = readFieldValue(values, field);
+    if (sourceValue === undefined || sourceValue === null) {
+      return;
+    }
+    const outputKey = resolveFieldOutputKey(
+      field,
+      fieldInfo.preferredKey || field.key || field.data_name,
+      fieldKeyMode
+    );
+    formValues[outputKey] = preserveMediaValue(sourceValue, formValues[outputKey]);
+  });
+}
+
+function preserveRepeatableMediaMetadata(formValues, repeatable, repInfo, fieldKeyMode) {
+  if (!formValues || !repeatable || !repInfo) {
+    return;
+  }
+  const stateRows = repeatable[repInfo.preferredKey] || repeatable[repInfo.field?.data_name] || [];
+  if (!Array.isArray(stateRows) || stateRows.length === 0) {
+    return;
+  }
+  const outputKey = resolveRepeatableOutputKey(repInfo, fieldKeyMode);
+  const structuredRows = Array.isArray(formValues[outputKey]) ? formValues[outputKey] : [];
+
+  stateRows.forEach((stateRow, index) => {
+    const structuredRow = structuredRows[index];
+    if (!structuredRow?.form_values) {
+      return;
+    }
+    preserveMediaMetadataInFormValues(
+      structuredRow.form_values,
+      stateRow.values || {},
+      Array.from(repInfo.fields.values()),
+      fieldKeyMode
+    );
+    for (const [, childRepInfo] of repInfo.children) {
+      preserveRepeatableMediaMetadata(
+        structuredRow.form_values,
+        stateRow.repeatable || {},
+        childRepInfo,
+        fieldKeyMode
+      );
+    }
+  });
+}
+
+function preserveStructuredMediaMetadata(record, state, elements, fieldKeyMode) {
+  if (!record?.form_values || !state || !Array.isArray(elements)) {
+    return record;
+  }
+  const { repeatableSectionTree, fieldOwnership } = buildRepeatableMetadata(elements);
+  const rootFields = [];
+  fieldOwnership.forEach((fieldInfo) => {
+    if (fieldInfo.parentPath.length === 0) {
+      rootFields.push(fieldInfo);
+    }
+  });
+  preserveMediaMetadataInFormValues(
+    record.form_values,
+    state.values || {},
+    rootFields,
+    fieldKeyMode
+  );
+
+  for (const [, repInfo] of repeatableSectionTree) {
+    if (repInfo.parentPath.length === 0) {
+      preserveRepeatableMediaMetadata(
+        record.form_values,
+        state.repeatable || {},
+        repInfo,
+        fieldKeyMode
+      );
+    }
+  }
+  return record;
 }
 
 /**
@@ -365,7 +609,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   async function initializeConnectors() {
     try {
       await connectorManager.loadConnectorConfig({ projectDir });
-      
+
       // Auto-load connectors marked for auto-loading
       const config = connectorManager.config;
       for (const [connectorName, connectorConfig] of Object.entries(config)) {
@@ -600,6 +844,12 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
         // If client provided @status in options, merge it here so transformer picks it up
         '@status': options['@status'] || undefined,
       });
+      preserveStructuredMediaMetadata(
+        structuredRecord,
+        enhancedState,
+        schema.form?.elements || [],
+        options.fieldKeyMode
+      );
 
       // Ensure each repeatable instance receives a fresh UUID so connector inserts remain unique
       regenerateRepeatableRecordIds(structuredRecord);
@@ -625,7 +875,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
 
       // Check if any connectors are loaded
       const loadedConnectors = connectorManager.getLoadedConnectors();
-      
+
       if (loadedConnectors.length === 0) {
         return res.json({
           success: true,
@@ -671,7 +921,6 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
         connectorResults: connectorResults,
         record: record
       });
-
     } catch (err) {
       console.error('Error submitting record to connectors:', err);
       res.status(500).json({ 
