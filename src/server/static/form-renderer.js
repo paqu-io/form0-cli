@@ -15,6 +15,38 @@ const DEFAULT_LABEL_VISIBILITY = {
   beams: true,
 };
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function fileLastModifiedIso(file) {
+  return file?.lastModified ? new Date(file.lastModified).toISOString() : null;
+}
+
+function base64SizeBytes(value) {
+  if (typeof value !== 'string' || value.length === 0) {
+    return 0;
+  }
+  const normalized = value.replace(/\s+/g, '');
+  const padding = normalized.endsWith('==') ? 2 : normalized.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((normalized.length * 3) / 4) - padding);
+}
+
+function createMediaIds(existing = {}) {
+  const mediaId =
+    existing.media_id ||
+    existing.photo_id ||
+    existing.video_id ||
+    existing.signature_id ||
+    generateUuidV7();
+  return {
+    media_id: mediaId,
+    photo_id: existing.photo_id || mediaId,
+    video_id: existing.video_id || mediaId,
+    signature_id: existing.signature_id || mediaId,
+  };
+}
+
 export class FormRenderer {
   constructor() {
     this.currentSchema = null;
@@ -446,7 +478,10 @@ export class FormRenderer {
       if (element.type === 'RepeatableSection') {
         const preferredKey = this.getPreferredKey(element);
 
-        if (!Array.isArray(instance.repeatable[preferredKey]) || instance.repeatable[preferredKey].length === 0) {
+        if (
+          !Array.isArray(instance.repeatable[preferredKey]) ||
+          instance.repeatable[preferredKey].length === 0
+        ) {
           const initialCount = this.getInitialInstanceCount(element);
           instance.repeatable[preferredKey] = [];
           for (let i = 0; i < initialCount; i++) {
@@ -586,7 +621,11 @@ export class FormRenderer {
     try {
       const state = this.formStateManager.getCurrentFormState();
       const preferredKey = this.getPreferredKey(section);
-      const instances = this.resolveSnapshotInstances(state.repeatable || {}, contextPath, preferredKey);
+      const instances = this.resolveSnapshotInstances(
+        state.repeatable || {},
+        contextPath,
+        preferredKey
+      );
       if (!Array.isArray(instances) || instances.length === 0) {
         return null;
       }
@@ -783,11 +822,9 @@ export class FormRenderer {
           if (e.key === 'Enter' || e.key === ' ') showDialog();
         });
         dialog.querySelector('.description-dialog-close').addEventListener('click', hideDialog);
-        dialog
-          .querySelector('.description-dialog-close')
-          .addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') hideDialog();
-          });
+        dialog.querySelector('.description-dialog-close').addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') hideDialog();
+        });
         dialog.addEventListener('click', (e) => {
           if (e.target === dialog) hideDialog();
         });
@@ -820,7 +857,14 @@ export class FormRenderer {
     const instances = this.getRepeatableInstances(section, contextPath);
     const canRemove = instances.length > 0;
     instances.forEach((instance, index) => {
-      this.renderRepeatableInstance(section, instancesContainer, contextPath, index, instance, canRemove);
+      this.renderRepeatableInstance(
+        section,
+        instancesContainer,
+        contextPath,
+        index,
+        instance,
+        canRemove
+      );
     });
 
     this.restoreInstanceValuesFromSnapshot(section, contextPath, instances);
@@ -858,7 +902,9 @@ export class FormRenderer {
     instanceDiv.setAttribute('data-instance-id', instanceState?.id || '');
 
     const createdAtClient =
-      instanceState?.created_at_client || instanceDiv.getAttribute('data-created-at-client') || new Date().toISOString();
+      instanceState?.created_at_client ||
+      instanceDiv.getAttribute('data-created-at-client') ||
+      new Date().toISOString();
     const updatedAtClient = instanceState?.updated_at_client || createdAtClient;
     instanceState.created_at_client = createdAtClient;
     instanceState.updated_at_client = updatedAtClient;
@@ -911,7 +957,11 @@ export class FormRenderer {
     toggleButton.setAttribute('aria-controls', contentId);
     instanceDiv.appendChild(content);
 
-    this.renderElements(section.elements || section.drilldown_elements || [], content, instancePath);
+    this.renderElements(
+      section.elements || section.drilldown_elements || [],
+      content,
+      instancePath
+    );
 
     toggleButton.addEventListener('click', () => {
       this.toggleRepeatableInstance(instanceDiv);
@@ -936,10 +986,7 @@ export class FormRenderer {
 
   addRepeatableInstance(section, contextPath = [], options = {}) {
     // allow callers to request a fresh instance without inherited values/nested data
-    const {
-      clearNewInstanceValues = false,
-      clearNewInstanceRepeatable = false,
-    } = options || {};
+    const { clearNewInstanceValues = false, clearNewInstanceRepeatable = false } = options || {};
     const isBuildingPlanRepeatable =
       section && typeof section.data_name === 'string'
         ? this.buildingPlanRepeatableDataNames.has(section.data_name)
@@ -984,9 +1031,12 @@ export class FormRenderer {
 
   removeRepeatableInstance(section, contextPath = [], index = 0) {
     const snapshotInstances = this.captureRepeatableSnapshot(section, contextPath);
-    const parentContainer = this.getExistingRepeatableContainer(contextPath) || this.activeRepeatableState;
+    const parentContainer =
+      this.getExistingRepeatableContainer(contextPath) || this.activeRepeatableState;
     const preferredKey = this.getPreferredKey(section);
-    const instances = Array.isArray(parentContainer[preferredKey]) ? parentContainer[preferredKey] : [];
+    const instances = Array.isArray(parentContainer[preferredKey])
+      ? parentContainer[preferredKey]
+      : [];
 
     if (instances.length === 0) {
       return;
@@ -1022,7 +1072,8 @@ export class FormRenderer {
   rebuildRepeatableSection(section, contextPath = [], snapshotInstances = null) {
     const identifier = this.getRepeatableSectionIdentifier(contextPath, section);
     const entry = this.repeatableSectionRegistry.get(identifier);
-    const sectionDiv = entry?.element || document.querySelector(`[data-repeatable-section="${identifier}"]`);
+    const sectionDiv =
+      entry?.element || document.querySelector(`[data-repeatable-section="${identifier}"]`);
     if (!sectionDiv) return;
 
     const instancesContainer = sectionDiv.querySelector('.repeatable-instances');
@@ -1034,7 +1085,14 @@ export class FormRenderer {
     const instances = this.getRepeatableInstances(section, contextPath);
     const canRemove = instances.length > 0;
     instances.forEach((instance, index) => {
-      this.renderRepeatableInstance(section, instancesContainer, contextPath, index, instance, canRemove);
+      this.renderRepeatableInstance(
+        section,
+        instancesContainer,
+        contextPath,
+        index,
+        instance,
+        canRemove
+      );
     });
 
     this.restoreInstanceValuesFromSnapshot(section, contextPath, instances);
@@ -1313,7 +1371,8 @@ export class FormRenderer {
     sectionDiv.appendChild(layoutWrapper);
     container.appendChild(sectionDiv);
 
-    const metaEntry = this.currentBuildingPlanMeta.find((meta) => meta.dataName === section.data_name) || null;
+    const metaEntry =
+      this.currentBuildingPlanMeta.find((meta) => meta.dataName === section.data_name) || null;
 
     const existing = this.buildingPlanRegistry.get(section.data_name);
     if (existing && typeof existing.dispose === 'function') {
@@ -1324,7 +1383,13 @@ export class FormRenderer {
     let canvas = null;
 
     if (this.formStateManager) {
-      controller = new BuildingPlanController(this, this.formStateManager, section, contextPath, metaEntry);
+      controller = new BuildingPlanController(
+        this,
+        this.formStateManager,
+        section,
+        contextPath,
+        metaEntry
+      );
       canvas = new BuildingPlanCanvas({
         container: canvasContainer,
         controller,
@@ -2670,7 +2735,10 @@ export class FormRenderer {
                         }
                       });
                     }
-                    console.info('[form0-cli] Placeholder selection state:', Array.from(selectionState));
+                    console.info(
+                      '[form0-cli] Placeholder selection state:',
+                      Array.from(selectionState)
+                    );
                   });
 
                   const label = document.createElement('span');
@@ -2827,7 +2895,22 @@ export class FormRenderer {
         }
         function clearCanvas() {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
+          signatureMeta = null;
           updateHiddenInput();
+        }
+        let signatureMeta = null;
+        function getSignatureMeta() {
+          if (!signatureMeta) {
+            const ids = createMediaIds();
+            const timestamp = nowIso();
+            signatureMeta = {
+              signature_id: ids.signature_id,
+              media_id: ids.media_id,
+              attached_at_client: timestamp,
+              signed_at_client: timestamp,
+            };
+          }
+          return signatureMeta;
         }
         function updateHiddenInput() {
           // Only set value if something is drawn
@@ -2838,13 +2921,20 @@ export class FormRenderer {
             const dataURL = canvas.toDataURL('image/png');
             // Strip the "data:image/png;base64," prefix
             const base64Data = dataURL.replace(/^data:image\/png;base64,/, '');
-            // New data structure: {signature_id: null, data: base64-without-prefix}
+            const meta = getSignatureMeta();
             const signatureData = {
-              signature_id: null, // To be generated in frontend
+              signature_id: meta.signature_id,
+              media_id: meta.media_id,
               data: base64Data,
+              mime_type: 'image/png',
+              size_bytes: base64SizeBytes(base64Data),
+              original_filename: `${field.data_name || field.key || 'signature'}.png`,
+              attached_at_client: meta.attached_at_client,
+              signed_at_client: meta.signed_at_client,
             };
             hiddenInput.value = JSON.stringify(signatureData);
           } else {
+            signatureMeta = null;
             hiddenInput.value = JSON.stringify(null);
           }
 
@@ -2952,11 +3042,16 @@ export class FormRenderer {
         }
 
         function updateHiddenInput() {
-          // New data structure: array of {photo_id: null, filename: string, caption: string|null}
           const photoData = selectedPhotos.map((photo) => ({
-            photo_id: null, // To be generated in frontend
+            photo_id: photo.photo_id,
+            media_id: photo.media_id,
             filename: photo.name,
+            original_filename: photo.name,
+            mime_type: photo.mime_type,
+            size_bytes: photo.size_bytes,
             caption: photo.caption || null,
+            attached_at_client: photo.attached_at_client,
+            captured_at_client: photo.captured_at_client,
           }));
           hiddenInput.value = JSON.stringify(photoData);
           hiddenInput.dispatchEvent(new CustomEvent('photofield-change', { bubbles: true }));
@@ -2967,7 +3062,19 @@ export class FormRenderer {
             Array.from(fileInput.files).forEach((file) => {
               if (!selectedPhotos.some((p) => p.name === file.name)) {
                 const url = URL.createObjectURL(file);
-                selectedPhotos.push({ name: file.name, url, file, caption: null });
+                const ids = createMediaIds();
+                selectedPhotos.push({
+                  photo_id: ids.photo_id,
+                  media_id: ids.media_id,
+                  name: file.name,
+                  url,
+                  file,
+                  caption: null,
+                  mime_type: file.type || null,
+                  size_bytes: typeof file.size === 'number' ? file.size : null,
+                  attached_at_client: nowIso(),
+                  captured_at_client: fileLastModifiedIso(file),
+                });
               }
             });
             renderPhotos();
@@ -3058,12 +3165,17 @@ export class FormRenderer {
         }
 
         function updateVideoHiddenInput() {
-          // New data structure: array of {video_id: null, filename: string, duration: number, caption: string|null}
           const videoData = selectedVideos.map((video) => ({
-            video_id: null, // To be generated in frontend
+            video_id: video.video_id,
+            media_id: video.media_id,
             filename: video.name,
+            original_filename: video.name,
+            mime_type: video.mime_type,
+            size_bytes: video.size_bytes,
             duration: video.duration,
             caption: video.caption || null,
+            attached_at_client: video.attached_at_client,
+            captured_at_client: video.captured_at_client,
           }));
           hiddenInput.value = JSON.stringify(videoData);
           // Dispatch custom event to trigger form state update
@@ -3101,7 +3213,19 @@ export class FormRenderer {
               if (!selectedVideos.some((v) => v.name === file.name)) {
                 try {
                   const duration = await getVideoDuration(file);
-                  selectedVideos.push({ name: file.name, duration, file, caption: null });
+                  const ids = createMediaIds();
+                  selectedVideos.push({
+                    video_id: ids.video_id,
+                    media_id: ids.media_id,
+                    name: file.name,
+                    duration,
+                    file,
+                    caption: null,
+                    mime_type: file.type || null,
+                    size_bytes: typeof file.size === 'number' ? file.size : null,
+                    attached_at_client: nowIso(),
+                    captured_at_client: fileLastModifiedIso(file),
+                  });
                 } catch (err) {
                   console.error(`Could not get duration for ${file.name}`, err);
                 }
