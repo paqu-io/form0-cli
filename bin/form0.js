@@ -172,8 +172,10 @@ if (process.argv.length === 2) {
 
   reformProgram
     .command('login')
+    .option('--auth-url <url>', 'Override the Reform auth base URL')
+    .option('--api-url <url>', 'Override the Reform API base URL')
     .description('Log in to Reform using the browser device flow')
-    .action(reformLoginCommand);
+    .action((options) => reformLoginCommand(options));
 
   reformProgram
     .command('logout')
