@@ -64,10 +64,7 @@ async function confirmAction(message, { readlineInterface } = {}) {
     return false;
   }
 
-  const answer = await askQuestion(
-    readlineInterface,
-    colors.warning(`${message} [y/N] `),
-  );
+  const answer = await askQuestion(readlineInterface, colors.warning(`${message} [y/N] `));
 
   return /^y(es)?$/i.test(answer);
 }
@@ -95,7 +92,7 @@ async function promptSelect({
   while (true) {
     const answer = await askQuestion(
       readlineInterface,
-      colors.text(t('commands.reform.selection.prompt')),
+      colors.text(t('commands.reform.selection.prompt'))
     );
 
     if (!answer) {
@@ -214,6 +211,12 @@ function parseFlagArguments(args) {
       flags.dryRun = true;
       continue;
     }
+    if ((value === '--auth-url' || value === '--api-url') && index + 1 < args.length) {
+      const key = value === '--auth-url' ? 'authUrl' : 'apiUrl';
+      flags[key] = args[index + 1];
+      index += 1;
+      continue;
+    }
     if ((value === '--main' || value === '--sub') && index + 1 < args.length) {
       flags[value.slice(2)] = args[index + 1];
       index += 1;
@@ -242,8 +245,8 @@ async function loadAuthenticatedContext() {
   }
 
   const resolvedBaseUrls = resolveReformBaseUrls({
-    authBaseUrl: storedAuth.authBaseUrl || settings.authBaseUrl,
-    apiBaseUrl: storedAuth.apiBaseUrl || settings.apiBaseUrl,
+    savedAuthBaseUrl: storedAuth.authBaseUrl || settings.authBaseUrl,
+    savedApiBaseUrl: storedAuth.apiBaseUrl || settings.apiBaseUrl,
   });
 
   return {
@@ -270,7 +273,7 @@ async function fetchOrganizationTree(context) {
         mainOrgId: organization.id,
       });
       subOrganizationsByMain.set(organization.id, subOrganizations);
-    }),
+    })
   );
 
   return {
@@ -300,8 +303,8 @@ function printSyncSummary(summary) {
       colors.success(
         t('commands.reform.sync.summary.createdItems', {
           items: summary.created.join(', '),
-        }),
-      ),
+        })
+      )
     );
   }
   if (summary.updated.length > 0) {
@@ -309,8 +312,8 @@ function printSyncSummary(summary) {
       colors.success(
         t('commands.reform.sync.summary.updatedItems', {
           items: summary.updated.join(', '),
-        }),
-      ),
+        })
+      )
     );
   }
   if (summary.conflicts.length > 0) {
@@ -318,8 +321,8 @@ function printSyncSummary(summary) {
       colors.warning(
         t('commands.reform.sync.summary.skippedLocalModifications', {
           items: summary.conflicts.join(', '),
-        }),
-      ),
+        })
+      )
     );
   }
   if (summary.unreachable.length > 0) {
@@ -327,8 +330,8 @@ function printSyncSummary(summary) {
       colors.warning(
         t('commands.reform.sync.summary.missingFromRemoteScope', {
           items: summary.unreachable.join(', '),
-        }),
-      ),
+        })
+      )
     );
   }
   if (summary.importErrors.length > 0) {
@@ -338,32 +341,36 @@ function printSyncSummary(summary) {
           t('commands.reform.sync.summary.importErrorItem', {
             localAlias: item.localAlias,
             message: item.message,
-          }),
-        ),
+          })
+        )
       );
     });
   }
 }
 
-export async function reformLoginCommand() {
+export async function reformLoginCommand(options = {}) {
   try {
     const settings = await readReformSettings();
-    const { authBaseUrl, apiBaseUrl } = resolveReformBaseUrls(settings);
+    const { authBaseUrl, apiBaseUrl } = resolveReformBaseUrls({
+      overrideAuthBaseUrl: options.authUrl,
+      overrideApiBaseUrl: options.apiUrl,
+      savedAuthBaseUrl: settings.authBaseUrl,
+      savedApiBaseUrl: settings.apiBaseUrl,
+    });
     const deviceCodeResponse = await requestDeviceCode({
       authBaseUrl,
       clientId: DEFAULT_REFORM_DEVICE_CLIENT_ID,
     });
     const verificationUrl =
-      deviceCodeResponse.verification_uri_complete ||
-      deviceCodeResponse.verification_uri;
+      deviceCodeResponse.verification_uri_complete || deviceCodeResponse.verification_uri;
 
     console.log(colors.header(`\n${t('commands.reform.login.title')}`));
     console.log(
       colors.text(
         t('commands.reform.login.verificationUrl', {
           url: verificationUrl,
-        }),
-      ),
+        })
+      )
     );
     if (
       deviceCodeResponse.verification_uri &&
@@ -373,42 +380,30 @@ export async function reformLoginCommand() {
         colors.textSecondary(
           t('commands.reform.login.verificationPage', {
             url: deviceCodeResponse.verification_uri,
-          }),
-        ),
+          })
+        )
       );
     }
     console.log(
       colors.text(
         t('commands.reform.login.userCode', {
           code: colors.value(deviceCodeResponse.user_code),
-        }),
-      ),
+        })
+      )
     );
-    console.log(
-      colors.textMuted(
-        t('commands.reform.login.manualUrlHint'),
-      ),
-    );
+    console.log(colors.textMuted(t('commands.reform.login.manualUrlHint')));
     if (
       deviceCodeResponse.verification_uri &&
       deviceCodeResponse.verification_uri !== verificationUrl
     ) {
-      console.log(
-        colors.textMuted(t('commands.reform.login.manualPageHint')),
-      );
+      console.log(colors.textMuted(t('commands.reform.login.manualPageHint')));
     }
 
     const browserOpened = await tryLaunchBrowser(verificationUrl);
     if (browserOpened) {
-      console.log(
-        colors.textSecondary(t('commands.reform.login.browserOpened')),
-      );
+      console.log(colors.textSecondary(t('commands.reform.login.browserOpened')));
     } else {
-      console.log(
-        colors.warning(
-          t('commands.reform.login.browserUnavailable'),
-        ),
-      );
+      console.log(colors.warning(t('commands.reform.login.browserUnavailable')));
     }
 
     console.log(colors.text(`${t('commands.reform.login.waiting')}\n`));
@@ -420,9 +415,7 @@ export async function reformLoginCommand() {
       clientId: DEFAULT_REFORM_DEVICE_CLIENT_ID,
     });
 
-    const expiresAt = new Date(
-      Date.now() + tokenResponse.expires_in * 1000,
-    ).toISOString();
+    const expiresAt = new Date(Date.now() + tokenResponse.expires_in * 1000).toISOString();
     const session = await fetchReformSession({
       authBaseUrl,
       accessToken: tokenResponse.access_token,
@@ -447,15 +440,11 @@ export async function reformLoginCommand() {
         t('commands.reform.login.success', {
           email,
           storage: storageResult.storage,
-        }),
-      ),
+        })
+      )
     );
   } catch (error) {
-    console.error(
-      colors.error(
-        t('commands.reform.login.failed', { message: error.message }),
-      ),
-    );
+    console.error(colors.error(t('commands.reform.login.failed', { message: error.message })));
     process.exitCode = 1;
   }
 }
@@ -467,7 +456,7 @@ export async function reformLogoutCommand() {
 
     if (storedAuth?.accessToken) {
       const { authBaseUrl } = resolveReformBaseUrls({
-        authBaseUrl: storedAuth.authBaseUrl || settings.authBaseUrl,
+        savedAuthBaseUrl: storedAuth.authBaseUrl || settings.authBaseUrl,
       });
 
       try {
@@ -484,11 +473,7 @@ export async function reformLogoutCommand() {
     await clearReformScope();
     console.log(colors.success(t('commands.reform.logout.success')));
   } catch (error) {
-    console.error(
-      colors.error(
-        t('commands.reform.logout.failed', { message: error.message }),
-      ),
-    );
+    console.error(colors.error(t('commands.reform.logout.failed', { message: error.message })));
     process.exitCode = 1;
   }
 }
@@ -506,36 +491,28 @@ export async function reformWhoamiCommand() {
       colors.text(
         t('commands.reform.whoami.user', {
           user: session?.user?.email || t('commands.reform.common.unknown'),
-        }),
-      ),
+        })
+      )
     );
     if (session?.user?.name) {
-      console.log(
-        colors.text(
-          t('commands.reform.whoami.name', { name: session.user.name }),
-        ),
-      );
+      console.log(colors.text(t('commands.reform.whoami.name', { name: session.user.name })));
     }
     console.log(
       colors.text(
         t('commands.reform.whoami.sessionExpires', {
           expiry: formatExpiry(context.storedAuth.expiresAt),
-        }),
-      ),
+        })
+      )
     );
     console.log(
       colors.text(
         t('commands.reform.whoami.scope', {
           scope: formatScope(context.settings.scope),
-        }),
-      ),
+        })
+      )
     );
   } catch (error) {
-    console.error(
-      colors.error(
-        t('commands.reform.whoami.failed', { message: error.message }),
-      ),
-    );
+    console.error(colors.error(t('commands.reform.whoami.failed', { message: error.message })));
     process.exitCode = 1;
   }
 }
@@ -543,8 +520,7 @@ export async function reformWhoamiCommand() {
 export async function reformOrgsListCommand() {
   try {
     const context = await loadAuthenticatedContext();
-    const { mainOrganizations, subOrganizationsByMain } =
-      await fetchOrganizationTree(context);
+    const { mainOrganizations, subOrganizationsByMain } = await fetchOrganizationTree(context);
 
     if (mainOrganizations.length === 0) {
       console.log(colors.warning(t('commands.reform.orgs.none')));
@@ -558,28 +534,23 @@ export async function reformOrgsListCommand() {
           t('commands.reform.orgs.mainLine', {
             name: mainOrganization.name || mainOrganization.id,
             id: mainOrganization.id,
-          }),
-        ),
+          })
+        )
       );
-      const subOrganizations =
-        subOrganizationsByMain.get(mainOrganization.id) ?? [];
+      const subOrganizations = subOrganizationsByMain.get(mainOrganization.id) ?? [];
       for (const subOrganization of subOrganizations) {
         console.log(
           colors.textSecondary(
             t('commands.reform.orgs.subLine', {
               name: subOrganization.name || subOrganization.id,
               id: subOrganization.id,
-            }),
-          ),
+            })
+          )
         );
       }
     }
   } catch (error) {
-    console.error(
-      colors.error(
-        t('commands.reform.orgs.failed', { message: error.message }),
-      ),
-    );
+    console.error(colors.error(t('commands.reform.orgs.failed', { message: error.message })));
     process.exitCode = 1;
   }
 }
@@ -590,11 +561,7 @@ export async function reformScopeShowCommand() {
     console.log(colors.header(`\n${t('commands.reform.scope.title')}`));
     console.log(colors.text(formatScope(settings.scope)));
   } catch (error) {
-    console.error(
-      colors.error(
-        t('commands.reform.scope.showFailed', { message: error.message }),
-      ),
-    );
+    console.error(colors.error(t('commands.reform.scope.showFailed', { message: error.message })));
     process.exitCode = 1;
   }
 }
@@ -602,10 +569,8 @@ export async function reformScopeShowCommand() {
 export async function reformScopeUseCommand(options = {}) {
   try {
     const context = await loadAuthenticatedContext();
-    let mainOrgId =
-      typeof options.main === 'string' ? options.main.trim() : '';
-    let subOrgId =
-      typeof options.sub === 'string' ? options.sub.trim() : '';
+    let mainOrgId = typeof options.main === 'string' ? options.main.trim() : '';
+    let subOrgId = typeof options.sub === 'string' ? options.sub.trim() : '';
 
     if (!mainOrgId) {
       if (!canPrompt(options.readlineInterface)) {
@@ -667,15 +632,11 @@ export async function reformScopeUseCommand(options = {}) {
       colors.success(
         t('commands.reform.scope.saved', {
           scope: formatScope(nextSettings.scope),
-        }),
-      ),
+        })
+      )
     );
   } catch (error) {
-    console.error(
-      colors.error(
-        t('commands.reform.scope.useFailed', { message: error.message }),
-      ),
-    );
+    console.error(colors.error(t('commands.reform.scope.useFailed', { message: error.message })));
     process.exitCode = 1;
   }
 }
@@ -700,15 +661,11 @@ export async function reformSyncPullCommand(options = {}) {
       colors.textSecondary(
         t('commands.reform.sync.manifest', {
           path: path.relative(process.cwd(), result.manifestPath),
-        }),
-      ),
+        })
+      )
     );
   } catch (error) {
-    console.error(
-      colors.error(
-        t('commands.reform.sync.pullFailed', { message: error.message }),
-      ),
-    );
+    console.error(colors.error(t('commands.reform.sync.pullFailed', { message: error.message })));
     process.exitCode = 1;
   }
 }
@@ -723,15 +680,15 @@ export async function reformSyncStatusCommand() {
       colors.textSecondary(
         t('commands.reform.sync.manifest', {
           path: path.relative(process.cwd(), status.manifestPath),
-        }),
-      ),
+        })
+      )
     );
     console.log(
       colors.text(
         t('commands.reform.sync.savedScope', {
           scope: formatScope(status.manifest.scope),
-        }),
-      ),
+        })
+      )
     );
 
     if (entries.length === 0) {
@@ -757,31 +714,29 @@ export async function reformSyncStatusCommand() {
             remoteState: entry.remoteState,
             revision: entry.remoteRevision ?? t('commands.reform.common.notApplicable'),
             suffix,
-          }),
-        ),
+          })
+        )
       );
       console.log(
         colors.textSecondary(
           t('commands.reform.sync.status.localPath', {
             path: entry.localPath,
-          }),
-        ),
+          })
+        )
       );
       if (entry.lastImportError) {
         console.log(
           colors.error(
             t('commands.reform.sync.status.importError', {
               message: entry.lastImportError,
-            }),
-          ),
+            })
+          )
         );
       }
     }
   } catch (error) {
     console.error(
-      colors.error(
-        t('commands.reform.sync.status.failed', { message: error.message }),
-      ),
+      colors.error(t('commands.reform.sync.status.failed', { message: error.message }))
     );
     process.exitCode = 1;
   }
@@ -806,16 +761,16 @@ export async function reformSyncPruneCommand(options = {}) {
       colors.text(
         t('commands.reform.sync.prune.prunable', {
           items: preview.prunable.join(', '),
-        }),
-      ),
+        })
+      )
     );
     if (preview.skippedModified.length > 0) {
       console.log(
         colors.warning(
           t('commands.reform.sync.prune.skippedModified', {
             items: preview.skippedModified.join(', '),
-          }),
-        ),
+          })
+        )
       );
     }
 
@@ -853,15 +808,11 @@ export async function reformSyncPruneCommand(options = {}) {
       colors.success(
         t('commands.reform.sync.prune.pruned', {
           items: result.pruned.join(', '),
-        }),
-      ),
+        })
+      )
     );
   } catch (error) {
-    console.error(
-      colors.error(
-        t('commands.reform.sync.prune.failed', { message: error.message }),
-      ),
-    );
+    console.error(colors.error(t('commands.reform.sync.prune.failed', { message: error.message })));
     process.exitCode = 1;
   }
 }
@@ -871,7 +822,10 @@ export async function handleReformCommand(args, options = {}) {
 
   switch (section) {
     case 'login':
-      await reformLoginCommand();
+      {
+        const { flags } = parseFlagArguments([subsection, ...rest].filter(Boolean));
+        await reformLoginCommand(flags);
+      }
       return;
     case 'logout':
       await reformLogoutCommand();

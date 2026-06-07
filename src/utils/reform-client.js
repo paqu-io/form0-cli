@@ -1,12 +1,5 @@
-const DEFAULT_AUTH_BASE_URL =
-  process.env.FORM0_REFORM_AUTH_BASE_URL ??
-  process.env.PRIVATE_AUTH_BASE_URL ??
-  'http://localhost:3001';
-
-const DEFAULT_API_BASE_URL =
-  process.env.FORM0_REFORM_API_BASE_URL ??
-  process.env.PRIVATE_API_BASE_URL ??
-  'http://localhost:3001/v1';
+const DEFAULT_AUTH_BASE_URL = 'https://private-api.reformapp.io';
+const DEFAULT_API_BASE_URL = 'https://private-api.reformapp.io';
 
 export const DEFAULT_REFORM_DEVICE_CLIENT_ID =
   process.env.FORM0_CLI_DEVICE_CLIENT_ID ?? 'form0-cli';
@@ -31,6 +24,26 @@ function normalizeApiBaseUrl(value) {
   return `${baseUrl}/v1`;
 }
 
+function resolveEnvAuthBaseUrl() {
+  return process.env.FORM0_REFORM_AUTH_BASE_URL ?? process.env.PRIVATE_AUTH_BASE_URL ?? null;
+}
+
+function resolveEnvApiBaseUrl() {
+  return process.env.FORM0_REFORM_API_BASE_URL ?? process.env.PRIVATE_API_BASE_URL ?? null;
+}
+
+function selectBaseUrl(overrideValue, envValue, savedValue, defaultValue) {
+  const candidates = [overrideValue, envValue, savedValue, defaultValue];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return defaultValue;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -44,11 +57,7 @@ async function parseErrorResponse(response) {
       payload && typeof payload === 'object' && typeof payload.error === 'string'
         ? payload.error
         : null;
-    if (
-      payload &&
-      typeof payload === 'object' &&
-      typeof payload.error_description === 'string'
-    ) {
+    if (payload && typeof payload === 'object' && typeof payload.error_description === 'string') {
       return {
         message: payload.error_description,
         errorCode,
@@ -66,11 +75,7 @@ async function parseErrorResponse(response) {
         errorCode: null,
       };
     }
-    if (
-      payload &&
-      typeof payload === 'object' &&
-      typeof payload.message === 'string'
-    ) {
+    if (payload && typeof payload === 'object' && typeof payload.message === 'string') {
       return {
         message: payload.message,
         errorCode,
@@ -132,12 +137,29 @@ function buildScopedFormsQuery(scope, state = 'all') {
   return params.toString();
 }
 
-export function resolveReformBaseUrls(settings = {}) {
+export function resolveReformBaseUrls({
+  overrideAuthBaseUrl,
+  overrideApiBaseUrl,
+  savedAuthBaseUrl,
+  savedApiBaseUrl,
+} = {}) {
   return {
     authBaseUrl: normalizeAuthBaseUrl(
-      settings.authBaseUrl || DEFAULT_AUTH_BASE_URL,
+      selectBaseUrl(
+        overrideAuthBaseUrl,
+        resolveEnvAuthBaseUrl(),
+        savedAuthBaseUrl,
+        DEFAULT_AUTH_BASE_URL
+      )
     ),
-    apiBaseUrl: normalizeApiBaseUrl(settings.apiBaseUrl || DEFAULT_API_BASE_URL),
+    apiBaseUrl: normalizeApiBaseUrl(
+      selectBaseUrl(
+        overrideApiBaseUrl,
+        resolveEnvApiBaseUrl(),
+        savedApiBaseUrl,
+        DEFAULT_API_BASE_URL
+      )
+    ),
   };
 }
 
@@ -195,17 +217,11 @@ export async function pollDeviceToken({
     } catch (error) {
       const status = error?.status ?? null;
       const errorCode = error?.errorCode ?? null;
-      if (
-        status === 400 &&
-        errorCode === 'authorization_pending'
-      ) {
+      if (status === 400 && errorCode === 'authorization_pending') {
         await sleep(pollingIntervalMs);
         continue;
       }
-      if (
-        status === 400 &&
-        errorCode === 'slow_down'
-      ) {
+      if (status === 400 && errorCode === 'slow_down') {
         pollingIntervalMs += 5000;
         await sleep(pollingIntervalMs);
         continue;
@@ -237,61 +253,50 @@ export async function listTopLevelOrganizations({ apiBaseUrl, accessToken }) {
     state: 'active',
     limit: '100',
   });
-  const response = await reformFetch(`${normalizeApiBaseUrl(apiBaseUrl)}/orgs?${params.toString()}`, {
-    method: 'GET',
-    accessToken,
-  });
+  const response = await reformFetch(
+    `${normalizeApiBaseUrl(apiBaseUrl)}/orgs?${params.toString()}`,
+    {
+      method: 'GET',
+      accessToken,
+    }
+  );
   return response?.data?.orgs ?? [];
 }
 
-export async function listSubOrganizations({
-  apiBaseUrl,
-  accessToken,
-  mainOrgId,
-}) {
+export async function listSubOrganizations({ apiBaseUrl, accessToken, mainOrgId }) {
   const params = new URLSearchParams({
     kind: 'sub',
     parent_org_id: mainOrgId,
     state: 'active',
     limit: '100',
   });
-  const response = await reformFetch(`${normalizeApiBaseUrl(apiBaseUrl)}/orgs?${params.toString()}`, {
-    method: 'GET',
-    accessToken,
-  });
-  return response?.data?.orgs ?? [];
-}
-
-export async function listReformForms({
-  apiBaseUrl,
-  accessToken,
-  scope,
-  state = 'all',
-}) {
-  const query = buildScopedFormsQuery(scope, state);
   const response = await reformFetch(
-    `${normalizeApiBaseUrl(apiBaseUrl)}/forms?${query}`,
+    `${normalizeApiBaseUrl(apiBaseUrl)}/orgs?${params.toString()}`,
     {
       method: 'GET',
       accessToken,
-    },
+    }
   );
+  return response?.data?.orgs ?? [];
+}
+
+export async function listReformForms({ apiBaseUrl, accessToken, scope, state = 'all' }) {
+  const query = buildScopedFormsQuery(scope, state);
+  const response = await reformFetch(`${normalizeApiBaseUrl(apiBaseUrl)}/forms?${query}`, {
+    method: 'GET',
+    accessToken,
+  });
   return response?.data?.forms ?? [];
 }
 
-export async function getReformFormSchema({
-  apiBaseUrl,
-  accessToken,
-  formId,
-  scope,
-}) {
+export async function getReformFormSchema({ apiBaseUrl, accessToken, formId, scope }) {
   const query = buildScopedFormsQuery(scope, 'all');
   const response = await reformFetch(
     `${normalizeApiBaseUrl(apiBaseUrl)}/forms/${encodeURIComponent(formId)}/schema?${query}`,
     {
       method: 'GET',
       accessToken,
-    },
+    }
   );
 
   if (!response?.data?.form_schema) {
