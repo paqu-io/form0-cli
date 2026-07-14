@@ -1,6 +1,6 @@
 {
   "name": "form0-cli",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
