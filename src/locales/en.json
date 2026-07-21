@@ -150,6 +150,14 @@
       "deleteRefused": "❌ Cannot delete without confirmation in a non-interactive terminal.",
       "deleteFailed": "❌ Failed to delete schema: {message}"
     },
+    "formioConvert": {
+      "summary": "Form.io conversion {outcome}: {convertedDataFields}/{sourceDataFields} data fields and {convertedStructuralElements} structural elements converted; {blocked} blocked, {warnings} warnings, {errors} errors, {omitted} omitted, {placeholders} placeholders.",
+      "localFileRequired": "A local Form.io JSON file path is required; remote URLs are not supported.",
+      "reportWritten": "✅ Conversion report written to {path}.",
+      "dryRunComplete": "ℹ️ Dry run complete; no form0 schema was written.",
+      "schemaWritten": "✅ Form0 schema written to {path}.",
+      "failed": "❌ Form.io conversion failed: {message}"
+    },
     "reform": {
       "selection": {
         "none": "None",
@@ -396,10 +404,11 @@
     "initializingIn": "🚀 Initializing form0 project in: {dir}",
     "autoLoadedNewSchema": "✅ Auto-loaded the newly created schema.",
     "schemaDeletedCurrent": "⚠️ Current schema was deleted. No schema loaded.",
-    "schemaUsage": "❌ Usage: schema <new|delete|import|export|edit|keys> [args]",
+    "schemaUsage": "❌ Usage: schema <new|delete|import|export|convert|edit|keys> [args]",
     "failedToInitialize": "❌ Failed to initialize: {message}",
     "schemaUsageImport": "❌ Usage: schema import <csv-path> [json-output-path] [--force]",
     "schemaUsageExport": "❌ Usage: schema export [csv-output-path] [json-input-path] [--force]",
+    "schemaUsageConvertFormio": "❌ Usage: schema convert formio <json-path> [--output <path>] [--report <path>] [--dry-run] [--allow-lossy] [--force]",
     "schemaImportSuccess": "✅ Imported schema CSV into {json}.",
     "schemaExportSuccess": "✅ Exported schema CSV to {csv}.",
     "schemaEdit": {
@@ -499,6 +508,8 @@
     "previewCommand": "    preview, p                    Show form structure",
     "schemaImportCommand": "    schema import <csv> [json]    Convert CSV to JSON schema",
     "schemaExportCommand": "    schema export [csv] [json]    Export current schema to CSV",
+    "schemaConvertCommand": "    schema convert formio <json>  Convert a Form.io schema to form0",
+    "schemaConvertOptions": "      options: --output <json>, --report <json>, --dry-run, --allow-lossy, --force",
     "schemaNewCommand": "    schema new                    Create a new schema",
     "schemaDeleteCommand": "    schema delete [name]          Delete a schema",
     "schemaEditCommand": "    schema edit                   Enter schema edit mode",

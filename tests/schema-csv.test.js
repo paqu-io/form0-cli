@@ -2,7 +2,11 @@ import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
 import assert from 'node:assert/strict';
-import { CSV_HEADERS, exportSchemaToCsvFile, importSchemaFromCsvFile } from '../src/utils/schema-csv.js';
+import {
+  CSV_HEADERS,
+  exportSchemaToCsvFile,
+  importSchemaFromCsvFile,
+} from '../src/utils/schema-csv.js';
 import { resolveDefaultSchemaPath } from '../src/commands/schema.js';
 
 async function run() {
@@ -184,6 +188,8 @@ async function run() {
     'title_elements',
     'status_title_enabled',
     'building_plan_node_overrides',
+    'ai',
+    'supporting_image_asset_id',
   ];
 
   assert.deepEqual(CSV_HEADERS, expectedHeaders, 'CSV headers should match expected order');
@@ -226,7 +232,10 @@ async function run() {
     return idx;
   };
   const eventsKeyIdx = indexOfKey('events');
-  assert.ok(eventsKeyIdx > indexOfKey('location_required'), 'events should come after location metadata');
+  assert.ok(
+    eventsKeyIdx > indexOfKey('location_required'),
+    'events should come after location metadata'
+  );
   assert.ok(eventsKeyIdx > indexOfKey('status_field'), 'events should come after status_field');
   assert.ok(eventsKeyIdx > indexOfKey('title_field'), 'events should come after title_field');
   assert.ok(eventsKeyIdx < indexOfKey('elements'), 'events should come before elements');

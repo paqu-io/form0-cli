@@ -123,6 +123,14 @@
       "deleteRefused": "❌ No se puede eliminar sin confirmación en una terminal no interactiva.",
       "deleteFailed": "❌ No se pudo eliminar el esquema: {message}"
     },
+    "formioConvert": {
+      "summary": "Conversión Form.io {outcome}: {convertedDataFields}/{sourceDataFields} campos de datos y {convertedStructuralElements} elementos estructurales convertidos; {blocked} bloqueados, {warnings} advertencias, {errors} errores, {omitted} omitidos, {placeholders} marcadores.",
+      "localFileRequired": "Se requiere una ruta local a un archivo JSON de Form.io; no se admiten URL remotas.",
+      "reportWritten": "✅ Informe de conversión escrito en {path}.",
+      "dryRunComplete": "ℹ️ Análisis completado; no se escribió ningún esquema form0.",
+      "schemaWritten": "✅ Esquema form0 escrito en {path}.",
+      "failed": "❌ Error en la conversión de Form.io: {message}"
+    },
     "reform": {
       "selection": {
         "none": "Ninguno",
@@ -436,6 +444,8 @@
     "previewCommand": "    preview, p           Mostrar la estructura del formulario",
     "schemaImportCommand": "    schema import <csv> [json]  Convertir un CSV en un esquema JSON",
     "schemaExportCommand": "    schema export [csv] [json]  Exportar el esquema actual a CSV",
+    "schemaConvertCommand": "    schema convert formio <json>  Convertir un esquema Form.io a form0",
+    "schemaConvertOptions": "      opciones: --output <json>, --report <json>, --dry-run, --allow-lossy, --force",
     "schemaNewCommand": "    schema new           Crear un nuevo esquema",
     "schemaDeleteCommand": "    schema delete [name] Eliminar un esquema",
     "schemaEditCommand": "    schema edit           Entrar en modo de edición de esquema",
@@ -479,7 +489,7 @@
   "interactive": {
     "autoLoadedNewSchema": "✅ Esquema recién creado cargado automáticamente.",
     "schemaDeletedCurrent": "⚠️ El esquema actual fue eliminado. No hay ningún esquema cargado.",
-    "schemaUsage": "❌ Uso: schema <new|delete|import|export|edit|keys> [args]",
+    "schemaUsage": "❌ Uso: schema <new|delete|import|export|convert|edit|keys> [args]",
     "autoLoadedSchema": "✅ Esquema cargado automáticamente: {path}",
     "autoLoadedValues": "✅ Valores de prueba cargados automáticamente desde: {filename}",
     "clearedValues": {
@@ -491,6 +501,7 @@
     "failedToInitialize": "❌ Error al inicializar: {message}",
     "schemaUsageImport": "❌ Uso: schema import <ruta-csv> [ruta-json-salida] [--force]",
     "schemaUsageExport": "❌ Uso: schema export [ruta-csv-salida] [ruta-json-entrada] [--force]",
+    "schemaUsageConvertFormio": "❌ Uso: schema convert formio <ruta-json> [--output <ruta>] [--report <ruta>] [--dry-run] [--allow-lossy] [--force]",
     "schemaImportSuccess": "✅ Esquema CSV importado en {json}.",
     "schemaExportSuccess": "✅ Esquema exportado a CSV en {csv}.",
     "schemaEdit": {
