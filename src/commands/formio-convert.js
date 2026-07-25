@@ -52,6 +52,8 @@ async function writeJsonWithConfirmation(targetPath, value, options) {
  * Shared standalone/interactive Form.io conversion workflow.
  */
 export async function runFormioConvertCommand(sourcePath, options = {}) {
+  console.warn(colors.warning(t('commands.formioConvert.previewNotice')));
+
   if (!sourcePath || isRemoteInput(sourcePath)) {
     throw new Error(t('commands.formioConvert.localFileRequired'));
   }

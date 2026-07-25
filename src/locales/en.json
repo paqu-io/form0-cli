@@ -151,6 +151,7 @@
       "deleteFailed": "❌ Failed to delete schema: {message}"
     },
     "formioConvert": {
+      "previewNotice": "[PREVIEW] Form.io conversion is under active development. Review the conversion report and validate the generated schema before using it. Behavior may change in future releases.",
       "summary": "Form.io conversion {outcome}: {convertedDataFields}/{sourceDataFields} data fields and {convertedStructuralElements} structural elements converted; {blocked} blocked, {warnings} warnings, {errors} errors, {omitted} omitted, {placeholders} placeholders.",
       "localFileRequired": "A local Form.io JSON file path is required; remote URLs are not supported.",
       "reportWritten": "✅ Conversion report written to {path}.",
@@ -508,7 +509,7 @@
     "previewCommand": "    preview, p                    Show form structure",
     "schemaImportCommand": "    schema import <csv> [json]    Convert CSV to JSON schema",
     "schemaExportCommand": "    schema export [csv] [json]    Export current schema to CSV",
-    "schemaConvertCommand": "    schema convert formio <json>  Convert a Form.io schema to form0",
+    "schemaConvertCommand": "    schema convert formio <json>  [PREVIEW] Convert a Form.io schema to form0",
     "schemaConvertOptions": "      options: --output <json>, --report <json>, --dry-run, --allow-lossy, --force",
     "schemaNewCommand": "    schema new                    Create a new schema",
     "schemaDeleteCommand": "    schema delete [name]          Delete a schema",

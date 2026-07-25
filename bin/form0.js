@@ -139,7 +139,11 @@ if (process.argv.length === 2) {
     .option('--dry-run', 'Analyze conversion without writing or loading a schema')
     .option('--allow-lossy', 'Permit documented omissions and calculation placeholders')
     .option('-f, --force', 'Overwrite destinations without prompting')
-    .description('Convert an exported Form.io form schema into a form0 schema')
+    .summary('[PREVIEW] Convert a Form.io schema to form0')
+    .description(
+      '[PREVIEW] Convert an exported Form.io form schema into a form0 schema.\n' +
+        'Conversion behavior and generated output may change in future releases.'
+    )
     .action((source, options) => formioConvertCommand(source, options));
 
   schemaProgram

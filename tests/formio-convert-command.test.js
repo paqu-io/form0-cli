@@ -56,6 +56,7 @@ async function testFileWorkflow() {
     { cwd: path.resolve('.'), encoding: 'utf8' }
   );
   assert.equal(cliSuccess.status, 0, cliSuccess.stderr);
+  assert.match(cliSuccess.stderr, /\[PREVIEW\].*Form\.io conversion is under active development/);
   const cliBlocked = spawnSync(
     process.execPath,
     ['bin/form0.js', 'schema', 'convert', 'formio', blockedSource, '--dry-run', '--force'],
@@ -63,6 +64,24 @@ async function testFileWorkflow() {
   );
   assert.equal(cliBlocked.status, 1, cliBlocked.stderr);
   await fs.remove(directory);
+}
+
+function testStandaloneHelpShowsPreviewStatus() {
+  const convertHelp = spawnSync(process.execPath, ['bin/form0.js', 'schema', 'convert', '--help'], {
+    cwd: path.resolve('.'),
+    encoding: 'utf8',
+  });
+  assert.equal(convertHelp.status, 0, convertHelp.stderr);
+  assert.match(convertHelp.stdout, /formio.*\[PREVIEW\]/);
+
+  const formioHelp = spawnSync(
+    process.execPath,
+    ['bin/form0.js', 'schema', 'convert', 'formio', '--help'],
+    { cwd: path.resolve('.'), encoding: 'utf8' }
+  );
+  assert.equal(formioHelp.status, 0, formioHelp.stderr);
+  assert.match(formioHelp.stdout, /\[PREVIEW\].*Form\.io/);
+  assert.match(formioHelp.stdout, /may change in future releases/);
 }
 
 function testInteractiveArgumentParser() {
@@ -100,6 +119,7 @@ function testInteractiveHelpShowsConversionOptions() {
   assert.match(help, /--report <json>/);
   assert.match(help, /--dry-run/);
   assert.match(help, /--allow-lossy/);
+  assert.match(help, /schema convert formio <json>.*\[PREVIEW\]/);
 }
 
 async function testInteractiveAutoLoad() {
@@ -124,12 +144,28 @@ async function testInteractiveAutoLoad() {
   const handler = new CommandHandler(schemaManager, engineRunner, fileWatcher, serverManager, {
     question() {},
   });
-  await handler.handleCommand(`schema convert formio ${sourcePath} --output ${outputPath} --force`);
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    await handler.handleCommand(
+      `schema convert formio ${sourcePath} --output ${outputPath} --force`
+    );
+  } finally {
+    console.warn = originalWarn;
+  }
   assert.deepEqual(calls, [['load', outputPath], ['reset'], ['server']]);
+  assert.equal(
+    warnings.filter((warning) =>
+      /\[PREVIEW\].*Form\.io conversion is under active development/.test(warning)
+    ).length,
+    1
+  );
   await fs.remove(directory);
 }
 
 await testFileWorkflow();
+testStandaloneHelpShowsPreviewStatus();
 testInteractiveArgumentParser();
 testInteractiveHelpShowsConversionOptions();
 await testInteractiveAutoLoad();

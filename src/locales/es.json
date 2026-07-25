@@ -124,6 +124,7 @@
       "deleteFailed": "❌ No se pudo eliminar el esquema: {message}"
     },
     "formioConvert": {
+      "previewNotice": "[PREVIEW] La conversión de Form.io está en desarrollo activo. Revisa el informe de conversión y valida el esquema generado antes de usarlo. El comportamiento puede cambiar en futuras versiones.",
       "summary": "Conversión Form.io {outcome}: {convertedDataFields}/{sourceDataFields} campos de datos y {convertedStructuralElements} elementos estructurales convertidos; {blocked} bloqueados, {warnings} advertencias, {errors} errores, {omitted} omitidos, {placeholders} marcadores.",
       "localFileRequired": "Se requiere una ruta local a un archivo JSON de Form.io; no se admiten URL remotas.",
       "reportWritten": "✅ Informe de conversión escrito en {path}.",
@@ -444,7 +445,7 @@
     "previewCommand": "    preview, p           Mostrar la estructura del formulario",
     "schemaImportCommand": "    schema import <csv> [json]  Convertir un CSV en un esquema JSON",
     "schemaExportCommand": "    schema export [csv] [json]  Exportar el esquema actual a CSV",
-    "schemaConvertCommand": "    schema convert formio <json>  Convertir un esquema Form.io a form0",
+    "schemaConvertCommand": "    schema convert formio <json>  [PREVIEW] Convertir un esquema Form.io a form0",
     "schemaConvertOptions": "      opciones: --output <json>, --report <json>, --dry-run, --allow-lossy, --force",
     "schemaNewCommand": "    schema new           Crear un nuevo esquema",
     "schemaDeleteCommand": "    schema delete [name] Eliminar un esquema",
