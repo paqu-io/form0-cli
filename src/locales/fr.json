@@ -123,6 +123,15 @@
       "deleteRefused": "❌ Impossible de supprimer sans confirmation dans un terminal non interactif.",
       "deleteFailed": "❌ Échec de la suppression du schéma : {message}"
     },
+    "formioConvert": {
+      "previewNotice": "[PREVIEW] La conversion Form.io est en cours de développement. Vérifiez le rapport de conversion et validez le schéma généré avant de l'utiliser. Le comportement peut évoluer dans les prochaines versions.",
+      "summary": "Conversion Form.io {outcome} : {convertedDataFields}/{sourceDataFields} champs de données et {convertedStructuralElements} éléments structurels convertis ; {blocked} bloqués, {warnings} avertissements, {errors} erreurs, {omitted} omis, {placeholders} espaces réservés.",
+      "localFileRequired": "Un chemin local vers un fichier JSON Form.io est requis ; les URL distantes ne sont pas prises en charge.",
+      "reportWritten": "✅ Rapport de conversion écrit dans {path}.",
+      "dryRunComplete": "ℹ️ Analyse terminée ; aucun schéma form0 n'a été écrit.",
+      "schemaWritten": "✅ Schéma form0 écrit dans {path}.",
+      "failed": "❌ Échec de la conversion Form.io : {message}"
+    },
     "reform": {
       "selection": {
         "none": "Aucun",
@@ -436,6 +445,8 @@
     "previewCommand": "    preview, p           Afficher la structure du formulaire",
     "schemaImportCommand": "    schema import <csv> [json]  Convertir un CSV en schéma JSON",
     "schemaExportCommand": "    schema export [csv] [json]  Exporter le schéma courant en CSV",
+    "schemaConvertCommand": "    schema convert formio <json>  [PREVIEW] Convertir un schéma Form.io en form0",
+    "schemaConvertOptions": "      options : --output <json>, --report <json>, --dry-run, --allow-lossy, --force",
     "schemaNewCommand": "    schema new           Créer un nouveau schéma",
     "schemaDeleteCommand": "    schema delete [name] Supprimer un schéma",
     "schemaEditCommand": "    schema edit          Entrer en mode d'édition du schéma",
@@ -466,7 +477,7 @@
     "reformSyncPruneCommand": "    reform sync prune    Supprimer les formulaires supprimés dans reform",
     "sessionManagement": "  Gestion de session :",
     "statusCommand": "    status, s            Afficher l'état de la session",
-    "subtitle": "                                          Fait avec 🦙 par paqu.io",
+    "subtitle": "                                          Créé par 🦙 de paqu.io",
     "testCommand": "    test [dir], t        Exécuter test.js dans le dossier (par défaut : courant)",
     "themeCommand": "    theme [name]         Voir ou changer le thème (dark, light)",
     "title": "                                      Environnement CLI interactif",
@@ -479,7 +490,7 @@
   "interactive": {
     "autoLoadedNewSchema": "✅ Nouveau schéma chargé automatiquement.",
     "schemaDeletedCurrent": "⚠️ Le schéma courant a été supprimé. Aucun schéma n'est chargé.",
-    "schemaUsage": "❌ Utilisation : schema <new|delete|import|export|edit|keys> [args]",
+    "schemaUsage": "❌ Utilisation : schema <new|delete|import|export|convert|edit|keys> [args]",
     "autoLoadedSchema": "✅ Schéma chargé automatiquement : {path}",
     "autoLoadedValues": "✅ Valeurs de test chargées automatiquement depuis : {filename}",
     "clearedValues": {
@@ -491,6 +502,7 @@
     "failedToInitialize": "❌ Échec de l'initialisation : {message}",
     "schemaUsageImport": "❌ Utilisation : schema import <chemin-csv> [chemin-json-sortie] [--force]",
     "schemaUsageExport": "❌ Utilisation : schema export [chemin-csv-sortie] [chemin-json-entrée] [--force]",
+    "schemaUsageConvertFormio": "❌ Utilisation : schema convert formio <chemin-json> [--output <chemin>] [--report <chemin>] [--dry-run] [--allow-lossy] [--force]",
     "schemaImportSuccess": "✅ Schéma CSV importé dans {json}.",
     "schemaExportSuccess": "✅ Schéma exporté en CSV vers {csv}.",
     "schemaEdit": {

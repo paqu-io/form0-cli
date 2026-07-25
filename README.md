@@ -143,6 +143,7 @@ This workflow assumes the dev server is running (`serve`) and the live preview i
 - `serve [--app] [--port] [--host]` - Start live preview; `--app` runs the app dev server from `form0.config.js`
 - `schema edit` - Open the schema editor
 - `schema import <csv> [--force]` / `schema export [csv] [--force]` - Convert JSON ↔ CSV
+- `schema convert formio <json> [options]` - **Preview:** Convert an exported Form.io form schema to form0
 - `schema keys` - Generate missing field keys
 - `test [dir]` - Run the test.js file in a project
 - `connector <action>` - Manage connectors (install/configure/test/reload/status/remove/uninstall/list)
@@ -164,12 +165,37 @@ form0 watch [schema] --auto-run --auto-validate
 form0 serve [schema] --port 3030 --host localhost --app
 form0 schema import <csv> [-o <json>] [-f]
 form0 schema export [csv] [-i <json>] [-f]
+form0 schema convert formio <json> [-o <json>] [--report <json>] [--dry-run] [--allow-lossy] [-f]
 form0 test [dir]
 form0 connector <action> [name]
 form0 theme [name]
 form0 locale [name]
 form0 interactive   # or: form0 shell
 ```
+
+## Converting Form.io schemas
+
+> **Preview feature:** Form.io conversion is under active development. Review the conversion
+> report and validate the generated schema before using it. Behavior may change in future releases.
+
+Convert a local exported Form.io form JSON file into a validated form0 schema:
+
+```bash
+form0 schema convert formio formio-form.json -o form.schema.json
+form0 schema convert formio formio-form.json --dry-run --report conversion-report.json
+```
+
+Conversion is strict by default. Unsupported data components, custom validation, and calculations
+outside the safe supported subset prevent schema output. Use `--allow-lossy` to explicitly permit
+documented omissions and blank calculated-field placeholders. The converter reads form schemas
+only; it does not fetch remote forms or convert submissions.
+
+Form.io Wizard pages become drilldown Sections. Panels and Fieldsets become nested Sections, and
+Collapsible components become drilldown Sections. Selectboxes member references such as
+`data.features.fastMode` are translated to MultiChoice membership checks.
+
+The interactive shell accepts the same options and automatically loads a successfully written
+schema.
 
 ## Working with values
 

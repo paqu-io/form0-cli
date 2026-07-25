@@ -216,7 +216,10 @@ function parseMetadataValue(raw) {
   if (!Number.isNaN(Number(trimmed)) && trimmed !== '') {
     return Number(trimmed);
   }
-  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+  if (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
     try {
       return JSON.parse(trimmed);
     } catch {
@@ -524,7 +527,9 @@ export async function importSchemaFromCsvFile(csvPath, { outputPath } = {}) {
   const rows = rowsToObjects(parseCsv(csvText));
 
   const form = { elements: [] };
-  const metadataRows = rows.filter((row) => normalizeRowKind(row.entry_type) === ROW_KINDS.FORM_META);
+  const metadataRows = rows.filter(
+    (row) => normalizeRowKind(row.entry_type) === ROW_KINDS.FORM_META
+  );
   const fieldRows = rows.filter((row) => normalizeRowKind(row.entry_type) === ROW_KINDS.FIELD);
 
   parseMetadataRows(metadataRows, form);

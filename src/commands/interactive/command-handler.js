@@ -14,6 +14,7 @@ import {
 import fs from 'fs-extra';
 import { ensureMissingKeysForSchema } from '../../utils/ensure-missing-keys.js';
 import { handleReformCommand } from '../reform.js';
+import { parseInteractiveFormioConvertArgs, runFormioConvertCommand } from '../formio-convert.js';
 
 /**
  * Handles command processing for interactive shell
@@ -282,9 +283,7 @@ export class CommandHandler {
       const currentSchemaPath = this.schemaManager.getCurrentSchemaPath();
       if (currentSchemaPath) {
         const resolvedCurrent = path.resolve(currentSchemaPath);
-        const deletedSchemaPath = result.schemaPath
-          ? path.resolve(result.schemaPath)
-          : null;
+        const deletedSchemaPath = result.schemaPath ? path.resolve(result.schemaPath) : null;
         const deletedDir = result.formDir ? path.resolve(result.formDir) : null;
         const isDeletedCurrent =
           (deletedSchemaPath && resolvedCurrent === deletedSchemaPath) ||
@@ -298,6 +297,28 @@ export class CommandHandler {
           this.engineRunner.resetEngine();
           console.log(colors.warning(t('interactive.schemaDeletedCurrent')));
         }
+      }
+      return;
+    }
+
+    if (action === 'convert') {
+      const parsed = parseInteractiveFormioConvertArgs(rest);
+      if (parsed.provider !== 'formio' || !parsed.sourcePath || parsed.error) {
+        console.log(colors.error(parsed.error || t('interactive.schemaUsageConvertFormio')));
+        return;
+      }
+
+      try {
+        const result = await runFormioConvertCommand(parsed.sourcePath, {
+          ...parsed.options,
+          readlineInterface: this.readline,
+        });
+        if (!result?.success || result.dryRun || !result.schemaPath) return;
+        await this.schemaManager.loadSchema(result.schemaPath);
+        this.engineRunner.resetEngine();
+        this.serverManager.updateDevServerSchema();
+      } catch (error) {
+        console.log(colors.error(t('commands.formioConvert.failed', { message: error.message })));
       }
       return;
     }
@@ -339,14 +360,16 @@ export class CommandHandler {
       const [csvArg, inputArg] = positional;
       const csvPath = csvArg || 'form.schema.csv';
       const sourceSchema =
-        inputArg ||
-        this.schemaManager.getCurrentSchemaPath() ||
-        'form.schema.json';
+        inputArg || this.schemaManager.getCurrentSchemaPath() || 'form.schema.json';
 
       try {
         const resolvedSource = path.resolve(sourceSchema);
         const resolvedTarget = path.resolve(csvPath);
-        console.log(colors.info(t('commands.schema.exportPreview', { json: resolvedSource, csv: resolvedTarget })));
+        console.log(
+          colors.info(
+            t('commands.schema.exportPreview', { json: resolvedSource, csv: resolvedTarget })
+          )
+        );
 
         const confirmed = await confirmOverwrite(csvPath, {
           force,
@@ -424,9 +447,7 @@ export class CommandHandler {
     // Update development server if running
     this.serverManager.updateDevServerSchema();
     console.log(
-      colors.success(
-        t('common.schemaLoaded', { path: target.displayPath || target.path })
-      )
+      colors.success(t('common.schemaLoaded', { path: target.displayPath || target.path }))
     );
   }
 

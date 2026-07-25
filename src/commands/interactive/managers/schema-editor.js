@@ -2,15 +2,11 @@ import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
-import {
-  FIELD_SPECS,
-  generateKey,
-  generateValueFromLabel,
-  validateSchema,
-} from 'form0-core';
+import { FIELD_SPECS, generateKey, validateSchema } from 'form0-core';
 import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
 import { showSchemaPreview } from '../../../utils/display-utils.js';
+import { createFieldTemplate } from '../../../utils/field-template.js';
 
 const CONTAINER_TYPES = new Set(['Section', 'RepeatableSection', 'BuildingPlanSection']);
 
@@ -72,105 +68,6 @@ function normalizeType(input) {
 
 function getElementLabel(element) {
   return element.label || element.data_name || element.key || element.type || 'Unnamed';
-}
-
-function createFieldTemplate(type) {
-  const spec = FIELD_SPECS[type];
-  if (!spec) {
-    return null;
-  }
-
-  const template = { type };
-  const labelDefault = type.replace(/Field|Section/g, '').trim() || type;
-  const label = `New ${labelDefault}`;
-  const dataName = generateValueFromLabel(label) || 'new_field';
-
-  for (const [attrName, attrDef] of Object.entries(spec.attributes)) {
-    if (attrName === 'type') {
-      template.type = type;
-      continue;
-    }
-
-    if (attrName === 'elements' || attrName === 'key') {
-      continue;
-    }
-
-    if (attrDef.value !== undefined) {
-      template[attrName] = attrDef.value;
-      continue;
-    }
-
-    if (!attrDef.required) {
-      continue;
-    }
-
-    if (attrName === 'label') {
-      template[attrName] = label;
-      continue;
-    }
-
-    if (attrName === 'data_name') {
-      template[attrName] = dataName;
-      continue;
-    }
-
-    if (Array.isArray(attrDef.allowedValues) && attrDef.allowedValues.length > 0) {
-      template[attrName] = attrDef.allowedValues[0];
-      continue;
-    }
-
-    if (attrDef.nullable) {
-      template[attrName] = null;
-      continue;
-    }
-
-    if (attrName === 'visible') {
-      template[attrName] = true;
-      continue;
-    }
-
-    if (
-      attrName === 'required' ||
-      attrName === 'read_only' ||
-      attrName === 'location_enabled' ||
-      attrName === 'location_required'
-    ) {
-      template[attrName] = false;
-      continue;
-    }
-
-    switch (attrDef.type) {
-      case 'boolean':
-        template[attrName] = false;
-        break;
-      case 'array':
-        template[attrName] = [];
-        break;
-      case 'object':
-        template[attrName] = {};
-        break;
-      case 'number':
-        template[attrName] = 0;
-        break;
-      case 'string':
-      default:
-        template[attrName] = '';
-        break;
-    }
-  }
-
-  // Clear dependent attributes when their parent attribute is null/undefined.
-  for (const [attrName, attrDef] of Object.entries(spec.attributes)) {
-    if (!attrDef.dependentOn) {
-      continue;
-    }
-    const depValue = template[attrDef.dependentOn];
-    if (depValue === null || depValue === undefined) {
-      template[attrName] = null;
-    }
-  }
-
-  return template;
 }
 
 function updateConditionRefs(conditions, oldKey, newKey, oldDataName) {
@@ -493,7 +390,9 @@ export class SchemaEditor {
     insertList.splice(insertIndex, 0, edited);
 
     await this.saveSchema(schema);
-    console.log(colors.success(t('interactive.schemaEdit.added', { label: getElementLabel(edited) })));
+    console.log(
+      colors.success(t('interactive.schemaEdit.added', { label: getElementLabel(edited) }))
+    );
   }
 
   async handleEdit(args) {
@@ -557,7 +456,9 @@ export class SchemaEditor {
     targetNode.parentList[targetNode.index] = updated;
 
     await this.saveSchema(schema);
-    console.log(colors.success(t('interactive.schemaEdit.edited', { label: getElementLabel(updated) })));
+    console.log(
+      colors.success(t('interactive.schemaEdit.edited', { label: getElementLabel(updated) }))
+    );
   }
 
   async handleRemove(args) {
@@ -761,9 +662,7 @@ export class SchemaEditor {
       });
       if (result.error) {
         console.log(
-          colors.error(
-            t('interactive.schemaEdit.editorFailed', { message: result.error.message })
-          )
+          colors.error(t('interactive.schemaEdit.editorFailed', { message: result.error.message }))
         );
         keepEditing = false;
         break;
@@ -777,7 +676,9 @@ export class SchemaEditor {
         parsed = JSON.parse(raw);
         keepEditing = false;
       } catch (err) {
-        console.log(colors.error(t('interactive.schemaEdit.invalidJson', { message: err.message })));
+        console.log(
+          colors.error(t('interactive.schemaEdit.invalidJson', { message: err.message }))
+        );
         const retry = await this.confirm(t('interactive.schemaEdit.retryEditPrompt'));
         if (!retry) {
           keepEditing = false;

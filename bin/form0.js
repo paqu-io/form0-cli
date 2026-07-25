@@ -29,6 +29,7 @@ import {
   schemaNewCommand,
   schemaDeleteCommand,
 } from '../src/commands/schema.js';
+import { formioConvertCommand } from '../src/commands/formio-convert.js';
 import { loadConfig } from '../src/utils/config.js';
 
 const require = createRequire(import.meta.url);
@@ -104,7 +105,7 @@ if (process.argv.length === 2) {
 
   const schemaProgram = program
     .command('schema')
-    .description('Convert schemas between JSON and CSV formats');
+    .description('Create, convert, and manage form schemas');
 
   schemaProgram
     .command('import')
@@ -125,6 +126,25 @@ if (process.argv.length === 2) {
     .option('-f, --force', 'Overwrite destination without prompting')
     .description('Export schema JSON to CSV')
     .action((csv, options) => schemaExportCommand(csv, options));
+
+  const schemaConvertProgram = schemaProgram
+    .command('convert')
+    .description('Convert external form schemas into form0 schemas');
+
+  schemaConvertProgram
+    .command('formio')
+    .argument('<source>', 'Path to an exported Form.io form JSON file')
+    .option('-o, --output <json>', 'Path for the generated form0 schema')
+    .option('--report <json>', 'Write a machine-readable conversion report')
+    .option('--dry-run', 'Analyze conversion without writing or loading a schema')
+    .option('--allow-lossy', 'Permit documented omissions and calculation placeholders')
+    .option('-f, --force', 'Overwrite destinations without prompting')
+    .summary('[PREVIEW] Convert a Form.io schema to form0')
+    .description(
+      '[PREVIEW] Convert an exported Form.io form schema into a form0 schema.\n' +
+        'Conversion behavior and generated output may change in future releases.'
+    )
+    .action((source, options) => formioConvertCommand(source, options));
 
   schemaProgram
     .command('new')

@@ -123,6 +123,15 @@
       "deleteRefused": "❌ Impossibile eliminare senza conferma in un terminale non interattivo.",
       "deleteFailed": "❌ Impossibile eliminare lo schema: {message}"
     },
+    "formioConvert": {
+      "previewNotice": "[PREVIEW] La conversione Form.io è in fase di sviluppo attivo. Esamina il rapporto di conversione e convalida lo schema generato prima di utilizzarlo. Il comportamento potrebbe cambiare nelle versioni future.",
+      "summary": "Conversione Form.io {outcome}: {convertedDataFields}/{sourceDataFields} campi dati e {convertedStructuralElements} elementi strutturali convertiti; {blocked} bloccati, {warnings} avvisi, {errors} errori, {omitted} omessi, {placeholders} segnaposto.",
+      "localFileRequired": "È richiesto il percorso locale di un file JSON Form.io; gli URL remoti non sono supportati.",
+      "reportWritten": "✅ Rapporto di conversione scritto in {path}.",
+      "dryRunComplete": "ℹ️ Analisi completata; nessuno schema form0 è stato scritto.",
+      "schemaWritten": "✅ Schema form0 scritto in {path}.",
+      "failed": "❌ Conversione Form.io non riuscita: {message}"
+    },
     "reform": {
       "selection": {
         "none": "Nessuno",
@@ -436,6 +445,8 @@
     "previewCommand": "    preview, p           Mostra la struttura del form",
     "schemaImportCommand": "    schema import <csv> [json]  Converti un CSV in uno schema JSON",
     "schemaExportCommand": "    schema export [csv] [json]  Esporta lo schema corrente in CSV",
+    "schemaConvertCommand": "    schema convert formio <json>  [PREVIEW] Converti uno schema Form.io in form0",
+    "schemaConvertOptions": "      opzioni: --output <json>, --report <json>, --dry-run, --allow-lossy, --force",
     "schemaNewCommand": "    schema new           Crea un nuovo schema",
     "schemaDeleteCommand": "    schema delete [name] Elimina uno schema",
     "schemaEditCommand": "    schema edit          Entra in modalità modifica schema",
@@ -466,7 +477,7 @@
     "reformSyncPruneCommand": "    reform sync prune    Rimuovi i form eliminati in reform",
     "sessionManagement": "  Gestione sessione:",
     "statusCommand": "    status, s            Mostra lo stato della sessione",
-    "subtitle": "                                          Creato con 🦙 da paqu.io",
+    "subtitle": "                                          Realizzato da 🦙 di paqu.io",
     "testCommand": "    test [dir], t        Esegui il file test.js nella directory (default: dir corrente)",
     "themeCommand": "    theme [name]         Visualizza o cambia il tema (dark, light)",
     "title": "                                          Ambiente CLI Interattivo",
@@ -479,7 +490,7 @@
   "interactive": {
     "autoLoadedNewSchema": "✅ Schema appena creato caricato automaticamente.",
     "schemaDeletedCurrent": "⚠️ Lo schema corrente è stato eliminato. Nessuno schema caricato.",
-    "schemaUsage": "❌ Utilizzo: schema <new|delete|import|export|edit|keys> [args]",
+    "schemaUsage": "❌ Utilizzo: schema <new|delete|import|export|convert|edit|keys> [args]",
     "autoLoadedSchema": "✅ Schema caricato automaticamente: {path}",
     "autoLoadedValues": "✅ Valori di test caricati automaticamente da: {filename}",
     "clearedValues": {
@@ -491,6 +502,7 @@
     "failedToInitialize": "❌ Impossibile inizializzare: {message}",
     "schemaUsageImport": "❌ Utilizzo: schema import <percorso-csv> [percorso-json-output] [--force]",
     "schemaUsageExport": "❌ Utilizzo: schema export [percorso-csv-output] [percorso-json-input] [--force]",
+    "schemaUsageConvertFormio": "❌ Utilizzo: schema convert formio <percorso-json> [--output <percorso>] [--report <percorso>] [--dry-run] [--allow-lossy] [--force]",
     "schemaImportSuccess": "✅ Schema CSV importato in {json}.",
     "schemaExportSuccess": "✅ Schema esportato in CSV su {csv}.",
     "schemaEdit": {
