@@ -476,7 +476,7 @@
     "reformSyncPruneCommand": "    reform sync prune    Rimuovi i form eliminati in reform",
     "sessionManagement": "  Gestione sessione:",
     "statusCommand": "    status, s            Mostra lo stato della sessione",
-    "subtitle": "                                          Creato con 🦙 da paqu.io",
+    "subtitle": "                                          Realizzato da 🦙 di paqu.io",
     "testCommand": "    test [dir], t        Esegui il file test.js nella directory (default: dir corrente)",
     "themeCommand": "    theme [name]         Visualizza o cambia il tema (dark, light)",
     "title": "                                          Ambiente CLI Interattivo",

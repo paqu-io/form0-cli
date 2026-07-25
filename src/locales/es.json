@@ -476,7 +476,7 @@
     "reformSyncPruneCommand": "    reform sync prune    Eliminar formularios borrados en reform",
     "sessionManagement": "  Gestión de Sesiones:",
     "statusCommand": "    status, s            Mostrar estado de la sesión",
-    "subtitle": "                                          Hecho con 🦙 por paqu.io",
+    "subtitle": "                                          Hecho por 🦙 de paqu.io",
     "testCommand": "    test [dir], t        Ejecutar archivo test.js en el directorio (por defecto: actual)",
     "themeCommand": "    theme [name]         Ver o cambiar tema (dark, light)",
     "title": "                                           Entorno CLI Interactivo",

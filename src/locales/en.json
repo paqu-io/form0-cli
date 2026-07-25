@@ -497,7 +497,7 @@
   },
   "help": {
     "title": "                                       Interactive CLI Environment",
-    "subtitle": "                                           Made with 🦙 by paqu.io",
+    "subtitle": "                                           Made by 🦙 from paqu.io",
     "availableCommands": "📚 Available Commands:",
     "notation": "  Notation: <required> [optional]",
     "schemaManagement": "  Schema Management:",
