@@ -130,6 +130,55 @@ async function run() {
               supporting_image_path: null,
               supporting_image_display: null,
             },
+            {
+              type: 'RepeatableSection',
+              key: 'visits_key',
+              data_name: 'visits',
+              label: 'Visits',
+              display: 'drilldown',
+              description: null,
+              description_mode: null,
+              visible: true,
+              visible_conditions: null,
+              location_enabled: false,
+              location_required: false,
+              title_field: {
+                type: 'TitleField',
+                key: '@title',
+                data_name: 'title',
+                label: 'Title',
+                display: 'default',
+                enabled: true,
+                visible: true,
+                visible_conditions: null,
+                read_only: true,
+                read_only_conditions: null,
+                elements: ['visit_name_key'],
+              },
+              elements: [
+                {
+                  type: 'TextField',
+                  key: 'visit_name_key',
+                  data_name: 'visit_name',
+                  label: 'Visit name',
+                  display: 'default',
+                  description: null,
+                  description_mode: null,
+                  required: false,
+                  required_conditions: null,
+                  visible: true,
+                  visible_conditions: null,
+                  read_only: false,
+                  read_only_conditions: null,
+                  default_value: null,
+                  pattern: null,
+                  pattern_description: null,
+                  supporting_image: false,
+                  supporting_image_path: null,
+                  supporting_image_display: null,
+                },
+              ],
+            },
           ],
         },
       ],
@@ -185,6 +234,7 @@ async function run() {
     'linked_record_defaults',
     'repeatable_location_enabled',
     'repeatable_location_required',
+    'repeatable_title_field',
     'title_elements',
     'status_title_enabled',
     'building_plan_node_overrides',
@@ -246,11 +296,18 @@ async function run() {
 
   const section = imported.form.elements.find((el) => el.data_name === 'personal_section');
   assert.ok(section, 'Section should round-trip');
-  assert.equal(section.elements.length, 3, 'Section children preserved');
+  assert.equal(section.elements.length, 4, 'Section children preserved');
 
   const calcField = section.elements.find((el) => el.data_name === 'score');
   assert.ok(calcField, 'Calculated field should remain');
   assert.equal(calcField.calculate, 'IF($favorite_city == "bogota", 10, 5)');
+
+  const repeatable = section.elements.find((el) => el.data_name === 'visits');
+  assert.deepEqual(
+    repeatable.title_field.elements,
+    ['visit_name'],
+    'Repeatable title references should round-trip through the JSON column using data_name aliases'
+  );
 
   assert.equal(
     resolveDefaultSchemaPath('form.schema.v2.csv'),

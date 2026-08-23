@@ -4,7 +4,7 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
-  "description": "Command-line interface for form0 ecosystem.",
+  "description": "Command-line tools for form0, the open-source schema-driven form ecosystem by paqu.io. Scaffold, validate, test and preview form schemas locally.",
   "type": "module",
   "scripts": {
     "format": "prettier --write \"**/*.{js,jsx,json,ts,tsx,md}\"",
@@ -21,16 +21,16 @@
     "url": "git+https://github.com/paqu-io/form0-cli.git"
   },
   "keywords": [
-    "form",
-    "form-builder",
-    "form-generator",
+    "form0",
+    "paqu-io",
+    "cli",
     "form-engine",
-    "schema",
+    "schema-driven-forms",
     "json-schema",
-    "react",
-    "react-native",
     "dynamic-forms",
-    "cli"
+    "form-validation",
+    "developer-tools",
+    "scaffolding"
   ],
   "author": "paqu.io <hello@paqu.io> (https://paqu.io/)",
   "contributors": [
