@@ -54,6 +54,7 @@ const ATTRIBUTE_COLUMN_MAP = new Map([
   ['is_searchable_mode', 'choice_is_searchable_mode'],
   ['location_enabled', 'repeatable_location_enabled'],
   ['location_required', 'repeatable_location_required'],
+  ['title_field', 'repeatable_title_field'],
   ['max', 'numeric_max'],
   ['min', 'numeric_min'],
   ['max_length', 'media_max_length'],
@@ -113,6 +114,7 @@ const DESIRED_FIELD_COLUMNS = [
   'linked_record_defaults',
   'repeatable_location_enabled',
   'repeatable_location_required',
+  'repeatable_title_field',
   'title_elements',
   'status_title_enabled',
   'building_plan_node_overrides',
@@ -390,6 +392,33 @@ function formatAttributeValue(value, attributeName) {
   return String(value);
 }
 
+function normalizeRepeatableTitleFieldForCsv(titleField, elements) {
+  if (!titleField || typeof titleField !== 'object' || !Array.isArray(titleField.elements)) {
+    return titleField;
+  }
+
+  const references = new Map();
+  const visit = (fields) => {
+    if (!Array.isArray(fields)) return;
+    fields.forEach((field) => {
+      if (!field || typeof field !== 'object') return;
+      if (field.type === 'Section' || field.type === 'BuildingPlanSection') {
+        visit(field.elements);
+        return;
+      }
+      if (field.type === 'RepeatableSection' || !field.data_name) return;
+      if (field.key) references.set(field.key, field.data_name);
+      references.set(field.data_name, field.data_name);
+    });
+  };
+  visit(elements);
+
+  return {
+    ...titleField,
+    elements: titleField.elements.map((reference) => references.get(reference) ?? reference),
+  };
+}
+
 function parseMetadataRows(rows, form) {
   rows.forEach((row) => {
     const attribute = row.form_meta_attribute?.trim();
@@ -573,7 +602,10 @@ function collectFieldRows(form, parentSectionName = '') {
       }
       const columnName = resolveColumnName(attributeName, field.type);
       if (!columnName) continue;
-      const value = field[attributeName];
+      const value =
+        attributeName === 'title_field' && field.type === 'RepeatableSection'
+          ? normalizeRepeatableTitleFieldForCsv(field[attributeName], field.elements)
+          : field[attributeName];
       row[columnName] = formatAttributeValue(value, attributeName);
     }
 
