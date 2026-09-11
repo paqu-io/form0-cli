@@ -867,9 +867,9 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
       const { record } = req.body;
 
       if (!record) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'Record is required',
-          connectorResults: []
+          connectorResults: [],
         });
       }
 
@@ -881,7 +881,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
           success: true,
           message: 'Record processed successfully (no connectors configured)',
           connectorResults: [],
-          record: record
+          record: record,
         });
       }
 
@@ -889,8 +889,8 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
       const connectorResults = await connectorManager.submitToConnectors(record);
 
       // Determine overall success based on connector results
-      const hasSuccessfulConnector = connectorResults.some(result => result.success);
-      const hasFailedConnector = connectorResults.some(result => !result.success);
+      const hasSuccessfulConnector = connectorResults.some((result) => result.success);
+      const hasFailedConnector = connectorResults.some((result) => !result.success);
 
       let overallMessage = '';
       if (connectorResults.length === 0) {
@@ -898,8 +898,8 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
       } else if (hasSuccessfulConnector && !hasFailedConnector) {
         overallMessage = `Record submitted successfully to ${connectorResults.length} connector(s)`;
       } else if (hasSuccessfulConnector && hasFailedConnector) {
-        const successCount = connectorResults.filter(r => r.success).length;
-        const failCount = connectorResults.filter(r => !r.success).length;
+        const successCount = connectorResults.filter((r) => r.success).length;
+        const failCount = connectorResults.filter((r) => !r.success).length;
         overallMessage = `Partial success: ${successCount} connector(s) succeeded, ${failCount} failed`;
       } else {
         overallMessage = 'All connector submissions failed';
@@ -907,11 +907,11 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
 
       // Log submission results
       console.log(`📝 [FORM SUBMISSION] ${overallMessage}`);
-      connectorResults.forEach(result => {
+      connectorResults.forEach((result) => {
         const status = result.success ? '✅' : '❌';
-        const details = result.success 
-          ? (result.message || 'Success')
-          : (result.error || 'Unknown error');
+        const details = result.success
+          ? result.message || 'Success'
+          : result.error || 'Unknown error';
         console.log(`   ${status} ${result.connector}: ${details}`);
       });
 
@@ -919,13 +919,13 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
         success: hasSuccessfulConnector || connectorResults.length === 0,
         message: overallMessage,
         connectorResults: connectorResults,
-        record: record
+        record: record,
       });
     } catch (err) {
       console.error('Error submitting record to connectors:', err);
-      res.status(500).json({ 
+      res.status(500).json({
         error: err.message,
-        connectorResults: []
+        connectorResults: [],
       });
     }
   });
@@ -940,7 +940,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
       res.json({
         connectors: loadedConnectors,
         health: healthChecks,
-        metadata: metadata
+        metadata: metadata,
       });
     } catch (err) {
       console.error('Error getting connector status:', err);
@@ -951,27 +951,28 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
   // API endpoint to test connector connection
   app.post('/api/connectors/test', express.json(), async (req, res) => {
     try {
-      const { connectorName, config = {} } = req.body;
+      const { connectorName, config = {} } = req.body || {};
 
       if (!connectorName) {
         return res.status(400).json({ error: 'Connector name is required' });
+      }
+      if (!connectorManager.config) {
+        await connectorManager.loadConnectorConfig({ projectDir });
+      }
+      if (!Object.prototype.hasOwnProperty.call(connectorManager.config || {}, connectorName)) {
+        return res.status(404).json({ error: 'Connector is not configured for this project' });
       }
 
       const testResult = await connectorManager.testConnector(connectorName, config);
 
       res.json({
         connector: connectorName,
-        ...testResult
+        ...testResult,
       });
     } catch (err) {
       console.error('Error testing connector:', err);
       res.status(500).json({ error: err.message });
     }
-  });
-
-  // Serve main page
-  app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'static', 'index.html'));
   });
 
   return app;

@@ -3,6 +3,8 @@
  * Handles UI-related operations like ALERT
  */
 
+import { createAlertDialogContent } from '../dom-utils.js';
+
 // Shared alert dialog background overlay
 let alertDialogOverlay = null;
 
@@ -42,16 +44,7 @@ function showNextAlert() {
   overlay.innerHTML = '';
 
   // Create alert dialog content
-  const dialogContent = document.createElement('div');
-  dialogContent.className = 'alert-dialog-content';
-  dialogContent.innerHTML = `
-    <span class="alert-dialog-close" tabindex="0">&times;</span>
-    <div class="alert-dialog-header">${title}</div>
-    <div class="alert-dialog-text">${message}</div>
-    <div class="alert-dialog-footer">
-      <button class="alert-dialog-ok-btn" tabindex="0">OK</button>
-    </div>
-  `;
+  const dialogContent = createAlertDialogContent(title, message);
 
   // Add content to overlay
   overlay.appendChild(dialogContent);

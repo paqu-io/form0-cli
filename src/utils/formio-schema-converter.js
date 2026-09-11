@@ -111,19 +111,84 @@ function uniqueIdentifier(base, used) {
   return candidate;
 }
 
-function stripHtml(value) {
-  return String(value || '')
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+function decodeHtmlEntities(value) {
+  const namedEntities = new Map([
+    ['nbsp', ' '],
+    ['amp', '&'],
+    ['lt', '<'],
+    ['gt', '>'],
+    ['quot', '"'],
+    ['apos', "'"],
+  ]);
+
+  return value.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (match, entity) => {
+    if (entity[0] === '#') {
+      const isHex = entity[1]?.toLowerCase() === 'x';
+      const codePoint = Number.parseInt(entity.slice(isHex ? 2 : 1), isHex ? 16 : 10);
+      if (Number.isSafeInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff) {
+        return String.fromCodePoint(codePoint);
+      }
+      return match;
+    }
+    return namedEntities.get(entity.toLowerCase()) ?? match;
+  });
+}
+
+function findTagEnd(value, startIndex) {
+  let quote = null;
+  for (let index = startIndex + 1; index < value.length; index += 1) {
+    const character = value[index];
+    if (quote) {
+      if (character === quote) quote = null;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === '>') {
+      return index;
+    }
+  }
+  return -1;
+}
+
+export function htmlToPlainText(value) {
+  const decoded = decodeHtmlEntities(String(value || ''));
+  const lowerValue = decoded.toLowerCase();
+  let output = '';
+  let cursor = 0;
+
+  while (cursor < decoded.length) {
+    if (decoded[cursor] !== '<') {
+      output += decoded[cursor];
+      cursor += 1;
+      continue;
+    }
+
+    if (lowerValue.startsWith('<!--', cursor)) {
+      const commentEnd = lowerValue.indexOf('-->', cursor + 4);
+      cursor = commentEnd === -1 ? decoded.length : commentEnd + 3;
+      output += ' ';
+      continue;
+    }
+
+    const tagEnd = findTagEnd(decoded, cursor);
+    if (tagEnd === -1) {
+      output += decoded.slice(cursor);
+      break;
+    }
+
+    const tagBody = lowerValue.slice(cursor + 1, tagEnd).trimStart();
+    const tagName = tagBody.match(/^([a-z][a-z0-9-]*)/)?.[1];
+    if (tagName === 'script' || tagName === 'style') {
+      const closingStart = lowerValue.indexOf(`</${tagName}`, tagEnd + 1);
+      if (closingStart === -1) break;
+      const closingEnd = findTagEnd(decoded, closingStart);
+      cursor = closingEnd === -1 ? decoded.length : closingEnd + 1;
+    } else {
+      cursor = tagEnd + 1;
+    }
+    output += ' ';
+  }
+
+  return output.replace(/\s+/g, ' ').trim();
 }
 
 function createDiagnostic(code, severity, record, message, remediation, extra = {}) {
@@ -1106,7 +1171,7 @@ function convertLeaf(record, identity, context) {
   }
   if (targetType === 'LabelField') {
     const content = component.html || component.content || component.label || identity.dataName;
-    field.label = stripHtml(content) || identity.dataName;
+    field.label = htmlToPlainText(content) || identity.dataName;
     field.default_value = null;
   }
   applyStaticDefault(field, record, context);

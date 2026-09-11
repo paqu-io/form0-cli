@@ -246,9 +246,7 @@ function updateConnectorsBlock(source, connectors) {
 
   if (connectorsRange) {
     return (
-      source.slice(0, connectorsRange.start) +
-      connectorsBlock +
-      source.slice(connectorsRange.end)
+      source.slice(0, connectorsRange.start) + connectorsBlock + source.slice(connectorsRange.end)
     );
   }
 
@@ -334,7 +332,11 @@ export async function getProjectConnectorsConfig(startDir = process.cwd()) {
   return isPlainObject(config.connectors) ? config.connectors : {};
 }
 
-export async function updateProjectConnectorConfig(connectorName, connectorConfig, startDir = process.cwd()) {
+export async function updateProjectConnectorConfig(
+  connectorName,
+  connectorConfig,
+  startDir = process.cwd()
+) {
   const { projectRoot, configPath, configExists, config } = await resolveProjectConfig(startDir);
   const connectors = isPlainObject(config.connectors) ? config.connectors : {};
   const cleanedConfig = pruneUndefined(connectorConfig);

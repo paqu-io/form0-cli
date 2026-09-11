@@ -22,7 +22,7 @@ const DEFAULT_CONFIG = {
     //   enabled: true,
     //   autoLoad: false
     // }
-  }
+  },
 };
 
 let currentConfig = { ...DEFAULT_CONFIG };
@@ -36,7 +36,7 @@ function convertToBoolean(value) {
   if (typeof value === 'boolean') {
     return value;
   }
-  
+
   if (typeof value === 'string') {
     const lowerValue = value.toLowerCase().trim();
     if (['true', 'yes', 'y', '1', 'on'].includes(lowerValue)) {
@@ -46,7 +46,7 @@ function convertToBoolean(value) {
       return false;
     }
   }
-  
+
   return value; // Return original value if no conversion possible
 }
 
@@ -61,7 +61,7 @@ function normalizeConnectorConfig(connectorConfig) {
   }
 
   const normalized = {};
-  
+
   for (const [connectorName, config] of Object.entries(connectorConfig)) {
     if (typeof config !== 'object' || config === null) {
       normalized[connectorName] = config;
@@ -69,19 +69,19 @@ function normalizeConnectorConfig(connectorConfig) {
     }
 
     const normalizedConfig = { ...config };
-    
+
     // Convert boolean-like string values for known boolean fields
     if ('enabled' in normalizedConfig) {
       normalizedConfig.enabled = convertToBoolean(normalizedConfig.enabled);
     }
-    
+
     if ('autoLoad' in normalizedConfig) {
       normalizedConfig.autoLoad = convertToBoolean(normalizedConfig.autoLoad);
     }
-    
+
     normalized[connectorName] = normalizedConfig;
   }
-  
+
   return normalized;
 }
 
@@ -114,11 +114,15 @@ function validateConnectorConfig(connectorConfig) {
 
     // Validate boolean fields if present
     if ('enabled' in config && typeof config.enabled !== 'boolean') {
-      throw new Error(`Invalid 'enabled' setting for connector '${connectorName}': must be a boolean (true/false). Received: ${typeof config.enabled} "${config.enabled}". Try using 'y'/'n' or 'yes'/'no' values.`);
+      throw new Error(
+        `Invalid 'enabled' setting for connector '${connectorName}': must be a boolean (true/false). Received: ${typeof config.enabled} "${config.enabled}". Try using 'y'/'n' or 'yes'/'no' values.`
+      );
     }
 
     if ('autoLoad' in config && typeof config.autoLoad !== 'boolean') {
-      throw new Error(`Invalid 'autoLoad' setting for connector '${connectorName}': must be a boolean (true/false). Received: ${typeof config.autoLoad} "${config.autoLoad}". Try using 'y'/'n' or 'yes'/'no' values.`);
+      throw new Error(
+        `Invalid 'autoLoad' setting for connector '${connectorName}': must be a boolean (true/false). Received: ${typeof config.autoLoad} "${config.autoLoad}". Try using 'y'/'n' or 'yes'/'no' values.`
+      );
     }
   }
 
@@ -138,14 +142,14 @@ export async function loadConfig() {
       const configData = await fs.readJson(CONFIG_FILE);
 
       // Merge with defaults to handle missing keys
-      currentConfig = { 
-        ...DEFAULT_CONFIG, 
+      currentConfig = {
+        ...DEFAULT_CONFIG,
         ...configData,
         // Ensure connectors object exists and merge properly
-        connectors: { 
-          ...DEFAULT_CONFIG.connectors, 
-          ...(configData.connectors || {}) 
-        }
+        connectors: {
+          ...DEFAULT_CONFIG.connectors,
+          ...(configData.connectors || {}),
+        },
       };
 
       // Normalize connector configuration (convert string booleans)
@@ -246,16 +250,16 @@ export async function updateConfig(updates) {
     }
 
     // Update config with proper merging for nested objects
-    currentConfig = { 
-      ...currentConfig, 
+    currentConfig = {
+      ...currentConfig,
       ...updates,
       // Properly merge connectors config
       ...(updates.connectors && {
-        connectors: { 
-          ...currentConfig.connectors, 
-          ...updates.connectors 
-        }
-      })
+        connectors: {
+          ...currentConfig.connectors,
+          ...updates.connectors,
+        },
+      }),
     };
 
     // Apply theme if changed
@@ -293,10 +297,10 @@ export async function updateConnectorConfig(connectorName, connectorConfig) {
 
     // Normalize the single connector config before validation
     const normalizedConfig = normalizeConnectorConfig({ [connectorName]: connectorConfig });
-    
+
     const newConnectors = {
       ...currentConfig.connectors,
-      ...normalizedConfig
+      ...normalizedConfig,
     };
 
     validateConnectorConfig(newConnectors);

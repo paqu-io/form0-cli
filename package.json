@@ -6,9 +6,20 @@
   },
   "description": "Command-line tools for form0, the open-source schema-driven form ecosystem by paqu.io. Scaffold, validate, test and preview form schemas locally.",
   "type": "module",
+  "files": [
+    "bin",
+    "src",
+    "SECURITY.md"
+  ],
   "scripts": {
-    "format": "prettier --write \"**/*.{js,jsx,json,ts,tsx,md}\"",
-    "format:check": "prettier --check \"**/*.{js,jsx,json,ts,tsx,md}\"",
+    "test": "node --test",
+    "smoke": "node bin/form0.js --help",
+    "format": "prettier --write \"src/**/*.{js,jsx,json}\" \"bin/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.{js,mjs}\" package.json README.md SECURITY.md SUPPORT.md CONTRIBUTING.md .github/workflows/ci.yml .github/workflows/publish.yml",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,json}\" \"bin/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.{js,mjs}\" package.json README.md SECURITY.md SUPPORT.md CONTRIBUTING.md .github/workflows/ci.yml .github/workflows/publish.yml",
+    "package:check": "node scripts/check-package-contents.mjs",
+    "security:audit:prod": "npm audit --omit=dev --omit=peer --audit-level=high",
+    "check": "npm run format:check && npm test && npm run smoke",
+    "release:check": "npm run check && npm run security:audit:prod && npm run package:check",
     "generate-localazy-config": "node scripts/generate-localazy-config.js",
     "localazy:upload": "npm run generate-localazy-config && localazy upload",
     "localazy:download": "npm run generate-localazy-config && localazy download"
@@ -44,7 +55,7 @@
   },
   "homepage": "https://form0.dev",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "acorn": "^8.17.0",
@@ -53,12 +64,12 @@
     "commander": "^11.0.0",
     "dotenv": "^17.0.0",
     "express": "^5.1.0",
-    "form0-core": "^0.1.26",
+    "form0-core": "^0.2.0",
     "fs-extra": "^11.1.1",
-    "tar": "^7.4.3",
-    "uuid": "^11.1.0",
-    "ws": "^8.18.3",
-    "yaml": "^2.8.0"
+    "tar": "^7.5.22",
+    "uuid": "^11.1.1",
+    "ws": "^8.21.3",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "ignore": "^7.0.5",

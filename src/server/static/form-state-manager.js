@@ -586,7 +586,10 @@ export class FormStateManager {
       }
     });
 
-    if (contextPath.length > 0 && typeof this.formRenderer.getRepeatableInstanceContainer === 'function') {
+    if (
+      contextPath.length > 0 &&
+      typeof this.formRenderer.getRepeatableInstanceContainer === 'function'
+    ) {
       const instanceContainer = this.formRenderer.getRepeatableInstanceContainer(contextPath);
       if (instanceContainer) {
         const instanceId = instanceContainer.getAttribute('data-instance-id');
@@ -735,7 +738,9 @@ export class FormStateManager {
       container.querySelector('.single-choice-field-simple-container');
     if (!scContainer) return;
 
-    const hiddenInput = scContainer.querySelector('[data-field-value="true"], input[type="hidden"]');
+    const hiddenInput = scContainer.querySelector(
+      '[data-field-value="true"], input[type="hidden"]'
+    );
     if (!hiddenInput) return;
 
     const parsedValue = this.parseStructuredValue(value) || { choice: [], other: [] };
@@ -746,7 +751,9 @@ export class FormStateManager {
       const radios = scContainer.querySelectorAll('input[type="radio"]');
       radios.forEach((radio) => {
         radio.checked =
-          parsedValue.choice && parsedValue.choice.length > 0 && radio.value === parsedValue.choice[0].value;
+          parsedValue.choice &&
+          parsedValue.choice.length > 0 &&
+          radio.value === parsedValue.choice[0].value;
       });
 
       const otherInput = scContainer.querySelector('.single-choice-field-other');
@@ -805,7 +812,9 @@ export class FormStateManager {
     const boolContainer = container.querySelector('.boolean-field-container');
     if (!boolContainer) return;
 
-    const hiddenInput = boolContainer.querySelector('[data-field-value="true"], input[type="hidden"]');
+    const hiddenInput = boolContainer.querySelector(
+      '[data-field-value="true"], input[type="hidden"]'
+    );
     if (!hiddenInput) return;
 
     const parsedValue = this.parseStructuredValue(value) || { choice: [], other: [] };
@@ -841,7 +850,9 @@ export class FormStateManager {
       container.querySelector('.multi-choice-field-simple-container');
     if (!mcContainer) return;
 
-    const hiddenInput = mcContainer.querySelector('[data-field-value="true"], input[type="hidden"]');
+    const hiddenInput = mcContainer.querySelector(
+      '[data-field-value="true"], input[type="hidden"]'
+    );
     if (!hiddenInput) return;
 
     const parsedValue = this.parseStructuredValue(value) || { choices: [], other: [] };
@@ -917,7 +928,8 @@ export class FormStateManager {
       input.value === null ||
       typeof input.value === 'undefined'
     ) {
-      input.value = typeof displayValue === 'object' ? JSON.stringify(displayValue) : String(displayValue);
+      input.value =
+        typeof displayValue === 'object' ? JSON.stringify(displayValue) : String(displayValue);
     }
   }
 
@@ -937,7 +949,9 @@ export class FormStateManager {
       case 'PhotoField':
       case 'VideoField':
       case 'SignatureField': {
-        const hiddenInput = container.querySelector('[data-field-value="true"], input[type="hidden"]');
+        const hiddenInput = container.querySelector(
+          '[data-field-value="true"], input[type="hidden"]'
+        );
         if (hiddenInput) {
           hiddenInput.value = typeof value === 'string' ? value : JSON.stringify(value ?? null);
         }
@@ -971,12 +985,16 @@ export class FormStateManager {
 
     if (field.type === 'SingleChoiceField' || field.type === 'BooleanField') {
       const parsed = this.parseStructuredValue(value) || {};
-      return (parsed.choice && parsed.choice.length > 0) || (parsed.other && parsed.other.length > 0);
+      return (
+        (parsed.choice && parsed.choice.length > 0) || (parsed.other && parsed.other.length > 0)
+      );
     }
 
     if (field.type === 'MultiChoiceField') {
       const parsed = this.parseStructuredValue(value) || {};
-      return (parsed.choices && parsed.choices.length > 0) || (parsed.other && parsed.other.length > 0);
+      return (
+        (parsed.choices && parsed.choices.length > 0) || (parsed.other && parsed.other.length > 0)
+      );
     }
 
     if (field.type === 'PhotoField' || field.type === 'VideoField') {
@@ -1615,7 +1633,7 @@ export class FormStateManager {
     }
 
     if (!suppressLogging) {
-      console.log(`[SETVALUE] Setting field "${fieldDataName}" (${field.type}) to:`, valueToSet);
+      console.log('[SETVALUE] Setting field "%s" (%s) to:', fieldDataName, field.type, valueToSet);
     }
 
     if (field.type === 'SingleChoiceField') {
@@ -1676,8 +1694,7 @@ export class FormStateManager {
       return false;
     }
 
-    const displayValue =
-      valueToSet === null || valueToSet === undefined ? '' : String(valueToSet);
+    const displayValue = valueToSet === null || valueToSet === undefined ? '' : String(valueToSet);
     input.value = displayValue;
 
     if (!skipStateUpdate) {
@@ -1754,7 +1771,7 @@ export class FormStateManager {
     if (success) {
       this.pendingFieldValues.delete(pendingKey);
       const callback = this.pendingFieldCallbacks.get(pendingKey);
-      if (callback) {
+      if (typeof callback === 'function') {
         this.pendingFieldCallbacks.delete(pendingKey);
         callback();
       }
@@ -1955,7 +1972,7 @@ export class FormStateManager {
       if (select) {
         // Always clear all selections first to ensure empty arrays clear the UI
         Array.from(select.options).forEach((option) => (option.selected = false));
-        
+
         // Then apply new selections if any
         if (choiceValue.choices && choiceValue.choices.length > 0) {
           choiceValue.choices.forEach((choice) => {

@@ -17,13 +17,13 @@ function askQuestion(rl, question) {
   return new Promise((resolve, reject) => {
     rl.question(question, (answer) => {
       const trimmedAnswer = answer.trim();
-      
+
       // Check for exit commands
       if (trimmedAnswer.toLowerCase() === 'exit' || trimmedAnswer.toLowerCase() === 'cancel') {
         reject(new Error('EXIT_REQUESTED'));
         return;
       }
-      
+
       resolve(trimmedAnswer);
     });
   });
@@ -39,7 +39,7 @@ function convertInputToBoolean(input, defaultValue = false) {
   if (!input || input.trim() === '') {
     return defaultValue;
   }
-  
+
   const lowerInput = input.toLowerCase().trim();
   return ['y', 'yes', 'true', '1', 'on'].includes(lowerInput);
 }
@@ -52,55 +52,70 @@ async function configurePostgreSQLConnector(rl, connectorName) {
   console.log('====================================');
   console.log(colors.textMuted('Type "exit" or "cancel" to abort configuration'));
   console.log();
-  
+
   const currentConfig = await getProjectConnectorConfig(connectorName);
   const { env } = await resolveProjectEnv();
   const currentEnv = { ...process.env, ...env };
-  
+
   try {
     // Get database connection details
-    const host = await askQuestion(rl, 
-      `Database host (current: ${currentEnv.FORM0_CONNECTOR_PG_HOST || 'localhost'}): `
-    ) || currentEnv.FORM0_CONNECTOR_PG_HOST || 'localhost';
-    
-    const port = await askQuestion(rl, 
-      `Database port (current: ${currentEnv.FORM0_CONNECTOR_PG_PORT || '5432'}): `
-    ) || currentEnv.FORM0_CONNECTOR_PG_PORT || '5432';
-    
-    const database = await askQuestion(rl, 
-      `Database name (current: ${currentEnv.FORM0_CONNECTOR_PG_DATABASE || 'none'}): `
-    ) || currentEnv.FORM0_CONNECTOR_PG_DATABASE;
-    
-    const username = await askQuestion(rl, 
-      `Database username (current: ${currentEnv.FORM0_CONNECTOR_PG_USERNAME || 'none'}): `
-    ) || currentEnv.FORM0_CONNECTOR_PG_USERNAME;
-    
-    const password = await askQuestion(rl, 
-      `Database password (current: ${currentEnv.FORM0_CONNECTOR_PG_PASSWORD ? '***' : 'none'}): `
-    ) || currentEnv.FORM0_CONNECTOR_PG_PASSWORD;
-    
-    const sslInput = await askQuestion(rl, 
+    const host =
+      (await askQuestion(
+        rl,
+        `Database host (current: ${currentEnv.FORM0_CONNECTOR_PG_HOST || 'localhost'}): `
+      )) ||
+      currentEnv.FORM0_CONNECTOR_PG_HOST ||
+      'localhost';
+
+    const port =
+      (await askQuestion(
+        rl,
+        `Database port (current: ${currentEnv.FORM0_CONNECTOR_PG_PORT || '5432'}): `
+      )) ||
+      currentEnv.FORM0_CONNECTOR_PG_PORT ||
+      '5432';
+
+    const database =
+      (await askQuestion(
+        rl,
+        `Database name (current: ${currentEnv.FORM0_CONNECTOR_PG_DATABASE || 'none'}): `
+      )) || currentEnv.FORM0_CONNECTOR_PG_DATABASE;
+
+    const username =
+      (await askQuestion(
+        rl,
+        `Database username (current: ${currentEnv.FORM0_CONNECTOR_PG_USERNAME || 'none'}): `
+      )) || currentEnv.FORM0_CONNECTOR_PG_USERNAME;
+
+    const password =
+      (await askQuestion(
+        rl,
+        `Database password (current: ${currentEnv.FORM0_CONNECTOR_PG_PASSWORD ? '***' : 'none'}): `
+      )) || currentEnv.FORM0_CONNECTOR_PG_PASSWORD;
+
+    const sslInput = await askQuestion(
+      rl,
       `Enable SSL? (y/n, current: ${currentEnv.FORM0_CONNECTOR_PG_SSL === 'true' ? 'y' : 'n'}): `
     );
     const ssl = convertInputToBoolean(sslInput, currentEnv.FORM0_CONNECTOR_PG_SSL === 'true');
-    
+
     const currentTableName =
       currentConfig.tableName || currentEnv.FORM0_CONNECTOR_PG_TABLE_NAME || 'form0_submissions';
-    const tableName = await askQuestion(rl, 
-      `Table name (current: ${currentTableName}): `
-    ) || currentTableName;
-    
+    const tableName =
+      (await askQuestion(rl, `Table name (current: ${currentTableName}): `)) || currentTableName;
+
     const currentSchema = currentConfig.schema || currentEnv.FORM0_CONNECTOR_PG_SCHEMA || 'public';
-    const schema = await askQuestion(rl, 
-      `Database schema (current: ${currentSchema}): `
-    ) || currentSchema;
-    
-    const enabledInput = await askQuestion(rl, 
+    const schema =
+      (await askQuestion(rl, `Database schema (current: ${currentSchema}): `)) || currentSchema;
+
+    const enabledInput = await askQuestion(
+      rl,
       `Enable connector? (y/n, current: ${currentConfig.enabled ? 'y' : 'n'}): `
     );
     const enabled = convertInputToBoolean(enabledInput, currentConfig.enabled);
-    
-    const autoLoadInput = await askQuestion(rl, 
+
+    const autoLoadInput = await askQuestion(
+      rl,
       `Auto-load on server start? (y/n, current: ${currentConfig.autoLoad ? 'y' : 'n'}): `
     );
     const autoLoad = convertInputToBoolean(autoLoadInput, currentConfig.autoLoad);
@@ -148,7 +163,9 @@ async function configureSQLiteConnector(rl, connectorName) {
       (await askQuestion(rl, `Database file path (current: ${defaultPath}): `)) || defaultPath;
 
     const currentTableName =
-      currentConfig.tableName || currentEnv.FORM0_CONNECTOR_SQLITE_TABLE_NAME || 'form0_submissions';
+      currentConfig.tableName ||
+      currentEnv.FORM0_CONNECTOR_SQLITE_TABLE_NAME ||
+      'form0_submissions';
     const tableName =
       (await askQuestion(rl, `Main table name (current: ${currentTableName}): `)) ||
       currentTableName;
@@ -200,16 +217,18 @@ async function configureGenericConnector(rl, connectorName) {
   console.log('================================');
   console.log(colors.textMuted('Type "exit" or "cancel" to abort configuration'));
   console.log();
-  
+
   const currentConfig = await getProjectConnectorConfig(connectorName);
-  
+
   try {
-    const enabledInput = await askQuestion(rl, 
+    const enabledInput = await askQuestion(
+      rl,
       `Enable connector? (y/n, current: ${currentConfig.enabled ? 'y' : 'n'}): `
     );
     const enabled = convertInputToBoolean(enabledInput, currentConfig.enabled);
-    
-    const autoLoadInput = await askQuestion(rl, 
+
+    const autoLoadInput = await askQuestion(
+      rl,
       `Auto-load on server start? (y/n, current: ${currentConfig.autoLoad ? 'y' : 'n'}): `
     );
     const autoLoad = convertInputToBoolean(autoLoadInput, currentConfig.autoLoad);
@@ -239,11 +258,11 @@ async function configureGenericConnector(rl, connectorName) {
 async function testConnectorConnection(connectorName) {
   try {
     console.log(`\n🔄 Testing connection to ${connectorName}...`);
-    
+
     const { projectRoot } = await resolveProjectConfig();
     await connectorManager.loadConnectorConfig({ projectDir: projectRoot });
     const testResult = await connectorManager.testConnector(connectorName);
-    
+
     if (testResult.healthy) {
       console.log(`✅ Connection successful: ${testResult.message}`);
       if (testResult.database) {
@@ -255,7 +274,6 @@ async function testConnectorConnection(connectorName) {
     } else {
       console.log(`❌ Connection failed: ${testResult.message}`);
     }
-    
   } catch (error) {
     console.log(`❌ Test failed: ${error.message}`);
   }
@@ -278,7 +296,7 @@ export async function configureConnectorWithShellContext(connectorName, rl) {
 
   try {
     let result;
-    
+
     // Provide specialized configuration for known connectors
     if (connectorName === 'form0-connector-pg') {
       result = await configurePostgreSQLConnector(rl, connectorName);
@@ -287,7 +305,7 @@ export async function configureConnectorWithShellContext(connectorName, rl) {
     } else {
       result = await configureGenericConnector(rl, connectorName);
     }
-    
+
     const { connectorConfig, envUpdates } = result;
 
     // Save configuration
@@ -299,20 +317,18 @@ export async function configureConnectorWithShellContext(connectorName, rl) {
     if (envUpdates) {
       await upsertProjectEnv(envUpdates, projectRoot);
     }
-    
+
     if (configPath) {
       console.log(`\n✅ Configuration saved for ${connectorName}`);
       console.log(`   Config: ${configPath}`);
       if (envUpdates) {
         console.log(`   Env: ${path.join(projectRoot, '.env.local')}`);
       }
-      
+
       // Offer to test the connection
       try {
-        const testInput = await askQuestion(rl, 
-          '\nTest connection now? (y/n): '
-        );
-        
+        const testInput = await askQuestion(rl, '\nTest connection now? (y/n): ');
+
         if (convertInputToBoolean(testInput, false)) {
           await testConnectorConnection(connectorName);
         }
@@ -326,7 +342,6 @@ export async function configureConnectorWithShellContext(connectorName, rl) {
     } else {
       console.log(`\n❌ Failed to save configuration for ${connectorName}`);
     }
-    
   } catch (error) {
     if (error.message === 'Configuration cancelled by user') {
       console.log(colors.warning('\n⚠️ Configuration cancelled by user'));

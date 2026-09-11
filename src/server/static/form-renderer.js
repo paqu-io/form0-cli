@@ -1,5 +1,6 @@
 import { generateUuidV7 } from './uuid.js';
-import { resolveSupportingImagePath } from './supporting-image-utils.js';
+import { createDescriptionDialog, createSupportingImageDialog } from './dom-utils.js';
+import { resolveSupportingImageUrl } from './supporting-image-utils.js';
 import { BuildingPlanController } from './building-plan-controller.js';
 import { BuildingPlanCanvas } from './building-plan-canvas.js';
 
@@ -799,16 +800,10 @@ export class FormRenderer {
         infoIcon.tabIndex = 0;
         actionsContainer.appendChild(infoIcon);
 
-        const dialog = document.createElement('div');
-        dialog.className = 'description-dialog';
-        dialog.style.display = 'none';
-        dialog.innerHTML = `
-          <div class="description-dialog-content">
-            <span class="description-dialog-close" tabindex="0">&times;</span>
-            <div class="description-dialog-header">${section.label || section.data_name || 'Section'}</div>
-            <div class="description-dialog-text">${section.description}</div>
-          </div>
-        `;
+        const dialog = createDescriptionDialog(
+          section.label || section.data_name || 'Section',
+          section.description
+        );
         document.body.appendChild(dialog);
 
         const showDialog = () => {
@@ -1302,16 +1297,10 @@ export class FormRenderer {
         infoIcon.tabIndex = 0;
         titleRow.appendChild(infoIcon);
 
-        const dialog = document.createElement('div');
-        dialog.className = 'description-dialog';
-        dialog.style.display = 'none';
-        dialog.innerHTML = `
-          <div class="description-dialog-content">
-            <span class="description-dialog-close" tabindex="0">&times;</span>
-            <div class="description-dialog-header">${section.label || section.data_name || 'Building Plan'}</div>
-            <div class="description-dialog-text">${section.description}</div>
-          </div>
-        `;
+        const dialog = createDescriptionDialog(
+          section.label || section.data_name || 'Building Plan',
+          section.description
+        );
         document.body.appendChild(dialog);
 
         const showDialog = () => {
@@ -1460,16 +1449,10 @@ export class FormRenderer {
         titleRow.appendChild(infoIcon);
 
         // Create dialog/modal (hidden by default)
-        const dialog = document.createElement('div');
-        dialog.className = 'description-dialog';
-        dialog.style.display = 'none';
-        dialog.innerHTML = `
-          <div class="description-dialog-content">
-            <span class="description-dialog-close" tabindex="0">&times;</span>
-            <div class="description-dialog-header">${section.label || section.data_name || 'Section'}</div>
-            <div class="description-dialog-text">${section.description}</div>
-          </div>
-        `;
+        const dialog = createDescriptionDialog(
+          section.label || section.data_name || 'Section',
+          section.description
+        );
         document.body.appendChild(dialog);
 
         // Show/hide dialog logic
@@ -1563,34 +1546,26 @@ export class FormRenderer {
       // --- Supporting image icon (dialog mode) ---
       let supportingImageIcon = null;
       if (field.supporting_image) {
-        const imgPath = resolveSupportingImagePath(field);
-        if (imgPath) {
+        const imageUrl = resolveSupportingImageUrl(field);
+        if (imageUrl) {
           const displayMode = field.supporting_image_display || 'default';
 
           if (displayMode === 'dialog') {
             // Create info icon for dialog display
             supportingImageIcon = document.createElement('span');
             supportingImageIcon.className = 'supporting-image-info-icon field-info-icon';
-            supportingImageIcon.innerHTML = '🖼️';
+            supportingImageIcon.textContent = '🖼️';
             supportingImageIcon.setAttribute('title', 'View supporting image');
             supportingImageIcon.setAttribute('tabindex', '0');
             supportingImageIcon.setAttribute('role', 'button');
             supportingImageIcon.setAttribute('aria-label', 'View supporting image');
 
             // Create dialog/modal (hidden by default)
-            const dialog = document.createElement('div');
-            dialog.className = 'supporting-image-dialog';
-            dialog.style.display = 'none';
-            dialog.innerHTML = `
-              <div class="supporting-image-dialog-content">
-                <span class="supporting-image-dialog-close" tabindex="0">&times;</span>
-                <div class="supporting-image-dialog-header">${field.label || field.data_name}</div>
-                <div class="supporting-image-dialog-image">
-                  <img src="${imgPath.startsWith('http') ? imgPath : `/supporting-images/${imgPath}`}" 
-                       alt="${field.label || field.data_name}" />
-                </div>
-              </div>
-            `;
+            const dialog = createSupportingImageDialog(
+              field.label || field.data_name,
+              imageUrl,
+              field.label || field.data_name
+            );
 
             document.body.appendChild(dialog);
 
@@ -1638,16 +1613,7 @@ export class FormRenderer {
           labelRow.appendChild(infoIcon);
 
           // Create dialog/modal (hidden by default)
-          const dialog = document.createElement('div');
-          dialog.className = 'description-dialog';
-          dialog.style.display = 'none';
-          dialog.innerHTML = `
-            <div class="description-dialog-content">
-              <span class="description-dialog-close" tabindex="0">&times;</span>
-              <div class="description-dialog-header">${field.label || field.data_name}</div>
-              <div class="description-dialog-text">${field.description}</div>
-          </div>
-          `;
+          const dialog = createDescriptionDialog(field.label || field.data_name, field.description);
           document.body.appendChild(dialog);
 
           // Show/hide dialog logic
@@ -1695,14 +1661,14 @@ export class FormRenderer {
 
       // --- Supporting image rendering (default mode) ---
       if (field.supporting_image) {
-        const imgPath = resolveSupportingImagePath(field);
-        if (imgPath) {
+        const imageUrl = resolveSupportingImageUrl(field);
+        if (imageUrl) {
           const displayMode = field.supporting_image_display || 'default';
 
           if (displayMode === 'default') {
             // Default display - show image directly
             const img = document.createElement('img');
-            img.src = imgPath.startsWith('http') ? imgPath : `/supporting-images/${imgPath}`;
+            img.src = imageUrl;
             img.alt = field.label || field.data_name;
             img.className = 'supporting-image';
             fieldDiv.appendChild(img);

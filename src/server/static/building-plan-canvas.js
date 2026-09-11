@@ -895,8 +895,7 @@ export class BuildingPlanCanvas {
           moved: false,
         };
         this.setHoverState(null);
-        const focusFn =
-          type === 'door' ? this.controller?.focusDoor : this.controller?.focusWindow;
+        const focusFn = type === 'door' ? this.controller?.focusDoor : this.controller?.focusWindow;
         if (typeof focusFn === 'function') {
           focusFn.call(this.controller, openingId);
         }
@@ -1181,10 +1180,7 @@ export class BuildingPlanCanvas {
         );
 
         const basePoint = state.originalPoints[state.handleIndex];
-        if (
-          !state.moved &&
-          (basePoint.x !== snappedPoint.x || basePoint.y !== snappedPoint.y)
-        ) {
+        if (!state.moved && (basePoint.x !== snappedPoint.x || basePoint.y !== snappedPoint.y)) {
           state.moved = true;
         }
 
@@ -1308,16 +1304,14 @@ export class BuildingPlanCanvas {
       let endPoint;
 
       if (state.mode === 'move') {
-        const originalStartPoint =
-          state.original.startPoint || {
-            x: roomRect.x + state.original.startU * roomRect.width,
-            y: roomRect.y + state.original.startV * roomRect.height,
-          };
-        const originalEndPoint =
-          state.original.endPoint || {
-            x: roomRect.x + state.original.endU * roomRect.width,
-            y: roomRect.y + state.original.endV * roomRect.height,
-          };
+        const originalStartPoint = state.original.startPoint || {
+          x: roomRect.x + state.original.startU * roomRect.width,
+          y: roomRect.y + state.original.startV * roomRect.height,
+        };
+        const originalEndPoint = state.original.endPoint || {
+          x: roomRect.x + state.original.endU * roomRect.width,
+          y: roomRect.y + state.original.endV * roomRect.height,
+        };
         const deltaX = point.x - state.pointerStart.x;
         const deltaY = point.y - state.pointerStart.y;
         startPoint = {
@@ -1352,7 +1346,8 @@ export class BuildingPlanCanvas {
       if (preview) {
         beam.preview = preview;
         if (!state.moved) {
-          const diff = Math.abs(preview.startU - beam.startU) +
+          const diff =
+            Math.abs(preview.startU - beam.startU) +
             Math.abs(preview.startV - beam.startV) +
             Math.abs(preview.endU - beam.endU) +
             Math.abs(preview.endV - beam.endV);
@@ -1706,11 +1701,17 @@ export class BuildingPlanCanvas {
     const edgeOptions = [];
     if (insideY) {
       edgeOptions.push({ point: { x: rect.x, y: snapped.y }, dist: Math.abs(snapped.x - rect.x) });
-      edgeOptions.push({ point: { x: rect.x + rect.width, y: snapped.y }, dist: Math.abs(snapped.x - (rect.x + rect.width)) });
+      edgeOptions.push({
+        point: { x: rect.x + rect.width, y: snapped.y },
+        dist: Math.abs(snapped.x - (rect.x + rect.width)),
+      });
     }
     if (insideX) {
       edgeOptions.push({ point: { x: snapped.x, y: rect.y }, dist: Math.abs(snapped.y - rect.y) });
-      edgeOptions.push({ point: { x: snapped.x, y: rect.y + rect.height }, dist: Math.abs(snapped.y - (rect.y + rect.height)) });
+      edgeOptions.push({
+        point: { x: snapped.x, y: rect.y + rect.height },
+        dist: Math.abs(snapped.y - (rect.y + rect.height)),
+      });
     }
 
     const nearestEdge = edgeOptions.sort((a, b) => a.dist - b.dist)[0];
@@ -1923,12 +1924,13 @@ export class BuildingPlanCanvas {
           segmentIndex: 0,
           distance: 0,
           ratio: 0.5,
-          closestPoint: start && end
-            ? {
-                x: (start.x + end.x) / 2,
-                y: (start.y + end.y) / 2,
-              }
-            : { x: point.x, y: point.y },
+          closestPoint:
+            start && end
+              ? {
+                  x: (start.x + end.x) / 2,
+                  y: (start.y + end.y) / 2,
+                }
+              : { x: point.x, y: point.y },
         };
         return;
       }
@@ -2136,13 +2138,18 @@ export class BuildingPlanCanvas {
     }
   }
 
-  computeLabelRect(text, anchor, { position = 'top', paddingX = LABEL_PADDING_X, paddingY = LABEL_PADDING_Y } = {}) {
+  computeLabelRect(
+    text,
+    anchor,
+    { position = 'top', paddingX = LABEL_PADDING_X, paddingY = LABEL_PADDING_Y } = {}
+  ) {
     if (!this.ctx || !text) return null;
     const ctx = this.ctx;
     ctx.save();
     ctx.font = LABEL_FONT;
     const metrics = ctx.measureText(text);
-    const textHeight = (metrics.actualBoundingBoxAscent || 8) + (metrics.actualBoundingBoxDescent || 4);
+    const textHeight =
+      (metrics.actualBoundingBoxAscent || 8) + (metrics.actualBoundingBoxDescent || 4);
     const width = metrics.width + paddingX * 2;
     const height = textHeight + paddingY * 2;
     let x = anchor.x - width / 2;
@@ -2188,15 +2195,24 @@ export class BuildingPlanCanvas {
     const centerV = preview ? preview.centerV : column.centerV;
     const widthMeters = preview && preview.width != null ? preview.width : column.width;
     const heightMeters = preview && preview.height != null ? preview.height : column.height;
-    const wallSegmentIndex = preview && preview.wallSegmentIndex != null ? preview.wallSegmentIndex : column.wallSegmentIndex;
+    const wallSegmentIndex =
+      preview && preview.wallSegmentIndex != null
+        ? preview.wallSegmentIndex
+        : column.wallSegmentIndex;
     const wallRatio = preview && preview.wallRatio != null ? preview.wallRatio : column.wallRatio;
 
     const center = {
       x: roomRect.x + centerU * roomRect.width,
       y: roomRect.y + centerV * roomRect.height,
     };
-    const widthPx = Math.max(10, metersToLength(widthMeters || DEFAULT_COLUMN_WIDTH_M, this.gridSize));
-    const heightPx = Math.max(10, metersToLength(heightMeters || DEFAULT_COLUMN_HEIGHT_M, this.gridSize));
+    const widthPx = Math.max(
+      10,
+      metersToLength(widthMeters || DEFAULT_COLUMN_WIDTH_M, this.gridSize)
+    );
+    const heightPx = Math.max(
+      10,
+      metersToLength(heightMeters || DEFAULT_COLUMN_HEIGHT_M, this.gridSize)
+    );
     const rect = {
       x: center.x - widthPx / 2,
       y: center.y - heightPx / 2,
@@ -2273,7 +2289,10 @@ export class BuildingPlanCanvas {
       x: (startPoint.x + endPoint.x) / 2,
       y: (startPoint.y + endPoint.y) / 2,
     };
-    const lineWidth = Math.max(4, metersToLength(heightMeters || DEFAULT_BEAM_HEIGHT_M, this.gridSize));
+    const lineWidth = Math.max(
+      4,
+      metersToLength(heightMeters || DEFAULT_BEAM_HEIGHT_M, this.gridSize)
+    );
     const baseLabel = beam.displayLabel || beam.label;
     const label = formatShortLabel(
       baseLabel,
@@ -2386,16 +2405,16 @@ export class BuildingPlanCanvas {
     const hasWalls = Array.isArray(this.walls) && this.walls.length > 0;
 
     if (this.floorButton) {
-      const canCreateFloor = Boolean(this.controller && typeof this.controller.createFloor === 'function');
+      const canCreateFloor = Boolean(
+        this.controller && typeof this.controller.createFloor === 'function'
+      );
       this.floorButton.disabled = !canCreateFloor;
       this.floorButton.title = canCreateFloor ? 'Add a new floor' : 'Floor creation unavailable';
     }
 
     if (this.roomButton) {
       this.roomButton.disabled = !hasFloors;
-      this.roomButton.title = hasFloors
-        ? 'Draw a new room'
-        : 'Add a floor to enable room drawing';
+      this.roomButton.title = hasFloors ? 'Draw a new room' : 'Add a floor to enable room drawing';
     }
 
     if (this.wallButton) {
@@ -2464,7 +2483,11 @@ export class BuildingPlanCanvas {
     ctx.font = '16px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('Add a floor to enable the canvas tools', this.canvas.width / 2, this.canvas.height / 2);
+    ctx.fillText(
+      'Add a floor to enable the canvas tools',
+      this.canvas.width / 2,
+      this.canvas.height / 2
+    );
     ctx.restore();
   }
 
@@ -2553,8 +2576,7 @@ export class BuildingPlanCanvas {
 
     if (this.shouldShowLabel('rooms')) {
       const rawLabel =
-        room.displayLabel ||
-        (typeof room.index === 'number' ? `R#${room.index + 1}` : null);
+        room.displayLabel || (typeof room.index === 'number' ? `R#${room.index + 1}` : null);
       const labelText = formatShortLabel(
         rawLabel,
         'R',
@@ -2693,9 +2715,7 @@ export class BuildingPlanCanvas {
     const segmentLength = distance(segment.start, segment.end);
     const widthPixels = segmentLength * spanRatio;
     const computedWidthMeters = lengthToMeters(widthPixels, this.gridSize);
-    const widthMeters = Number.isFinite(opening.width)
-      ? opening.width
-      : computedWidthMeters;
+    const widthMeters = Number.isFinite(opening.width) ? opening.width : computedWidthMeters;
 
     const startPoint = {
       x: segment.start.x + (segment.end.x - segment.start.x) * startRatio,
@@ -2710,12 +2730,13 @@ export class BuildingPlanCanvas {
       y: (startPoint.y + endPoint.y) / 2,
     };
 
-    const unit = segmentLength === 0
-      ? { x: 0, y: 0 }
-      : {
-          x: (segment.end.x - segment.start.x) / segmentLength,
-          y: (segment.end.y - segment.start.y) / segmentLength,
-        };
+    const unit =
+      segmentLength === 0
+        ? { x: 0, y: 0 }
+        : {
+            x: (segment.end.x - segment.start.x) / segmentLength,
+            y: (segment.end.y - segment.start.y) / segmentLength,
+          };
     const perpendicular = { x: -unit.y, y: unit.x };
 
     return {
@@ -2762,7 +2783,7 @@ export class BuildingPlanCanvas {
     ctx.save();
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = lineWidth;
-   ctx.lineCap = 'round';
+    ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(geometry.startPoint.x, geometry.startPoint.y);
     ctx.lineTo(geometry.endPoint.x, geometry.endPoint.y);
@@ -2772,8 +2793,7 @@ export class BuildingPlanCanvas {
     const labelType = isDoor ? 'doors' : 'windows';
     if (this.shouldShowLabel(labelType)) {
       const baseLabel = opening.displayLabel || opening.label;
-      const fallbackIndex =
-        typeof opening.index === 'number' ? opening.index + 1 : null;
+      const fallbackIndex = typeof opening.index === 'number' ? opening.index + 1 : null;
       const labelText = formatShortLabel(
         baseLabel,
         isDoor ? 'D' : 'W',
@@ -2936,8 +2956,7 @@ export class BuildingPlanCanvas {
 
     const defaultWidthMeters = type === 'door' ? DEFAULT_DOOR_WIDTH_M : DEFAULT_WINDOW_WIDTH_M;
     const defaultHeightMeters = type === 'door' ? DEFAULT_DOOR_HEIGHT_M : DEFAULT_WINDOW_HEIGHT_M;
-    const defaultDistanceFromFloor =
-      type === 'window' ? DEFAULT_WINDOW_SILL_HEIGHT_M : undefined;
+    const defaultDistanceFromFloor = type === 'window' ? DEFAULT_WINDOW_SILL_HEIGHT_M : undefined;
 
     const desiredSpanPixels = metersToLength(defaultWidthMeters, this.gridSize);
     let spanRatio = desiredSpanPixels / segmentLength;
@@ -2973,7 +2992,11 @@ export class BuildingPlanCanvas {
       return result;
     }
 
-    if (type === 'window' && this.controller && typeof this.controller.createWindow === 'function') {
+    if (
+      type === 'window' &&
+      this.controller &&
+      typeof this.controller.createWindow === 'function'
+    ) {
       const result = this.controller.createWindow(wall.id, {
         segmentIndex: wallHit.segmentIndex || 0,
         startRatio,

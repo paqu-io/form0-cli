@@ -175,10 +175,7 @@ function loadLabelVisibilityPreference() {
 
 function persistLabelVisibilityPreference(visibility) {
   try {
-    window.localStorage.setItem(
-      LABEL_VISIBILITY_STORAGE_KEY,
-      JSON.stringify(visibility)
-    );
+    window.localStorage.setItem(LABEL_VISIBILITY_STORAGE_KEY, JSON.stringify(visibility));
   } catch (err) {
     // Ignore storage errors
   }
@@ -406,7 +403,6 @@ function saveSettingsDialog() {
 
   closeSettingsDialog();
 }
-
 
 // Initialize modular components
 const formRenderer = new FormRenderer();
@@ -1031,9 +1027,7 @@ function addFormEventListeners() {
           ? formRenderer.formatContextPath(detail.instancePath)
           : null;
         if (contextKey) {
-          const container = document.querySelector(
-            `[data-repeatable-context="${contextKey}"]`
-          );
+          const container = document.querySelector(`[data-repeatable-context="${contextKey}"]`);
           if (container) {
             const focusTarget = container.querySelector('input, select, textarea');
             if (focusTarget && typeof focusTarget.focus === 'function') {
@@ -1233,7 +1227,7 @@ async function handleFormSubmit() {
     // Submit to database/connectors via /api/submit-record
     try {
       console.log('💾 [DATABASE SUBMIT] Submitting to configured connectors...');
-      
+
       const submitResponse = await fetch('/api/submit-record', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1242,17 +1236,17 @@ async function handleFormSubmit() {
 
       if (submitResponse.ok) {
         const submitResult = await submitResponse.json();
-        
+
         if (submitResult.success) {
           console.log(`✅ [DATABASE SUBMIT] ${submitResult.message}`);
-          
+
           // Log individual connector results if available
           if (submitResult.connectorResults && submitResult.connectorResults.length > 0) {
-            submitResult.connectorResults.forEach(result => {
+            submitResult.connectorResults.forEach((result) => {
               const status = result.success ? '✅' : '❌';
-              const details = result.success 
-                ? (result.message || 'Success')
-                : (result.error || 'Unknown error');
+              const details = result.success
+                ? result.message || 'Success'
+                : result.error || 'Unknown error';
               console.log(`   ${status} ${result.connector}: ${details}`);
             });
           }

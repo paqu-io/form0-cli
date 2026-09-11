@@ -37,9 +37,7 @@ async function loadKeytar() {
     return keytarPromise;
   }
 
-  keytarPromise = import('keytar')
-    .then((module) => module.default ?? module)
-    .catch(() => null);
+  keytarPromise = import('keytar').then((module) => module.default ?? module).catch(() => null);
 
   return keytarPromise;
 }
@@ -49,10 +47,8 @@ function normalizeScope(scope) {
     return null;
   }
 
-  const mainOrgId =
-    typeof scope.main_org_id === 'string' ? scope.main_org_id.trim() : '';
-  const subOrgId =
-    typeof scope.sub_org_id === 'string' ? scope.sub_org_id.trim() : '';
+  const mainOrgId = typeof scope.main_org_id === 'string' ? scope.main_org_id.trim() : '';
+  const subOrgId = typeof scope.sub_org_id === 'string' ? scope.sub_org_id.trim() : '';
 
   if (!mainOrgId) {
     return null;

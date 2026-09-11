@@ -5,17 +5,19 @@ import { resolveProjectConfig } from './project-config.js';
 
 export const PROJECT_ENV_FILENAME = '.env.local';
 
-function formatEnvValue(value) {
+export function formatEnvValue(value) {
   if (value === undefined || value === null) {
     return '';
   }
 
   const stringValue = String(value);
-  if (/[\s#]/.test(stringValue)) {
-    return `"${stringValue.replace(/"/g, '\\"')}"`;
+  if (/[\r\n]/.test(stringValue)) {
+    throw new Error('Environment variable values cannot contain line breaks');
   }
 
-  return stringValue;
+  // dotenv preserves all characters between the first and last single quote,
+  // including embedded quotes, hashes, spaces, and backslashes.
+  return `'${stringValue}'`;
 }
 
 export async function resolveProjectEnv(startDir = process.cwd()) {

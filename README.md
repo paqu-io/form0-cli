@@ -1,18 +1,22 @@
 # form0-cli
 
 [![NPM Version](https://img.shields.io/npm/v/form0-cli)](https://www.npmjs.com/package/form0-cli)
-[![NPM Downloads](https://img.shields.io/npm/dt/form0-cli)](https://www.npmjs.com/package/form0-cli)
+[![NPM Downloads](https://img.shields.io/npm/dm/form0-cli)](https://www.npmjs.com/package/form0-cli)
+[![CI](https://github.com/paqu-io/form0-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/paqu-io/form0-cli/actions/workflows/ci.yml)
 ![NPM License](https://img.shields.io/npm/l/form0-cli)
 [![Docs](https://img.shields.io/badge/docs-docs.form0.dev-2563eb)](https://docs.form0.dev)
 [![Website](https://img.shields.io/badge/site-form0.dev-0f172a)](https://form0.dev)
 ![NPM Last Update](https://img.shields.io/npm/last-update/form0-cli)
+[![Socket](https://socket.dev/api/badge/npm/package/form0-cli)](https://socket.dev/npm/package/form0-cli)
 
-> [!WARNING]
-> form0 is in active, very early development. Do not use in production. Expect breaking
-> changes and unstable behavior.
+> [!NOTE]
+> form0 is in active development and is available to use today. Its schema format and core
+> concepts are stable in practice, but releases before 1.0 may include breaking changes. Pin your
+> versions and review the release notes when upgrading. A formally stable release is coming.
 
-form0-cli is the interactive command-line toolkit for building, validating, previewing, and
-serving schemas in the [form0 open-source ecosystem](https://form0.dev). It powers the local development workflow for form0 projects.
+`form0-cli` is the canonical entry point for the [form0 open-source ecosystem](https://form0.dev).
+It is an interactive command-line toolkit for creating projects and building, validating,
+previewing, testing, and serving form schemas locally.
 
 ## 🗂️ Documentation
 
@@ -199,7 +203,7 @@ schema.
 
 ## Working with values
 
-form0-cli accepts JSON strings or files for `--values`:
+`form0-cli` accepts JSON strings or files for `--values`:
 
 ```bash
 form0 run form.schema.json --values '{"name":"Alice","age":25}'
@@ -209,16 +213,34 @@ form0 run form.schema.json --values values.yaml
 
 Invalid fields are filtered out with warnings based on the schema.
 
-## Requirements
+## ✅ Requirements
 
-- Node.js 18+
+- Node.js 22+
 
-## Related repositories
+## 🔗 Related repositories
 
 - [form0-core](https://github.com/paqu-io/form0-core) - Core form engine
 - [form0-react](https://github.com/paqu-io/form0-react) - React components
 - [form0-react-native](https://github.com/paqu-io/form0-react-native) - React Native components
 
-## Contributing
+## 🔒 Security
 
-Contributions are welcome! Please feel free to submit [issues](https://github.com/paqu-io/form0-cli/issues) and [pull requests](https://github.com/paqu-io/form0-cli/pulls).
+The preview server is a local development tool: it loads configured connector modules and executes
+schema behavior. Use trusted projects and connectors. It binds to `localhost` by default; if you use
+`--host` to expose it to another interface, only do so on a trusted network.
+
+Do not report suspected vulnerabilities through public issues. See
+[SECURITY.md](./SECURITY.md) for private reporting instructions.
+
+For ordinary usage help, see
+[SUPPORT.md](https://github.com/paqu-io/form0-cli/blob/main/SUPPORT.md).
+
+## 🤝 Contributing
+
+Contributions are welcome. See
+[CONTRIBUTING.md](https://github.com/paqu-io/form0-cli/blob/main/CONTRIBUTING.md) before opening an
+issue or pull request.
+
+## 📄 License
+
+[MIT](./LICENSE)

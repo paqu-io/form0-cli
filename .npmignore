@@ -1,3 +1,10 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+.npmrc
+
+# Repository and development files
 .github/
 .claude/
 .cursor/
@@ -10,6 +17,14 @@ AGENTS.md
 CLAUDE.md
 GEMINI.md
 analyses/
+coverage/
 tests/
+scripts/
+eslint.config.*
+node_modules/
 package-lock.json
-README.md.old
+
+# Backups and local artifacts
+*.old
+*.log
+.DS_Store

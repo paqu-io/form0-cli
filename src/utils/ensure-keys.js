@@ -55,11 +55,9 @@ export function ensureKeysForSchema(elements) {
   function normalizeFields(fields) {
     fields.forEach((field) => {
       // Normalize all known condition types
-      ['visible_conditions', 'required_conditions', 'read_only_conditions'].forEach(
-        (condKey) => {
-          if (field[condKey]) normalizeConditionRefs(field[condKey]);
-        }
-      );
+      ['visible_conditions', 'required_conditions', 'read_only_conditions'].forEach((condKey) => {
+        if (field[condKey]) normalizeConditionRefs(field[condKey]);
+      });
       if (
         (field.type === 'Section' || field.type === 'RepeatableSection') &&
         Array.isArray(field.elements)
