@@ -9,8 +9,16 @@ import { importSchemaFromCsvFile, exportSchemaToCsvFile } from '../utils/schema-
 import { defaultFormTemplate } from '../form0-forms/form-schema-template.js';
 import { ensureKeysForSchema } from '../utils/ensure-keys.js';
 import { COMMON_SCHEMA_PATHS } from '../utils/constants.js';
-import { detectSchemaProject, discoverSchemas, formatSchemaCandidate } from '../utils/schema-utils.js';
-import { addFormToRegistry, registryHasForm, removeFormFromRegistry } from '../utils/schema-registry.js';
+import {
+  detectSchemaProject,
+  discoverSchemas,
+  formatSchemaCandidate,
+} from '../utils/schema-utils.js';
+import {
+  addFormToRegistry,
+  registryHasForm,
+  removeFormFromRegistry,
+} from '../utils/schema-registry.js';
 
 export async function confirmOverwrite(targetPath, { force = false, readlineInterface } = {}) {
   if (force) return true;
@@ -120,11 +128,7 @@ async function promptSelect({ title, options, promptKey, defaultIndex = null, re
     }
 
     const selectedIndex = Number.parseInt(answer, 10);
-    if (
-      Number.isInteger(selectedIndex) &&
-      selectedIndex >= 1 &&
-      selectedIndex <= options.length
-    ) {
+    if (Number.isInteger(selectedIndex) && selectedIndex >= 1 && selectedIndex <= options.length) {
       return options[selectedIndex - 1].value;
     }
 
@@ -507,13 +511,17 @@ export async function schemaExportCommand(csvPath = 'form.schema.csv', options =
   try {
     const resolvedSource = path.resolve(sourcePath);
     const resolvedTarget = path.resolve(csvPath);
-    console.log(colors.info(t('commands.schema.exportPreview', { json: resolvedSource, csv: resolvedTarget })));
+    console.log(
+      colors.info(t('commands.schema.exportPreview', { json: resolvedSource, csv: resolvedTarget }))
+    );
 
     if (!(await confirmOverwrite(csvPath, { force }))) {
       return { cancelled: true };
     }
 
-    const { csvPath: outputPath } = await exportSchemaToCsvFile(sourcePath, { outputPath: csvPath });
+    const { csvPath: outputPath } = await exportSchemaToCsvFile(sourcePath, {
+      outputPath: csvPath,
+    });
     console.log(
       colors.success(
         t('commands.schema.exportSuccess', {
@@ -564,9 +572,7 @@ async function resolveSchemaCandidate(inputValue, startDir) {
     return byFormName;
   }
 
-  const byFilename = candidates.find(
-    (candidate) => path.basename(candidate.path) === trimmed
-  );
+  const byFilename = candidates.find((candidate) => path.basename(candidate.path) === trimmed);
   if (byFilename) {
     return byFilename;
   }
@@ -691,9 +697,7 @@ export async function schemaNewCommand(options = {}) {
     }
 
     console.log(
-      colors.success(
-        t('commands.schema.newSuccess', { path: resolveDisplayPath(schemaPath) })
-      )
+      colors.success(t('commands.schema.newSuccess', { path: resolveDisplayPath(schemaPath) }))
     );
 
     return {
@@ -795,9 +799,7 @@ export async function schemaDeleteCommand(schemaInput, options = {}) {
 
     if (!(await fs.pathExists(resolvedPath))) {
       console.log(
-        colors.error(
-          t('commands.schema.deleteNotFound', { input: schemaInput || resolvedPath })
-        )
+        colors.error(t('commands.schema.deleteNotFound', { input: schemaInput || resolvedPath }))
       );
       return { cancelled: true };
     }

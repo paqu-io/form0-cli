@@ -30,10 +30,7 @@ function buildCandidate(fullPath, startDir, source, formName = null) {
 
 function hasSchemasConfig(config) {
   return (
-    config &&
-    typeof config === 'object' &&
-    config.schemas &&
-    typeof config.schemas === 'object'
+    config && typeof config === 'object' && config.schemas && typeof config.schemas === 'object'
   );
 }
 

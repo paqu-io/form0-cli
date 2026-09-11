@@ -96,7 +96,9 @@ export class SchemaManager {
         return candidates[selectedIndex - 1];
       }
 
-      console.log(colors.warning(t('interactive.schemaPickerInvalid', { count: candidates.length })));
+      console.log(
+        colors.warning(t('interactive.schemaPickerInvalid', { count: candidates.length }))
+      );
     }
   }
 
@@ -174,9 +176,7 @@ export class SchemaManager {
       try {
         await this.loadSchema(candidate.path);
         console.log(
-          colors.success(
-            t('interactive.autoLoadedSchema', { path: candidate.displayPath }) + '\n'
-          )
+          colors.success(t('interactive.autoLoadedSchema', { path: candidate.displayPath }) + '\n')
         );
         return true;
       } catch (err) {
@@ -208,9 +208,7 @@ export class SchemaManager {
         try {
           await this.loadSchema(selected.path);
           console.log(
-            colors.success(
-              t('interactive.autoLoadedSchema', { path: selected.displayPath }) + '\n'
-            )
+            colors.success(t('interactive.autoLoadedSchema', { path: selected.displayPath }) + '\n')
           );
           return true;
         } catch (err) {
@@ -242,7 +240,9 @@ export class SchemaManager {
       );
       searchTargets.push(...formPatterns);
     }
-    console.log(chalk.gray(t('interactive.lookingFor', { files: searchTargets.join(', ') }) + '\n'));
+    console.log(
+      chalk.gray(t('interactive.lookingFor', { files: searchTargets.join(', ') }) + '\n')
+    );
 
     console.log(colors.accent1(t('interactive.wouldYouLikeToInit')));
     console.log(chalk.gray(t('interactive.typeInit')));
@@ -319,9 +319,7 @@ export class SchemaManager {
 
     if (ignoredFlags.length > 0) {
       console.log(
-        colors.warning(
-          t('interactive.localInitFlagsIgnored', { flags: ignoredFlags.join(' ') })
-        )
+        colors.warning(t('interactive.localInitFlagsIgnored', { flags: ignoredFlags.join(' ') }))
       );
     }
 
@@ -333,9 +331,7 @@ export class SchemaManager {
       if (rootCandidates.length > 0) {
         if (candidates.length > 1) {
           console.log(
-            colors.warning(
-              t('interactive.foundExistingSchemas', { count: candidates.length })
-            )
+            colors.warning(t('interactive.foundExistingSchemas', { count: candidates.length }))
           );
         } else {
           console.log(

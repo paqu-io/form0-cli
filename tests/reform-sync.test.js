@@ -106,7 +106,7 @@ async function startReformServer(state) {
           data: {
             forms: state.forms,
           },
-        }),
+        })
       );
       return;
     }
@@ -127,7 +127,7 @@ async function startReformServer(state) {
           data: {
             form_schema: schema,
           },
-        }),
+        })
       );
       return;
     }
@@ -171,14 +171,9 @@ async function run() {
     getReformAuthFilePath,
     saveStoredReformAuth,
   } = await import('../src/utils/reform-storage.js');
-  const {
-    discoverSchemas,
-  } = await import('../src/utils/schema-utils.js');
-  const {
-    getReformSyncStatus,
-    pullReformForms,
-    pruneDeletedReformForms,
-  } = await import('../src/utils/reform-sync.js');
+  const { discoverSchemas } = await import('../src/utils/schema-utils.js');
+  const { getReformSyncStatus, pullReformForms, pruneDeletedReformForms } =
+    await import('../src/utils/reform-sync.js');
 
   const remoteState = {
     forms: [
@@ -234,9 +229,7 @@ async function run() {
     await clearStoredReformAuth();
     assert.equal(await getStoredReformAuth(), null);
 
-    const standardProjectDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'form0-cli-standard-'),
-    );
+    const standardProjectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-cli-standard-'));
 
     const firstPull = await pullReformForms({
       projectRoot: standardProjectDir,
@@ -247,29 +240,22 @@ async function run() {
       },
     });
 
-    assert.deepEqual(firstPull.summary.created.sort(), [
-      'contact-form',
-      'contact-form-2',
-    ]);
+    assert.deepEqual(firstPull.summary.created.sort(), ['contact-form', 'contact-form-2']);
     assert.equal(
       await fs.pathExists(path.join(standardProjectDir, 'contact-form.schema.json')),
-      true,
+      true
     );
     assert.equal(
       await fs.pathExists(path.join(standardProjectDir, 'contact-form-2.schema.json')),
-      true,
+      true
     );
     const discoveredStandardSchemas = await discoverSchemas(standardProjectDir);
     assert.deepEqual(
       discoveredStandardSchemas.candidates.map((candidate) => candidate.path).sort(),
-      ['contact-form-2.schema.json', 'contact-form.schema.json'],
+      ['contact-form-2.schema.json', 'contact-form.schema.json']
     );
 
-    await fs.appendFile(
-      path.join(standardProjectDir, 'contact-form.schema.json'),
-      '\n',
-      'utf8',
-    );
+    await fs.appendFile(path.join(standardProjectDir, 'contact-form.schema.json'), '\n', 'utf8');
 
     remoteState.forms = [
       {
@@ -314,7 +300,7 @@ async function run() {
     assert.deepEqual(prunePreview.prunable, ['contact-form-2']);
     assert.equal(
       await fs.pathExists(path.join(standardProjectDir, 'contact-form-2.schema.json')),
-      true,
+      true
     );
 
     const pruneResult = await pruneDeletedReformForms({
@@ -324,7 +310,7 @@ async function run() {
     assert.deepEqual(pruneResult.pruned, ['contact-form-2']);
     assert.equal(
       await fs.pathExists(path.join(standardProjectDir, 'contact-form-2.schema.json')),
-      false,
+      false
     );
 
     remoteState.forms = [];
@@ -340,19 +326,17 @@ async function run() {
 
     const standardStatus = await getReformSyncStatus(standardProjectDir);
     const contactEntry = standardStatus.entries.find(
-      (entry) => entry.localAlias === 'contact-form',
+      (entry) => entry.localAlias === 'contact-form'
     );
     assert.equal(contactEntry.remoteState, 'unreachable');
     assert.equal(contactEntry.modifiedLocally, true);
 
-    const webProjectDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'form0-cli-web-'),
-    );
+    const webProjectDir = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-cli-web-'));
     await fs.ensureDir(path.join(webProjectDir, 'src', 'forms'));
     await fs.writeFile(
       path.join(webProjectDir, 'src', 'forms', 'registry.js'),
-      "const forms = [\n];\n\nexport { forms };\nexport default forms;\n",
-      'utf8',
+      'const forms = [\n];\n\nexport { forms };\nexport default forms;\n',
+      'utf8'
     );
 
     remoteState.forms = [
@@ -378,14 +362,14 @@ async function run() {
     assert.deepEqual(webPull.summary.created, ['inspection-form']);
     assert.equal(
       await fs.pathExists(
-        path.join(webProjectDir, 'src', 'forms', 'inspection-form', 'schema.json'),
+        path.join(webProjectDir, 'src', 'forms', 'inspection-form', 'schema.json')
       ),
-      true,
+      true
     );
 
     const registryContents = await fs.readFile(
       path.join(webProjectDir, 'src', 'forms', 'registry.js'),
-      'utf8',
+      'utf8'
     );
     assert.match(registryContents, /id: 'inspection-form'/);
     assert.match(registryContents, /Inspection Form/);

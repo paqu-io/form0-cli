@@ -184,7 +184,12 @@ function buildStoredVerticesPayload(vertices, gridSize = DEFAULT_GRID_SIZE) {
 function isMetersUnit(unit) {
   if (!unit || typeof unit !== 'string') return false;
   const normalized = unit.toLowerCase();
-  return normalized === 'meters' || normalized === 'metres' || normalized === 'meter' || normalized === 'm';
+  return (
+    normalized === 'meters' ||
+    normalized === 'metres' ||
+    normalized === 'meter' ||
+    normalized === 'm'
+  );
 }
 
 function parseStoredVertices(rawValue) {
@@ -460,9 +465,7 @@ export class BuildingPlanController {
         this.floorKey,
         this.doorKey,
         this.windowKey,
-      ].filter(
-        (value) => typeof value === 'string' && value !== ''
-      )
+      ].filter((value) => typeof value === 'string' && value !== '')
     );
     if (!relevantKeys.has(detail.sectionKey)) {
       return;
@@ -508,7 +511,9 @@ export class BuildingPlanController {
   }
 
   getRepeatableByDataName(dataName, elements = []) {
-    return elements.find((el) => el.type === 'RepeatableSection' && el.data_name === dataName) || null;
+    return (
+      elements.find((el) => el.type === 'RepeatableSection' && el.data_name === dataName) || null
+    );
   }
 
   resolveRepeatable(elements = [], dataName, fallbackDataName) {
@@ -539,7 +544,8 @@ export class BuildingPlanController {
       clearNewInstanceValues: true,
       clearNewInstanceRepeatable: true,
     });
-    const roomInstances = this.formRenderer.getRepeatableInstances(this.roomSection, floorPath) || [];
+    const roomInstances =
+      this.formRenderer.getRepeatableInstances(this.roomSection, floorPath) || [];
     const roomIndex = roomInstances.length - 1;
     const roomInstance = roomInstances[roomIndex];
     const roomPath = [...floorPath, { key: this.roomKey, index: roomIndex }];
@@ -593,7 +599,10 @@ export class BuildingPlanController {
     const storedVerticesPayload = buildStoredVerticesPayload(roundedVertices, this.gridSize);
     const roomVerticesString = stringifyValue(storedVerticesPayload);
 
-    if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
+    if (
+      this.formStateManager &&
+      typeof this.formStateManager.setFieldValueAtContext === 'function'
+    ) {
       this.formStateManager.setFieldValueAtContext(
         roomVerticesField,
         roomInfo.path,
@@ -630,7 +639,10 @@ export class BuildingPlanController {
       wall.points = cloneVertices(roundedPoints);
       const storedGeometryPayload = buildStoredVerticesPayload(roundedPoints, this.gridSize);
       const wallGeometryValue = stringifyValue(storedGeometryPayload);
-      if (this.formStateManager && typeof this.formStateManager.setFieldValueAtContext === 'function') {
+      if (
+        this.formStateManager &&
+        typeof this.formStateManager.setFieldValueAtContext === 'function'
+      ) {
         this.formStateManager.setFieldValueAtContext(
           wallGeometryField,
           wall.path,
@@ -642,7 +654,10 @@ export class BuildingPlanController {
 
     if (relatedWalls.length > 0) {
       this.formStateManager.updateFormState();
-    } else if (this.formStateManager && typeof this.formStateManager.updateFormState === 'function') {
+    } else if (
+      this.formStateManager &&
+      typeof this.formStateManager.updateFormState === 'function'
+    ) {
       this.formStateManager.updateFormState();
     }
 
@@ -666,7 +681,8 @@ export class BuildingPlanController {
       clearNewInstanceValues: true,
       clearNewInstanceRepeatable: true,
     });
-    const wallInstances = this.formRenderer.getRepeatableInstances(this.wallSection, roomInfo.path) || [];
+    const wallInstances =
+      this.formRenderer.getRepeatableInstances(this.wallSection, roomInfo.path) || [];
     const wallIndex = wallInstances.length - 1;
     const wallInstance = wallInstances[wallIndex];
     const wallPath = [...roomInfo.path, { key: this.wallKey, index: wallIndex }];
@@ -763,9 +779,7 @@ export class BuildingPlanController {
     const sanitizedSegment = toInteger(wallSegmentIndex, -1);
     const sanitizedRatio = clamp(roundCoordinate(toNumber(wallRatio, 0)), 0, 1);
     const resolvedLabel =
-      label && String(label).trim() !== ''
-        ? String(label).trim()
-        : `C#${columnInstances.length}`;
+      label && String(label).trim() !== '' ? String(label).trim() : `C#${columnInstances.length}`;
     const displayLabel = `C#${columnIndex + 1}`;
 
     if (columnInstance) {
@@ -822,11 +836,7 @@ export class BuildingPlanController {
     return provisionalColumn;
   }
 
-  updateColumn(
-    columnId,
-    updates = {},
-    { triggerEngineUpdate = true } = {}
-  ) {
+  updateColumn(columnId, updates = {}, { triggerEngineUpdate = true } = {}) {
     const columnInfo = this.columns.get(columnId);
     if (!columnInfo || !this.columnSection) {
       return;
@@ -844,7 +854,9 @@ export class BuildingPlanController {
     }
 
     const nextWidth =
-      updates.width != null ? roundCoordinate(toNumber(updates.width, columnInfo.width)) : columnInfo.width;
+      updates.width != null
+        ? roundCoordinate(toNumber(updates.width, columnInfo.width))
+        : columnInfo.width;
     const nextHeight =
       updates.height != null
         ? roundCoordinate(toNumber(updates.height, columnInfo.height))
@@ -853,18 +865,22 @@ export class BuildingPlanController {
       updates.vertical != null
         ? roundCoordinate(toNumber(updates.vertical, columnInfo.vertical))
         : columnInfo.vertical;
-    const nextCenterU = updates.centerU != null
-      ? clamp(roundCoordinate(toNumber(updates.centerU, columnInfo.centerU)), 0, 1)
-      : columnInfo.centerU;
-    const nextCenterV = updates.centerV != null
-      ? clamp(roundCoordinate(toNumber(updates.centerV, columnInfo.centerV)), 0, 1)
-      : columnInfo.centerV;
-    const nextSegment = updates.wallSegmentIndex != null
-      ? toInteger(updates.wallSegmentIndex, columnInfo.wallSegmentIndex)
-      : columnInfo.wallSegmentIndex;
-    const nextRatio = updates.wallRatio != null
-      ? clamp(roundCoordinate(toNumber(updates.wallRatio, columnInfo.wallRatio)), 0, 1)
-      : columnInfo.wallRatio;
+    const nextCenterU =
+      updates.centerU != null
+        ? clamp(roundCoordinate(toNumber(updates.centerU, columnInfo.centerU)), 0, 1)
+        : columnInfo.centerU;
+    const nextCenterV =
+      updates.centerV != null
+        ? clamp(roundCoordinate(toNumber(updates.centerV, columnInfo.centerV)), 0, 1)
+        : columnInfo.centerV;
+    const nextSegment =
+      updates.wallSegmentIndex != null
+        ? toInteger(updates.wallSegmentIndex, columnInfo.wallSegmentIndex)
+        : columnInfo.wallSegmentIndex;
+    const nextRatio =
+      updates.wallRatio != null
+        ? clamp(roundCoordinate(toNumber(updates.wallRatio, columnInfo.wallRatio)), 0, 1)
+        : columnInfo.wallRatio;
     const nextLabel =
       updates.label != null && String(updates.label).trim() !== ''
         ? String(updates.label).trim()
@@ -918,7 +934,11 @@ export class BuildingPlanController {
     const parentPath = columnInfo.path.slice(0, -1);
     const indexDescriptor = columnInfo.path[columnInfo.path.length - 1];
     if (!indexDescriptor) return;
-    this.formRenderer.removeRepeatableInstance(this.columnSection, parentPath, indexDescriptor.index);
+    this.formRenderer.removeRepeatableInstance(
+      this.columnSection,
+      parentPath,
+      indexDescriptor.index
+    );
   }
 
   createBeam(
@@ -951,7 +971,8 @@ export class BuildingPlanController {
       clearNewInstanceValues: true,
       clearNewInstanceRepeatable: true,
     });
-    const beamInstances = this.formRenderer.getRepeatableInstances(this.beamSection, roomInfo.path) || [];
+    const beamInstances =
+      this.formRenderer.getRepeatableInstances(this.beamSection, roomInfo.path) || [];
     const beamIndex = beamInstances.length - 1;
     const beamInstance = beamInstances[beamIndex];
     const beamPath = [...roomInfo.path, { key: this.beamKey, index: beamIndex }];
@@ -968,9 +989,7 @@ export class BuildingPlanController {
     const sanitizedStartRatio = clamp(roundCoordinate(toNumber(startRatio, 0)), 0, 1);
     const sanitizedEndRatio = clamp(roundCoordinate(toNumber(endRatio, 0)), 0, 1);
     const resolvedLabel =
-      label && String(label).trim() !== ''
-        ? String(label).trim()
-        : `B#${beamInstances.length}`;
+      label && String(label).trim() !== '' ? String(label).trim() : `B#${beamInstances.length}`;
     const displayLabel = `B#${beamIndex + 1}`;
 
     const startPoint = {
@@ -1047,11 +1066,7 @@ export class BuildingPlanController {
     return provisionalBeam;
   }
 
-  updateBeam(
-    beamId,
-    updates = {},
-    { triggerEngineUpdate = true } = {}
-  ) {
+  updateBeam(beamId, updates = {}, { triggerEngineUpdate = true } = {}) {
     const beamInfo = this.beams.get(beamId);
     if (!beamInfo || !this.beamSection) {
       return;
@@ -1068,9 +1083,13 @@ export class BuildingPlanController {
     }
 
     const nextWidth =
-      updates.width != null ? roundCoordinate(toNumber(updates.width, beamInfo.width)) : beamInfo.width;
+      updates.width != null
+        ? roundCoordinate(toNumber(updates.width, beamInfo.width))
+        : beamInfo.width;
     const nextHeight =
-      updates.height != null ? roundCoordinate(toNumber(updates.height, beamInfo.height)) : beamInfo.height;
+      updates.height != null
+        ? roundCoordinate(toNumber(updates.height, beamInfo.height))
+        : beamInfo.height;
     const nextStartU =
       updates.startU != null
         ? clamp(roundCoordinate(toNumber(updates.startU, beamInfo.startU)), 0, 1)
@@ -1206,7 +1225,8 @@ export class BuildingPlanController {
       clearNewInstanceValues: true,
       clearNewInstanceRepeatable: true,
     });
-    const doorInstances = this.formRenderer.getRepeatableInstances(this.doorSection, wallInfo.path) || [];
+    const doorInstances =
+      this.formRenderer.getRepeatableInstances(this.doorSection, wallInfo.path) || [];
     const doorIndex = doorInstances.length - 1;
     const doorInstance = doorInstances[doorIndex];
     const doorPath = [...wallInfo.path, { key: this.doorKey, index: doorIndex }];
@@ -1216,16 +1236,8 @@ export class BuildingPlanController {
     const sanitizedSegment = clamp(toInteger(segmentIndex, 0), 0, maxSegmentIndex);
     const startValue = toNumber(startRatio, 0.4);
     const endValue = toNumber(endRatio, 0.6);
-    const normalizedStart = clamp(
-      roundCoordinate(Math.min(startValue, endValue)),
-      0,
-      1
-    );
-    const normalizedEnd = clamp(
-      roundCoordinate(Math.max(startValue, endValue)),
-      0,
-      1
-    );
+    const normalizedStart = clamp(roundCoordinate(Math.min(startValue, endValue)), 0, 1);
+    const normalizedEnd = clamp(roundCoordinate(Math.max(startValue, endValue)), 0, 1);
     const sanitizedWidth = roundCoordinate(toNumber(width, DEFAULT_DOOR_WIDTH));
     const sanitizedHeight = roundCoordinate(toNumber(height, DEFAULT_DOOR_HEIGHT));
     const resolvedLabel =
@@ -1316,27 +1328,19 @@ export class BuildingPlanController {
       clearNewInstanceValues: true,
       clearNewInstanceRepeatable: true,
     });
-    const windowInstances = this.formRenderer.getRepeatableInstances(this.windowSection, wallInfo.path) || [];
+    const windowInstances =
+      this.formRenderer.getRepeatableInstances(this.windowSection, wallInfo.path) || [];
     const windowIndex = windowInstances.length - 1;
     const windowInstance = windowInstances[windowIndex];
     const windowPath = [...wallInfo.path, { key: this.windowKey, index: windowIndex }];
-    const windowId =
-      windowInstance?.id || `${this.formRenderer.formatContextPath(windowPath)}`;
+    const windowId = windowInstance?.id || `${this.formRenderer.formatContextPath(windowPath)}`;
     const windowFields = this.fieldNames.window;
     const maxSegmentIndex = Math.max(0, (wallInfo.points || []).length - 2);
     const sanitizedSegment = clamp(toInteger(segmentIndex, 0), 0, maxSegmentIndex);
     const startValue = toNumber(startRatio, 0.4);
     const endValue = toNumber(endRatio, 0.6);
-    const normalizedStart = clamp(
-      roundCoordinate(Math.min(startValue, endValue)),
-      0,
-      1
-    );
-    const normalizedEnd = clamp(
-      roundCoordinate(Math.max(startValue, endValue)),
-      0,
-      1
-    );
+    const normalizedStart = clamp(roundCoordinate(Math.min(startValue, endValue)), 0, 1);
+    const normalizedEnd = clamp(roundCoordinate(Math.max(startValue, endValue)), 0, 1);
     const sanitizedWidth = roundCoordinate(toNumber(width, DEFAULT_WINDOW_WIDTH));
     const sanitizedHeight = roundCoordinate(toNumber(height, DEFAULT_WINDOW_HEIGHT));
     const sanitizedDistance = roundCoordinate(
@@ -1388,11 +1392,7 @@ export class BuildingPlanController {
     this.setFieldValueWithoutState(windowFields.endRatio, windowPath, normalizedEnd);
     this.setFieldValueWithoutState(windowFields.width, windowPath, sanitizedWidth);
     this.setFieldValueWithoutState(windowFields.height, windowPath, sanitizedHeight);
-    this.setFieldValueWithoutState(
-      windowFields.distanceFromFloor,
-      windowPath,
-      sanitizedDistance
-    );
+    this.setFieldValueWithoutState(windowFields.distanceFromFloor, windowPath, sanitizedDistance);
     this.setFieldValueWithoutState(windowFields.label, windowPath, resolvedLabel);
     this.setFieldValueWithoutState(windowFields.wallReference, windowPath, wallId);
 
@@ -1410,11 +1410,7 @@ export class BuildingPlanController {
     return provisionalWindow;
   }
 
-  updateDoor(
-    doorId,
-    updates = {},
-    { triggerEngineUpdate = true } = {}
-  ) {
+  updateDoor(doorId, updates = {}, { triggerEngineUpdate = true } = {}) {
     const doorInfo = this.doors.get(doorId);
     if (!doorInfo || !this.doorSection) {
       return;
@@ -1431,13 +1427,13 @@ export class BuildingPlanController {
         ? toNumber(updates.startRatio, doorInfo.startRatio)
         : doorInfo.startRatio;
     const nextEndRaw =
-      updates.endRatio != null
-        ? toNumber(updates.endRatio, doorInfo.endRatio)
-        : doorInfo.endRatio;
+      updates.endRatio != null ? toNumber(updates.endRatio, doorInfo.endRatio) : doorInfo.endRatio;
     const nextStart = clamp(roundCoordinate(Math.min(nextStartRaw, nextEndRaw)), 0, 1);
     const nextEnd = clamp(roundCoordinate(Math.max(nextStartRaw, nextEndRaw)), 0, 1);
     const nextWidth =
-      updates.width != null ? roundCoordinate(toNumber(updates.width, doorInfo.width)) : doorInfo.width;
+      updates.width != null
+        ? roundCoordinate(toNumber(updates.width, doorInfo.width))
+        : doorInfo.width;
     const nextHeight =
       updates.height != null
         ? roundCoordinate(toNumber(updates.height, doorInfo.height))
@@ -1489,11 +1485,7 @@ export class BuildingPlanController {
     );
   }
 
-  updateWindow(
-    windowId,
-    updates = {},
-    { triggerEngineUpdate = true } = {}
-  ) {
+  updateWindow(windowId, updates = {}, { triggerEngineUpdate = true } = {}) {
     const windowInfo = this.windows.get(windowId);
     if (!windowInfo || !this.windowSection) {
       return;
@@ -1561,11 +1553,7 @@ export class BuildingPlanController {
     this.setFieldValueWithoutState(windowFields.endRatio, windowPath, nextEnd);
     this.setFieldValueWithoutState(windowFields.width, windowPath, nextWidth);
     this.setFieldValueWithoutState(windowFields.height, windowPath, nextHeight);
-    this.setFieldValueWithoutState(
-      windowFields.distanceFromFloor,
-      windowPath,
-      nextDistance
-    );
+    this.setFieldValueWithoutState(windowFields.distanceFromFloor, windowPath, nextDistance);
 
     this.emitUpdate();
 
@@ -1652,12 +1640,10 @@ export class BuildingPlanController {
     };
 
     this.runAfterRender(() => {
-      const success = this.formStateManager.setFieldValueAtContext(
-        fieldName,
-        path,
-        value,
-        { suppressLogging: true, skipStateUpdate: true }
-      );
+      const success = this.formStateManager.setFieldValueAtContext(fieldName, path, value, {
+        suppressLogging: true,
+        skipStateUpdate: true,
+      });
 
       if (success) {
         if (triggerEngineUpdate) {
@@ -1709,24 +1695,16 @@ export class BuildingPlanController {
     const storedGeometryPayload = buildStoredVerticesPayload(roundedPoints, this.gridSize);
     const wallGeometryValue = stringifyValue(storedGeometryPayload);
 
-    this.queueFieldUpdate(
-      wallGeometryField,
-      wallInfo.path,
-      wallGeometryValue,
-      () => {
-        this.syncFromState();
-        this.emitUpdate();
-      }
-    );
+    this.queueFieldUpdate(wallGeometryField, wallInfo.path, wallGeometryValue, () => {
+      this.syncFromState();
+      this.emitUpdate();
+    });
   }
 
   focusRoom(roomId) {
     const roomInfo = this.rooms.get(roomId);
     if (!roomInfo) return;
-    if (
-      this.formRenderer &&
-      typeof this.formRenderer.ensureRepeatablePathExpanded === 'function'
-    ) {
+    if (this.formRenderer && typeof this.formRenderer.ensureRepeatablePathExpanded === 'function') {
       this.formRenderer.ensureRepeatablePathExpanded(roomInfo.path);
     }
     const container = this.formRenderer.getRepeatableInstanceContainer(roomInfo.path);
@@ -1736,10 +1714,7 @@ export class BuildingPlanController {
   focusWall(wallId) {
     const wallInfo = this.walls.get(wallId);
     if (!wallInfo) return;
-    if (
-      this.formRenderer &&
-      typeof this.formRenderer.ensureRepeatablePathExpanded === 'function'
-    ) {
+    if (this.formRenderer && typeof this.formRenderer.ensureRepeatablePathExpanded === 'function') {
       this.formRenderer.ensureRepeatablePathExpanded(wallInfo.path);
     }
     const container = this.formRenderer.getRepeatableInstanceContainer(wallInfo.path);
@@ -1749,10 +1724,7 @@ export class BuildingPlanController {
   focusColumn(columnId) {
     const columnInfo = this.columns.get(columnId);
     if (!columnInfo) return;
-    if (
-      this.formRenderer &&
-      typeof this.formRenderer.ensureRepeatablePathExpanded === 'function'
-    ) {
+    if (this.formRenderer && typeof this.formRenderer.ensureRepeatablePathExpanded === 'function') {
       this.formRenderer.ensureRepeatablePathExpanded(columnInfo.path);
     }
     const container = this.formRenderer.getRepeatableInstanceContainer(columnInfo.path);
@@ -1762,10 +1734,7 @@ export class BuildingPlanController {
   focusBeam(beamId) {
     const beamInfo = this.beams.get(beamId);
     if (!beamInfo) return;
-    if (
-      this.formRenderer &&
-      typeof this.formRenderer.ensureRepeatablePathExpanded === 'function'
-    ) {
+    if (this.formRenderer && typeof this.formRenderer.ensureRepeatablePathExpanded === 'function') {
       this.formRenderer.ensureRepeatablePathExpanded(beamInfo.path);
     }
     const container = this.formRenderer.getRepeatableInstanceContainer(beamInfo.path);
@@ -1775,10 +1744,7 @@ export class BuildingPlanController {
   focusDoor(doorId) {
     const doorInfo = this.doors.get(doorId);
     if (!doorInfo) return;
-    if (
-      this.formRenderer &&
-      typeof this.formRenderer.ensureRepeatablePathExpanded === 'function'
-    ) {
+    if (this.formRenderer && typeof this.formRenderer.ensureRepeatablePathExpanded === 'function') {
       this.formRenderer.ensureRepeatablePathExpanded(doorInfo.path);
     }
     const container = this.formRenderer.getRepeatableInstanceContainer(doorInfo.path);
@@ -1788,10 +1754,7 @@ export class BuildingPlanController {
   focusWindow(windowId) {
     const windowInfo = this.windows.get(windowId);
     if (!windowInfo) return;
-    if (
-      this.formRenderer &&
-      typeof this.formRenderer.ensureRepeatablePathExpanded === 'function'
-    ) {
+    if (this.formRenderer && typeof this.formRenderer.ensureRepeatablePathExpanded === 'function') {
       this.formRenderer.ensureRepeatablePathExpanded(windowInfo.path);
     }
     const container = this.formRenderer.getRepeatableInstanceContainer(windowInfo.path);
@@ -1832,7 +1795,8 @@ export class BuildingPlanController {
         vertices: cloneVertices(room.vertices),
         rect: { ...room.rect },
         color: room.color,
-        displayLabel: room.displayLabel || (typeof room.index === 'number' ? `R#${room.index + 1}` : null),
+        displayLabel:
+          room.displayLabel || (typeof room.index === 'number' ? `R#${room.index + 1}` : null),
       })),
       walls: activeWalls.map((wall) => ({
         id: wall.id,
@@ -1981,7 +1945,8 @@ export class BuildingPlanController {
     const doorFields = this.doorSection ? this.fieldNames.door : null;
     const windowFields = this.windowSection ? this.fieldNames.window : null;
 
-    const floorInstances = this.formRenderer.getRepeatableInstances(this.floorSection, this.contextPath) || [];
+    const floorInstances =
+      this.formRenderer.getRepeatableInstances(this.floorSection, this.contextPath) || [];
     this.floorCount = floorInstances.length;
 
     floorInstances.forEach((floorInstance, floorIndex) => {
@@ -1999,7 +1964,8 @@ export class BuildingPlanController {
         path: floorPath,
       });
 
-      const roomInstances = this.formRenderer.getRepeatableInstances(this.roomSection, floorPath) || [];
+      const roomInstances =
+        this.formRenderer.getRepeatableInstances(this.roomSection, floorPath) || [];
 
       roomInstances.forEach((roomInstance, roomIndex) => {
         const roomPath = [...floorPath, { key: this.roomKey, index: roomIndex }];
@@ -2154,43 +2120,21 @@ export class BuildingPlanController {
             }
             const values = beamInstance.values;
 
-            const width = roundCoordinate(
-              toNumber(values[beamFields.width], DEFAULT_BEAM_WIDTH)
-            );
+            const width = roundCoordinate(toNumber(values[beamFields.width], DEFAULT_BEAM_WIDTH));
             const height = roundCoordinate(
               toNumber(values[beamFields.height], DEFAULT_BEAM_HEIGHT)
             );
-            const startU = clamp(
-              roundCoordinate(toNumber(values[beamFields.startU], 0.2)),
-              0,
-              1
-            );
-            const startV = clamp(
-              roundCoordinate(toNumber(values[beamFields.startV], 0.2)),
-              0,
-              1
-            );
-            const endU = clamp(
-              roundCoordinate(toNumber(values[beamFields.endU], 0.8)),
-              0,
-              1
-            );
-            const endV = clamp(
-              roundCoordinate(toNumber(values[beamFields.endV], 0.2)),
-              0,
-              1
-            );
+            const startU = clamp(roundCoordinate(toNumber(values[beamFields.startU], 0.2)), 0, 1);
+            const startV = clamp(roundCoordinate(toNumber(values[beamFields.startV], 0.2)), 0, 1);
+            const endU = clamp(roundCoordinate(toNumber(values[beamFields.endU], 0.8)), 0, 1);
+            const endV = clamp(roundCoordinate(toNumber(values[beamFields.endV], 0.2)), 0, 1);
             const wallSegmentIndex = toInteger(values[beamFields.wallSegmentIndex], -1);
             const startRatio = clamp(
               roundCoordinate(toNumber(values[beamFields.startRatio], 0)),
               0,
               1
             );
-            const endRatio = clamp(
-              roundCoordinate(toNumber(values[beamFields.endRatio], 0)),
-              0,
-              1
-            );
+            const endRatio = clamp(roundCoordinate(toNumber(values[beamFields.endRatio], 0)), 0, 1);
             const labelValue =
               typeof values[beamFields.label] === 'string' ? values[beamFields.label] : '';
             const trimmedLabel =
@@ -2281,7 +2225,8 @@ export class BuildingPlanController {
           return;
         }
 
-        const wallInstances = this.formRenderer.getRepeatableInstances(this.wallSection, roomPath) || [];
+        const wallInstances =
+          this.formRenderer.getRepeatableInstances(this.wallSection, roomPath) || [];
 
         wallInstances.forEach((wallInstance, wallIndex) => {
           const wallPath = [...roomPath, { key: this.wallKey, index: wallIndex }];
@@ -2317,9 +2262,7 @@ export class BuildingPlanController {
               : this.formRenderer.formatContextPath(wallPath);
 
           const wallLabelValue =
-            wallLabelField && wallInstance?.values
-              ? wallInstance.values[wallLabelField]
-              : '';
+            wallLabelField && wallInstance?.values ? wallInstance.values[wallLabelField] : '';
           const trimmedWallLabel =
             typeof wallLabelValue === 'string' && wallLabelValue.trim() !== ''
               ? wallLabelValue.trim()
@@ -2372,9 +2315,7 @@ export class BuildingPlanController {
                   ? doorValues[doorFields.label]
                   : '';
               const trimmedDoorLabel =
-                typeof labelValue === 'string' && labelValue.trim() !== ''
-                  ? labelValue.trim()
-                  : '';
+                typeof labelValue === 'string' && labelValue.trim() !== '' ? labelValue.trim() : '';
               let wallReference =
                 typeof doorValues[doorFields.wallReference] === 'string'
                   ? doorValues[doorFields.wallReference]
@@ -2453,19 +2394,14 @@ export class BuildingPlanController {
                 toNumber(windowValues[windowFields.height], DEFAULT_WINDOW_HEIGHT)
               );
               const distanceFromFloor = roundCoordinate(
-                toNumber(
-                  windowValues[windowFields.distanceFromFloor],
-                  DEFAULT_WINDOW_SILL_HEIGHT
-                )
+                toNumber(windowValues[windowFields.distanceFromFloor], DEFAULT_WINDOW_SILL_HEIGHT)
               );
               const labelValue =
                 typeof windowValues[windowFields.label] === 'string'
                   ? windowValues[windowFields.label]
                   : '';
               const trimmedWindowLabel =
-                typeof labelValue === 'string' && labelValue.trim() !== ''
-                  ? labelValue.trim()
-                  : '';
+                typeof labelValue === 'string' && labelValue.trim() !== '' ? labelValue.trim() : '';
               let wallReference =
                 typeof windowValues[windowFields.wallReference] === 'string'
                   ? windowValues[windowFields.wallReference]
@@ -2535,7 +2471,6 @@ export class BuildingPlanController {
   hasFloors() {
     return this.floors && this.floors.length > 0;
   }
-
 
   autoPopulateRoom(instancePath) {
     const room = this.findRoomByPath(instancePath);
@@ -2629,13 +2564,14 @@ export class BuildingPlanController {
       floorInstance.values = {};
     }
 
-    const floorFields = (this.floorSection.elements || []).filter((element) =>
-      element &&
-      typeof element === 'object' &&
-      element.type &&
-      element.type !== 'RepeatableSection' &&
-      element.type !== 'Section' &&
-      element.type !== 'BuildingPlanSection'
+    const floorFields = (this.floorSection.elements || []).filter(
+      (element) =>
+        element &&
+        typeof element === 'object' &&
+        element.type &&
+        element.type !== 'RepeatableSection' &&
+        element.type !== 'Section' &&
+        element.type !== 'BuildingPlanSection'
     );
 
     const defaultForField = (field) => {
@@ -2696,13 +2632,9 @@ export class BuildingPlanController {
 
     wall.points = cloneVertices(defaultPoints);
 
-    this.queueFieldUpdate(
-      wallGeometryField,
-      instancePath,
-      geometryString,
-      null,
-      { suspendEngine: true }
-    );
+    this.queueFieldUpdate(wallGeometryField, instancePath, geometryString, null, {
+      suspendEngine: true,
+    });
   }
 
   autoPopulateColumn(instancePath) {
@@ -2713,11 +2645,13 @@ export class BuildingPlanController {
     const room = this.findRoomByPath(roomPath);
     if (!room || !room.rect) return;
 
-    const columnInstances = this.formRenderer.getRepeatableInstances(this.columnSection, roomPath) || [];
-    const instanceIndex = instancePath[instancePath.length - 1]?.index ?? columnInstances.length - 1;
+    const columnInstances =
+      this.formRenderer.getRepeatableInstances(this.columnSection, roomPath) || [];
+    const instanceIndex =
+      instancePath[instancePath.length - 1]?.index ?? columnInstances.length - 1;
     const normalizedOffset = (instanceIndex % 3) / 3;
     const centerU = roundCoordinate(clamp(0.25 + normalizedOffset * 0.5, 0.1, 0.9));
-    const centerV = roundCoordinate(clamp(0.3 + ((instanceIndex % 2) * 0.3), 0.1, 0.9));
+    const centerV = roundCoordinate(clamp(0.3 + (instanceIndex % 2) * 0.3, 0.1, 0.9));
     const label = `C#${columnInstances.length}`;
 
     this.setFieldValueWithoutState(columnFields.label, instancePath, label);
@@ -2744,7 +2678,8 @@ export class BuildingPlanController {
     const room = this.findRoomByPath(roomPath);
     if (!room || !room.rect) return;
 
-    const beamInstances = this.formRenderer.getRepeatableInstances(this.beamSection, roomPath) || [];
+    const beamInstances =
+      this.formRenderer.getRepeatableInstances(this.beamSection, roomPath) || [];
     const instanceIndex = instancePath[instancePath.length - 1]?.index ?? beamInstances.length - 1;
     const baseY = 0.3 + (instanceIndex % 3) * 0.15;
     const startU = roundCoordinate(0.2);
@@ -2887,7 +2822,8 @@ export class BuildingPlanController {
 
   initializeWallDefaults(room) {
     if (!this.wallSection) return;
-    const wallInstances = this.formRenderer.getRepeatableInstances(this.wallSection, room.path) || [];
+    const wallInstances =
+      this.formRenderer.getRepeatableInstances(this.wallSection, room.path) || [];
     const wallGeometryField = this.fieldNames.wallGeometry;
     const wallLabelField = this.fieldNames.wallLabel;
     const wallHeightField = this.fieldNames.wallHeight;
@@ -2978,5 +2914,4 @@ export class BuildingPlanController {
     }
     return null;
   }
-
 }

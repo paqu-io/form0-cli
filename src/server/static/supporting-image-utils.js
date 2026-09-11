@@ -19,3 +19,28 @@ export function resolveSupportingImagePath(field) {
   }
   return undefined;
 }
+
+/**
+ * Resolve a supporting image to an HTTP(S) URL or a safe project-relative URL.
+ * @param {object} field - The field definition
+ * @returns {string|undefined} - A browser-safe image URL or undefined
+ */
+export function resolveSupportingImageUrl(field) {
+  const imagePath = resolveSupportingImagePath(field);
+  if (!imagePath || /[\u0000-\u001f\u007f]/.test(imagePath)) return undefined;
+
+  try {
+    const url = new URL(imagePath);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined;
+  } catch {
+    // A local supporting-image path is expected to be relative, not a URL.
+  }
+
+  if (imagePath.startsWith('/') || imagePath.includes('\\')) return undefined;
+  const segments = imagePath.split('/');
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) {
+    return undefined;
+  }
+
+  return `/supporting-images/${segments.map(encodeURIComponent).join('/')}`;
+}

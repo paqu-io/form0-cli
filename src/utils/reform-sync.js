@@ -4,17 +4,11 @@ import fs from 'fs-extra';
 import { validateSchema } from 'form0-core';
 import { ensureChoiceValuesForSchema } from './ensure-choice-values.js';
 import { detectSchemaProject } from './schema-utils.js';
-import {
-  removeFormFromRegistry,
-  upsertFormInRegistry,
-} from './schema-registry.js';
+import { removeFormFromRegistry, upsertFormInRegistry } from './schema-registry.js';
 import { getReformFormSchema, listReformForms } from './reform-client.js';
 
 export const REFORM_SYNC_MANIFEST_VERSION = 1;
-export const REFORM_SYNC_MANIFEST_PATHNAME = path.join(
-  '.form0',
-  'reform-sync.json',
-);
+export const REFORM_SYNC_MANIFEST_PATHNAME = path.join('.form0', 'reform-sync.json');
 
 function createEmptyManifest() {
   return {
@@ -29,10 +23,8 @@ function normalizeScope(scope) {
     return null;
   }
 
-  const mainOrgId =
-    typeof scope.main_org_id === 'string' ? scope.main_org_id.trim() : '';
-  const subOrgId =
-    typeof scope.sub_org_id === 'string' ? scope.sub_org_id.trim() : '';
+  const mainOrgId = typeof scope.main_org_id === 'string' ? scope.main_org_id.trim() : '';
+  const subOrgId = typeof scope.sub_org_id === 'string' ? scope.sub_org_id.trim() : '';
 
   if (!mainOrgId) {
     return null;
@@ -49,10 +41,8 @@ function normalizeManifestEntry(remoteFormId, entry) {
     return null;
   }
 
-  const localAlias =
-    typeof entry.localAlias === 'string' ? entry.localAlias.trim() : '';
-  const localPath =
-    typeof entry.localPath === 'string' ? entry.localPath.trim() : '';
+  const localAlias = typeof entry.localAlias === 'string' ? entry.localAlias.trim() : '';
+  const localPath = typeof entry.localPath === 'string' ? entry.localPath.trim() : '';
 
   if (!localAlias || !localPath) {
     return null;
@@ -63,26 +53,16 @@ function normalizeManifestEntry(remoteFormId, entry) {
     localAlias,
     localPath,
     scope: normalizeScope(entry.scope),
-    remoteRevision:
-      typeof entry.remoteRevision === 'number' ? entry.remoteRevision : null,
+    remoteRevision: typeof entry.remoteRevision === 'number' ? entry.remoteRevision : null,
     lastSyncedRevision:
-      typeof entry.lastSyncedRevision === 'number'
-        ? entry.lastSyncedRevision
-        : null,
-    remoteUpdatedAt:
-      typeof entry.remoteUpdatedAt === 'string' ? entry.remoteUpdatedAt : null,
-    lastSyncedHash:
-      typeof entry.lastSyncedHash === 'string' ? entry.lastSyncedHash : null,
-    lastSyncedAt:
-      typeof entry.lastSyncedAt === 'string' ? entry.lastSyncedAt : null,
-    remoteState:
-      typeof entry.remoteState === 'string' ? entry.remoteState : 'active',
-    syncStatus:
-      typeof entry.syncStatus === 'string' ? entry.syncStatus : 'synced',
-    lastImportError:
-      typeof entry.lastImportError === 'string' ? entry.lastImportError : null,
-    lastConflictAt:
-      typeof entry.lastConflictAt === 'string' ? entry.lastConflictAt : null,
+      typeof entry.lastSyncedRevision === 'number' ? entry.lastSyncedRevision : null,
+    remoteUpdatedAt: typeof entry.remoteUpdatedAt === 'string' ? entry.remoteUpdatedAt : null,
+    lastSyncedHash: typeof entry.lastSyncedHash === 'string' ? entry.lastSyncedHash : null,
+    lastSyncedAt: typeof entry.lastSyncedAt === 'string' ? entry.lastSyncedAt : null,
+    remoteState: typeof entry.remoteState === 'string' ? entry.remoteState : 'active',
+    syncStatus: typeof entry.syncStatus === 'string' ? entry.syncStatus : 'synced',
+    lastImportError: typeof entry.lastImportError === 'string' ? entry.lastImportError : null,
+    lastConflictAt: typeof entry.lastConflictAt === 'string' ? entry.lastConflictAt : null,
   };
 }
 
@@ -93,13 +73,10 @@ function normalizeManifest(manifest) {
   }
 
   normalized.version =
-    typeof manifest.version === 'number'
-      ? manifest.version
-      : REFORM_SYNC_MANIFEST_VERSION;
+    typeof manifest.version === 'number' ? manifest.version : REFORM_SYNC_MANIFEST_VERSION;
   normalized.scope = normalizeScope(manifest.scope);
 
-  const forms =
-    manifest.forms && typeof manifest.forms === 'object' ? manifest.forms : {};
+  const forms = manifest.forms && typeof manifest.forms === 'object' ? manifest.forms : {};
   for (const [remoteFormId, entry] of Object.entries(forms)) {
     const normalizedEntry = normalizeManifestEntry(remoteFormId, entry);
     if (normalizedEntry) {
@@ -160,10 +137,7 @@ function getAbsoluteSchemaPath(project, localAlias) {
 }
 
 function getRelativeSchemaPath(project, localAlias) {
-  return path.relative(
-    project.projectRoot,
-    getAbsoluteSchemaPath(project, localAlias),
-  );
+  return path.relative(project.projectRoot, getAbsoluteSchemaPath(project, localAlias));
 }
 
 function buildRegistryEntry(localAlias, formSummary) {
@@ -173,10 +147,7 @@ function buildRegistryEntry(localAlias, formSummary) {
       typeof formSummary?.name === 'string' && formSummary.name.trim().length > 0
         ? formSummary.name.trim()
         : localAlias,
-    description:
-      typeof formSummary?.description === 'string'
-        ? formSummary.description
-        : '',
+    description: typeof formSummary?.description === 'string' ? formSummary.description : '',
     tags: [],
   };
 }
@@ -185,11 +156,10 @@ async function assignLocalAlias(project, manifest, remoteFormId, remoteName) {
   const usedAliases = new Set(
     Object.entries(manifest.forms)
       .filter(([entryRemoteFormId]) => entryRemoteFormId !== remoteFormId)
-      .map(([, entry]) => entry.localAlias),
+      .map(([, entry]) => entry.localAlias)
   );
 
-  const baseAlias =
-    sanitizeAlias(remoteName) || getFallbackAlias(remoteFormId);
+  const baseAlias = sanitizeAlias(remoteName) || getFallbackAlias(remoteFormId);
   let candidate = baseAlias;
   let suffix = 2;
 
@@ -213,10 +183,7 @@ async function writeSchemaFile(project, localAlias, schemaObject, formSummary) {
 
   if (isAppProject(project)) {
     ensureRegistryAvailable(project);
-    await upsertFormInRegistry(
-      project.registryPath,
-      buildRegistryEntry(localAlias, formSummary),
-    );
+    await upsertFormInRegistry(project.registryPath, buildRegistryEntry(localAlias, formSummary));
   }
 
   return {
@@ -232,10 +199,7 @@ async function ensureRegistryEntry(project, localAlias, formSummary) {
   }
 
   ensureRegistryAvailable(project);
-  await upsertFormInRegistry(
-    project.registryPath,
-    buildRegistryEntry(localAlias, formSummary),
-  );
+  await upsertFormInRegistry(project.registryPath, buildRegistryEntry(localAlias, formSummary));
 }
 
 async function isEntryLocallyModified(project, entry) {
@@ -248,9 +212,7 @@ async function isEntryLocallyModified(project, entry) {
 }
 
 function sortEntries(entries) {
-  return [...entries].sort((left, right) =>
-    left.localAlias.localeCompare(right.localAlias),
-  );
+  return [...entries].sort((left, right) => left.localAlias.localeCompare(right.localAlias));
 }
 
 export function getReformSyncManifestPath(projectRoot) {
@@ -294,7 +256,7 @@ export async function getReformSyncStatus(projectRoot = process.cwd()) {
           Boolean(entry.lastSyncedHash) &&
           currentHash !== entry.lastSyncedHash,
       };
-    }),
+    })
   );
 
   return {
@@ -372,12 +334,7 @@ export async function pullReformForms({
 
     const localAlias =
       existingEntry?.localAlias ??
-      (await assignLocalAlias(
-        project,
-        manifest,
-        remoteFormId,
-        formSummary.name,
-      ));
+      (await assignLocalAlias(project, manifest, remoteFormId, formSummary.name));
     const localPath = getRelativeSchemaPath(project, localAlias);
     const baseEntry = {
       remoteFormId,
@@ -414,8 +371,7 @@ export async function pullReformForms({
       continue;
     }
 
-    const modifiedLocally =
-      existingEntry && (await isEntryLocallyModified(project, existingEntry));
+    const modifiedLocally = existingEntry && (await isEntryLocallyModified(project, existingEntry));
 
     if (modifiedLocally && !force) {
       manifest.forms[remoteFormId] = {
@@ -438,12 +394,7 @@ export async function pullReformForms({
       ensureChoiceValuesForSchema(formSchema?.form?.elements ?? []);
       validateSchema(formSchema.form);
 
-      const writeResult = await writeSchemaFile(
-        project,
-        localAlias,
-        formSchema,
-        formSummary,
-      );
+      const writeResult = await writeSchemaFile(project, localAlias, formSchema, formSummary);
       const lastSyncedHash = hashString(writeResult.serialized);
 
       manifest.forms[remoteFormId] = {
@@ -489,10 +440,7 @@ export async function pullReformForms({
     summary.unreachable.push(entry.localAlias);
   }
 
-  const savedManifest = await saveReformSyncManifest(
-    project.projectRoot,
-    manifest,
-  );
+  const savedManifest = await saveReformSyncManifest(project.projectRoot, manifest);
 
   return {
     project,

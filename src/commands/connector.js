@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { execSync } from 'child_process';
 import { connectorManager } from '../utils/connector-manager.js';
+import { runNpmCommand } from '../utils/npm-command.js';
 import { isReactNativeProject } from '../utils/project-detection.js';
 import {
   getProjectConnectorConfig,
@@ -19,7 +19,7 @@ import readline from 'readline';
 function createReadlineInterface() {
   return readline.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
   });
 }
 
@@ -44,7 +44,7 @@ function convertInputToBoolean(input, defaultValue = false) {
   if (!input || input.trim() === '') {
     return defaultValue;
   }
-  
+
   const lowerInput = input.toLowerCase().trim();
   return ['y', 'yes', 'true', '1', 'on'].includes(lowerInput);
 }
@@ -109,17 +109,17 @@ function isFilePath(input) {
   if (path.isAbsolute(input)) {
     return true;
   }
-  
+
   // Check for relative paths starting with ./ or ../
   if (input.startsWith('./') || input.startsWith('../')) {
     return true;
   }
-  
+
   // Check for local paths without prefix (e.g., "form0-connector-pg" that exists as folder)
   if (input.includes('/') || input.includes('\\')) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -130,20 +130,22 @@ async function resolveConnectorPath(connectorInput) {
   // If it looks like a file path, validate and resolve it
   if (isFilePath(connectorInput)) {
     const resolvedPath = path.resolve(process.cwd(), connectorInput);
-    
+
     // Check if the path exists and has a package.json
     const packageJsonPath = path.join(resolvedPath, 'package.json');
     if (await fs.pathExists(packageJsonPath)) {
       return {
         type: 'local',
         path: resolvedPath,
-        packageJson: await fs.readJson(packageJsonPath)
+        packageJson: await fs.readJson(packageJsonPath),
       };
     } else {
-      throw new Error(`Local path '${resolvedPath}' does not exist or does not contain a package.json`);
+      throw new Error(
+        `Local path '${resolvedPath}' does not exist or does not contain a package.json`
+      );
     }
   }
-  
+
   // Check if it's an npm-linked package
   const nodeModulesPath = path.join(process.cwd(), 'node_modules', connectorInput);
   if (await fs.pathExists(nodeModulesPath)) {
@@ -156,12 +158,12 @@ async function resolveConnectorPath(connectorInput) {
           type: 'linked',
           path: realPath,
           symlinkPath: nodeModulesPath,
-          packageJson: await fs.readJson(packageJsonPath)
+          packageJson: await fs.readJson(packageJsonPath),
         };
       }
     }
   }
-  
+
   // Check if it's already installed as a regular package
   const regularPackagePath = path.join(process.cwd(), 'node_modules', connectorInput);
   const regularPackageJsonPath = path.join(regularPackagePath, 'package.json');
@@ -169,14 +171,14 @@ async function resolveConnectorPath(connectorInput) {
     return {
       type: 'installed',
       path: regularPackagePath,
-      packageJson: await fs.readJson(regularPackageJsonPath)
+      packageJson: await fs.readJson(regularPackageJsonPath),
     };
   }
-  
+
   // Default to npm package installation
   return {
     type: 'npm',
-    name: connectorInput
+    name: connectorInput,
   };
 }
 
@@ -186,7 +188,7 @@ async function resolveConnectorPath(connectorInput) {
 async function installConnector(connectorInput) {
   try {
     console.log(`Installing connector: ${connectorInput}...`);
-    
+
     // Check if package.json exists in current directory
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     if (!(await fs.pathExists(packageJsonPath))) {
@@ -213,18 +215,23 @@ async function installConnector(connectorInput) {
         connectorName = resolution.packageJson.name || path.basename(resolution.path);
 
         if (await isReactNativeProject()) {
-          if (connectorName === 'form0-connector-pg' || connectorName === 'form0-connector-sqlite') {
-            console.error(`❌ Connector '${connectorName}' is not supported in React Native projects.`);
+          if (
+            connectorName === 'form0-connector-pg' ||
+            connectorName === 'form0-connector-sqlite'
+          ) {
+            console.error(
+              `❌ Connector '${connectorName}' is not supported in React Native projects.`
+            );
             console.log('💡 Tip: Use local on-device storage in form0-react-native instead.');
             return false;
           }
         }
-        
+
         try {
           // Use npm install with file: protocol for local packages
-          execSync(`npm install file:${resolution.path}`, { 
+          runNpmCommand('install', `file:${resolution.path}`, {
             stdio: 'inherit',
-            cwd: process.cwd()
+            cwd: process.cwd(),
           });
           console.log(`✅ Successfully installed local connector: ${connectorName}`);
           installSuccess = true;
@@ -239,8 +246,13 @@ async function installConnector(connectorInput) {
         console.log(`   Linked to: ${resolution.path}`);
         connectorName = resolution.packageJson.name;
         if (await isReactNativeProject()) {
-          if (connectorName === 'form0-connector-pg' || connectorName === 'form0-connector-sqlite') {
-            console.error(`❌ Connector '${connectorName}' is not supported in React Native projects.`);
+          if (
+            connectorName === 'form0-connector-pg' ||
+            connectorName === 'form0-connector-sqlite'
+          ) {
+            console.error(
+              `❌ Connector '${connectorName}' is not supported in React Native projects.`
+            );
             console.log('💡 Tip: Use local on-device storage in form0-react-native instead.');
             return false;
           }
@@ -252,8 +264,13 @@ async function installConnector(connectorInput) {
         console.log(`📦 Connector already installed: ${resolution.packageJson.name}`);
         connectorName = resolution.packageJson.name;
         if (await isReactNativeProject()) {
-          if (connectorName === 'form0-connector-pg' || connectorName === 'form0-connector-sqlite') {
-            console.error(`❌ Connector '${connectorName}' is not supported in React Native projects.`);
+          if (
+            connectorName === 'form0-connector-pg' ||
+            connectorName === 'form0-connector-sqlite'
+          ) {
+            console.error(
+              `❌ Connector '${connectorName}' is not supported in React Native projects.`
+            );
             console.log('💡 Tip: Use local on-device storage in form0-react-native instead.');
             return false;
           }
@@ -265,18 +282,23 @@ async function installConnector(connectorInput) {
         connectorName = resolution.name;
 
         if (await isReactNativeProject()) {
-          if (connectorName === 'form0-connector-pg' || connectorName === 'form0-connector-sqlite') {
-            console.error(`❌ Connector '${connectorName}' is not supported in React Native projects.`);
+          if (
+            connectorName === 'form0-connector-pg' ||
+            connectorName === 'form0-connector-sqlite'
+          ) {
+            console.error(
+              `❌ Connector '${connectorName}' is not supported in React Native projects.`
+            );
             console.log('💡 Tip: Use local on-device storage in form0-react-native instead.');
             return false;
           }
         }
-        
+
         try {
           // First try regular npm install
-          execSync(`npm install ${connectorName}`, { 
+          runNpmCommand('install', connectorName, {
             stdio: 'inherit',
-            cwd: process.cwd()
+            cwd: process.cwd(),
           });
           console.log(`✅ Successfully installed npm package: ${connectorName}`);
           installSuccess = true;
@@ -284,19 +306,21 @@ async function installConnector(connectorInput) {
           // If npm install fails, check if it's available locally as a fallback
           const fallbackPaths = [
             path.join(process.cwd(), '..', connectorName),
-            path.join(process.cwd(), connectorName)
+            path.join(process.cwd(), connectorName),
           ];
-          
+
           let fallbackFound = false;
           for (const fallbackPath of fallbackPaths) {
             if (await fs.pathExists(path.join(fallbackPath, 'package.json'))) {
               console.log(`📁 NPM install failed, but found local connector at: ${fallbackPath}`);
               try {
-                execSync(`npm install file:${fallbackPath}`, { 
+                runNpmCommand('install', `file:${fallbackPath}`, {
                   stdio: 'inherit',
-                  cwd: process.cwd()
+                  cwd: process.cwd(),
                 });
-                console.log(`✅ Successfully installed local connector as fallback: ${connectorName}`);
+                console.log(
+                  `✅ Successfully installed local connector as fallback: ${connectorName}`
+                );
                 installSuccess = true;
                 fallbackFound = true;
                 break;
@@ -305,13 +329,15 @@ async function installConnector(connectorInput) {
               }
             }
           }
-          
+
           if (!fallbackFound) {
             console.error(`❌ Failed to install connector: ${error.message}`);
             console.log(`💡 Suggestions:`);
             console.log(`   • Check if the package name is correct`);
             console.log(`   • Verify the package is published to npm`);
-            console.log(`   • For local development, use a file path: form0 connector install ../path/to/connector`);
+            console.log(
+              `   • For local development, use a file path: form0 connector install ../path/to/connector`
+            );
             console.log(`   • For linked packages, use: npm link connector-name`);
             return false;
           }
@@ -329,10 +355,14 @@ async function installConnector(connectorInput) {
         console.log(`\n💡 Development Tips:`);
         console.log(`   • Changes to the connector source will be reflected immediately`);
         console.log(`   • Use 'form0 connector test ${connectorName}' to verify functionality`);
-        console.log(`   • Run 'form0 connector configure ${connectorName}' to set up configuration`);
-        console.log(`   • Use 'form0 connector reload ${connectorName}' to reload after code changes`);
+        console.log(
+          `   • Run 'form0 connector configure ${connectorName}' to set up configuration`
+        );
+        console.log(
+          `   • Use 'form0 connector reload ${connectorName}' to reload after code changes`
+        );
       }
-      
+
       return true;
     }
 
@@ -349,55 +379,69 @@ async function installConnector(connectorInput) {
 async function configurePostgreSQLConnector(rl, connectorName) {
   console.log('\n🔧 PostgreSQL Connector Configuration');
   console.log('====================================');
-  
+
   const currentConfig = await getProjectConnectorConfig(connectorName);
   const { env } = await resolveProjectEnv();
   const currentEnv = { ...process.env, ...env };
-  
+
   // Get database connection details
-  const host = await askQuestion(rl, 
-    `Database host (current: ${currentEnv.FORM0_CONNECTOR_PG_HOST || 'localhost'}): `
-  ) || currentEnv.FORM0_CONNECTOR_PG_HOST || 'localhost';
-  
-  const port = await askQuestion(rl, 
-    `Database port (current: ${currentEnv.FORM0_CONNECTOR_PG_PORT || '5432'}): `
-  ) || currentEnv.FORM0_CONNECTOR_PG_PORT || '5432';
-  
-  const database = await askQuestion(rl, 
-    `Database name (current: ${currentEnv.FORM0_CONNECTOR_PG_DATABASE || 'none'}): `
-  ) || currentEnv.FORM0_CONNECTOR_PG_DATABASE;
-  
-  const username = await askQuestion(rl, 
-    `Database username (current: ${currentEnv.FORM0_CONNECTOR_PG_USERNAME || 'none'}): `
-  ) || currentEnv.FORM0_CONNECTOR_PG_USERNAME;
-  
-  const password = await askQuestion(rl, 
-    `Database password (current: ${currentEnv.FORM0_CONNECTOR_PG_PASSWORD ? '***' : 'none'}): `
-  ) || currentEnv.FORM0_CONNECTOR_PG_PASSWORD;
-  
-  const sslInput = await askQuestion(rl, 
+  const host =
+    (await askQuestion(
+      rl,
+      `Database host (current: ${currentEnv.FORM0_CONNECTOR_PG_HOST || 'localhost'}): `
+    )) ||
+    currentEnv.FORM0_CONNECTOR_PG_HOST ||
+    'localhost';
+
+  const port =
+    (await askQuestion(
+      rl,
+      `Database port (current: ${currentEnv.FORM0_CONNECTOR_PG_PORT || '5432'}): `
+    )) ||
+    currentEnv.FORM0_CONNECTOR_PG_PORT ||
+    '5432';
+
+  const database =
+    (await askQuestion(
+      rl,
+      `Database name (current: ${currentEnv.FORM0_CONNECTOR_PG_DATABASE || 'none'}): `
+    )) || currentEnv.FORM0_CONNECTOR_PG_DATABASE;
+
+  const username =
+    (await askQuestion(
+      rl,
+      `Database username (current: ${currentEnv.FORM0_CONNECTOR_PG_USERNAME || 'none'}): `
+    )) || currentEnv.FORM0_CONNECTOR_PG_USERNAME;
+
+  const password =
+    (await askQuestion(
+      rl,
+      `Database password (current: ${currentEnv.FORM0_CONNECTOR_PG_PASSWORD ? '***' : 'none'}): `
+    )) || currentEnv.FORM0_CONNECTOR_PG_PASSWORD;
+
+  const sslInput = await askQuestion(
+    rl,
     `Enable SSL? (y/n, current: ${currentEnv.FORM0_CONNECTOR_PG_SSL === 'true' ? 'y' : 'n'}): `
   );
   const ssl = convertInputToBoolean(sslInput, currentEnv.FORM0_CONNECTOR_PG_SSL === 'true');
-  
+
   const currentTableName =
     currentConfig.tableName || currentEnv.FORM0_CONNECTOR_PG_TABLE_NAME || 'form0_submissions';
-  const tableName = await askQuestion(rl, 
-    `Table name (current: ${currentTableName}): `
-  ) || currentTableName;
-  
-  const currentSchema =
-    currentConfig.schema || currentEnv.FORM0_CONNECTOR_PG_SCHEMA || 'public';
-  const schema = await askQuestion(rl, 
-    `Database schema (current: ${currentSchema}): `
-  ) || currentSchema;
-  
-  const enabledInput = await askQuestion(rl, 
+  const tableName =
+    (await askQuestion(rl, `Table name (current: ${currentTableName}): `)) || currentTableName;
+
+  const currentSchema = currentConfig.schema || currentEnv.FORM0_CONNECTOR_PG_SCHEMA || 'public';
+  const schema =
+    (await askQuestion(rl, `Database schema (current: ${currentSchema}): `)) || currentSchema;
+
+  const enabledInput = await askQuestion(
+    rl,
     `Enable connector? (y/n, current: ${currentConfig.enabled ? 'y' : 'n'}): `
   );
   const enabled = convertInputToBoolean(enabledInput, currentConfig.enabled);
-  
-  const autoLoadInput = await askQuestion(rl, 
+
+  const autoLoadInput = await askQuestion(
+    rl,
     `Auto-load on server start? (y/n, current: ${currentConfig.autoLoad ? 'y' : 'n'}): `
   );
   const autoLoad = convertInputToBoolean(autoLoadInput, currentConfig.autoLoad);
@@ -438,8 +482,7 @@ async function configureSQLiteConnector(rl, connectorName) {
   const currentTableName =
     currentConfig.tableName || currentEnv.FORM0_CONNECTOR_SQLITE_TABLE_NAME || 'form0_submissions';
   const tableName =
-    (await askQuestion(rl, `Main table name (current: ${currentTableName}): `)) ||
-    currentTableName;
+    (await askQuestion(rl, `Main table name (current: ${currentTableName}): `)) || currentTableName;
 
   const currentChildTableName =
     currentConfig.childTableName ||
@@ -480,15 +523,17 @@ async function configureSQLiteConnector(rl, connectorName) {
 async function configureGenericConnector(rl, connectorName) {
   console.log(`\n🔧 ${connectorName} Configuration`);
   console.log('================================');
-  
+
   const currentConfig = await getProjectConnectorConfig(connectorName);
-  
-  const enabledInput = await askQuestion(rl, 
+
+  const enabledInput = await askQuestion(
+    rl,
     `Enable connector? (y/n, current: ${currentConfig.enabled ? 'y' : 'n'}): `
   );
   const enabled = convertInputToBoolean(enabledInput, currentConfig.enabled);
-  
-  const autoLoadInput = await askQuestion(rl, 
+
+  const autoLoadInput = await askQuestion(
+    rl,
     `Auto-load on server start? (y/n, current: ${currentConfig.autoLoad ? 'y' : 'n'}): `
   );
   const autoLoad = convertInputToBoolean(autoLoadInput, currentConfig.autoLoad);
@@ -511,10 +556,10 @@ async function configureGenericConnector(rl, connectorName) {
  */
 async function configureConnector(connectorName) {
   const rl = createReadlineInterface();
-  
+
   try {
     let result;
-    
+
     // Provide specialized configuration for known connectors
     if (connectorName === 'form0-connector-pg') {
       result = await configurePostgreSQLConnector(rl, connectorName);
@@ -523,7 +568,7 @@ async function configureConnector(connectorName) {
     } else {
       result = await configureGenericConnector(rl, connectorName);
     }
-    
+
     const { connectorConfig, envUpdates } = result;
 
     // Save configuration to project config
@@ -535,24 +580,21 @@ async function configureConnector(connectorName) {
     if (envUpdates) {
       await upsertProjectEnv(envUpdates, projectRoot);
     }
-    
+
     if (configPath) {
       console.log(`\n✅ Configuration saved for ${connectorName}`);
       console.log(`   Config: ${configPath}`);
       if (envUpdates) {
         console.log(`   Env: ${path.join(projectRoot, '.env.local')}`);
       }
-      
+
       // Offer to test the connection
-      const testInput = await askQuestion(rl, 
-        '\nTest connection now? (y/n): '
-      );
-      
+      const testInput = await askQuestion(rl, '\nTest connection now? (y/n): ');
+
       if (convertInputToBoolean(testInput, false)) {
         await testConnectorConnection(connectorName);
       }
     }
-    
   } catch (error) {
     console.error(`❌ Error configuring connector: ${error.message}`);
   } finally {
@@ -566,11 +608,11 @@ async function configureConnector(connectorName) {
 async function testConnectorConnection(connectorName) {
   try {
     console.log(`\n🔄 Testing connection to ${connectorName}...`);
-    
+
     const { projectRoot } = await resolveProjectConfig();
     await connectorManager.loadConnectorConfig({ projectDir: projectRoot });
     const testResult = await connectorManager.testConnector(connectorName);
-    
+
     if (testResult.healthy) {
       console.log(`✅ Connection successful: ${testResult.message}`);
       if (testResult.database) {
@@ -582,7 +624,6 @@ async function testConnectorConnection(connectorName) {
     } else {
       console.log(`❌ Connection failed: ${testResult.message}`);
     }
-    
   } catch (error) {
     console.log(`❌ Test failed: ${error.message}`);
   }
@@ -594,14 +635,14 @@ async function testConnectorConnection(connectorName) {
 async function reloadConnector(connectorName) {
   try {
     console.log(`\n🔄 Reloading connector: ${connectorName}...`);
-    
+
     const { projectRoot } = await resolveProjectConfig();
     await connectorManager.loadConnectorConfig({ projectDir: projectRoot });
     const success = await connectorManager.reloadConnector(connectorName);
-    
+
     if (success) {
       console.log(`✅ Successfully reloaded ${connectorName}`);
-      
+
       // Optionally test the connection after reload
       const metadata = connectorManager.getConnectorMetadata(connectorName);
       if (metadata) {
@@ -613,7 +654,6 @@ async function reloadConnector(connectorName) {
     } else {
       console.log(`❌ Failed to reload ${connectorName}`);
     }
-    
   } catch (error) {
     console.error(`❌ Error reloading connector: ${error.message}`);
   }
@@ -627,32 +667,32 @@ async function showConnectorStatus(connectorName = null) {
     const { projectRoot } = await resolveProjectConfig();
     await connectorManager.loadConnectorConfig({ projectDir: projectRoot });
     const connectorConfigs = await getProjectConnectorsConfig(projectRoot);
-    
+
     if (connectorName) {
       // Show status for specific connector
       const connectorConfig = connectorConfigs[connectorName] || {};
-      
+
       console.log(`\n📊 Status for ${connectorName}`);
       console.log('='.repeat(20 + connectorName.length));
-      
+
       if (Object.keys(connectorConfig).length === 0) {
         console.log('❌ Not configured');
         return;
       }
-      
+
       console.log(`Enabled: ${connectorConfig.enabled ? '✅' : '❌'}`);
       console.log(`Auto-load: ${connectorConfig.autoLoad ? '✅' : '❌'}`);
-      
+
       if (connectorManager.isConnectorLoaded(connectorName)) {
         console.log('Status: 🟢 Loaded');
-        
+
         const healthResult = await connectorManager.healthCheck(connectorName);
         console.log(`Health: ${healthResult.healthy ? '✅ Healthy' : '❌ Unhealthy'}`);
-        
+
         if (!healthResult.healthy) {
           console.log(`Reason: ${healthResult.message}`);
         }
-        
+
         const metadata = connectorManager.getConnectorMetadata(connectorName);
         if (metadata) {
           console.log(`Version: ${metadata.version || 'Unknown'}`);
@@ -669,27 +709,26 @@ async function showConnectorStatus(connectorName = null) {
       } else {
         console.log('Status: ⚫ Not loaded');
       }
-      
     } else {
       // Show status for all connectors
       console.log('\n📊 Connector Status Overview');
       console.log('===========================');
-      
+
       if (Object.keys(connectorConfigs).length === 0) {
         console.log('No connectors configured.');
         return;
       }
-      
+
       for (const [name, connectorConfig] of Object.entries(connectorConfigs)) {
         const status = connectorManager.isConnectorLoaded(name) ? '🟢' : '⚫';
         const enabled = connectorConfig.enabled ? '✅' : '❌';
-        
+
         console.log(`${status} ${name} (enabled: ${enabled})`);
-        
+
         if (connectorManager.isConnectorLoaded(name)) {
           const healthResult = await connectorManager.healthCheck(name);
           console.log(`    Health: ${healthResult.healthy ? '✅' : '❌'} ${healthResult.message}`);
-          
+
           const metadata = connectorManager.getConnectorMetadata(name);
           if (metadata && metadata.sourceType !== 'npm') {
             console.log(`    Source: ${metadata.sourceType} (${metadata.loadedFrom})`);
@@ -701,7 +740,6 @@ async function showConnectorStatus(connectorName = null) {
         }
       }
     }
-    
   } catch (error) {
     console.error(`❌ Error getting connector status: ${error.message}`);
   }
@@ -712,32 +750,33 @@ async function showConnectorStatus(connectorName = null) {
  */
 async function removeConnector(connectorName) {
   const rl = createReadlineInterface();
-  
+
   try {
     const currentConfig = await getProjectConnectorConfig(connectorName);
-    
+
     if (Object.keys(currentConfig).length === 0) {
       console.log(`❌ Connector '${connectorName}' is not configured.`);
       rl.close();
       return;
     }
-    
+
     console.log(`\n⚠️  This will remove the configuration for '${connectorName}'.`);
     console.log('The package will remain installed but will not be loaded or used.');
-    
-    const confirmInput = await askQuestion(rl, 
+
+    const confirmInput = await askQuestion(
+      rl,
       `Are you sure you want to remove this connector configuration? (y/n): `
     );
-    
+
     if (convertInputToBoolean(confirmInput, false)) {
       // Unload if currently loaded
       if (connectorManager.isConnectorLoaded(connectorName)) {
         await connectorManager.unloadConnector(connectorName);
       }
-      
+
       // Remove configuration
       const { removed } = await removeProjectConnectorConfig(connectorName);
-      
+
       if (removed) {
         console.log(`✅ Configuration removed for ${connectorName}`);
 
@@ -758,7 +797,6 @@ async function removeConnector(connectorName) {
     } else {
       console.log('Operation cancelled.');
     }
-    
   } catch (error) {
     console.error(`❌ Error removing connector: ${error.message}`);
   } finally {
@@ -806,7 +844,7 @@ async function uninstallConnector(connectorName) {
     console.log(`🧹 Removed config + env for ${connectorName}`);
 
     try {
-      execSync(`npm uninstall ${connectorName}`, { stdio: 'inherit', cwd: process.cwd() });
+      runNpmCommand('uninstall', connectorName, { stdio: 'inherit', cwd: process.cwd() });
       console.log(`✅ Uninstalled ${connectorName}`);
     } catch (error) {
       console.error(`❌ Failed to uninstall ${connectorName}: ${error.message}`);
@@ -824,7 +862,7 @@ async function uninstallConnector(connectorName) {
 async function listConnectors() {
   console.log('\n📦 Available Connectors');
   console.log('======================');
-  
+
   // Check what's installed
   try {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
@@ -832,18 +870,18 @@ async function listConnectors() {
       const packageJson = await fs.readJson(packageJsonPath);
       const dependencies = {
         ...packageJson.dependencies,
-        ...packageJson.devDependencies
+        ...packageJson.devDependencies,
       };
-      
-      const installedConnectors = Object.keys(dependencies).filter(name => 
+
+      const installedConnectors = Object.keys(dependencies).filter((name) =>
         name.startsWith('form0-connector-')
       );
-      
+
       if (installedConnectors.length > 0) {
         console.log('\n✅ Installed:');
         for (const name of installedConnectors) {
           const connectorPath = path.join(process.cwd(), 'node_modules', name);
-          
+
           // Check if it's a symlink (npm linked)
           if (await fs.pathExists(connectorPath)) {
             const stats = await fs.lstat(connectorPath);
@@ -868,7 +906,7 @@ async function listConnectors() {
   } catch (error) {
     console.warn('Could not check installed packages');
   }
-  
+
   // List suggested connectors
   console.log('\n💡 Suggested:');
   console.log('   - form0-connector-pg (PostgreSQL database storage)');
@@ -877,12 +915,14 @@ async function listConnectors() {
   console.log('   - form0-connector-mongodb (MongoDB database storage)');
   console.log('   - form0-connector-webhook (HTTP webhook integration)');
   console.log('   - form0-connector-email (Email notifications)');
-  
+
   console.log('\n📖 Installation options:');
   console.log('   npm package:     form0 connector install <connector-name>');
   console.log('   local path:      form0 connector install ../path/to/connector');
   console.log('   absolute path:   form0 connector install /absolute/path/to/connector');
-  console.log('   npm link:        npm link <connector-name> && form0 connector install <connector-name>');
+  console.log(
+    '   npm link:        npm link <connector-name> && form0 connector install <connector-name>'
+  );
   console.log('\n🔧 Configuration:');
   console.log('   form0 connector configure <connector-name>');
 }
@@ -904,7 +944,7 @@ export async function connectorCommand(action, connectorName) {
       }
       await installConnector(connectorName);
       break;
-      
+
     case 'configure':
       if (!connectorName) {
         console.error('❌ Connector name is required for configure action');
@@ -913,7 +953,7 @@ export async function connectorCommand(action, connectorName) {
       }
       await configureConnector(connectorName);
       break;
-      
+
     case 'test':
       if (!connectorName) {
         console.error('❌ Connector name is required for test action');
@@ -931,11 +971,11 @@ export async function connectorCommand(action, connectorName) {
       }
       await reloadConnector(connectorName);
       break;
-      
+
     case 'status':
       await showConnectorStatus(connectorName);
       break;
-      
+
     case 'remove':
       if (!connectorName) {
         console.error('❌ Connector name is required for remove action');
@@ -948,11 +988,11 @@ export async function connectorCommand(action, connectorName) {
     case 'uninstall':
       await uninstallConnector(connectorName);
       break;
-      
+
     case 'list':
       await listConnectors();
       break;
-      
+
     default:
       console.log('\n🔌 form0 Connector Management');
       console.log('============================');

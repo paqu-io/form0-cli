@@ -1,7 +1,28 @@
 import fs from 'fs-extra';
 import path from 'path';
+import { pathToFileURL } from 'node:url';
 import { loadProjectEnv } from './project-env.js';
 import { resolveProjectConfig } from './project-config.js';
+
+const CONNECTOR_PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/;
+
+export function isValidConnectorPackageName(connectorName) {
+  return (
+    typeof connectorName === 'string' &&
+    connectorName.length <= 214 &&
+    CONNECTOR_PACKAGE_NAME_PATTERN.test(connectorName)
+  );
+}
+
+export function isPathInside(parentPath, candidatePath) {
+  const relativePath = path.relative(parentPath, candidatePath);
+  return (
+    relativePath === '' ||
+    (!relativePath.startsWith(`..${path.sep}`) &&
+      relativePath !== '..' &&
+      !path.isAbsolute(relativePath))
+  );
+}
 
 export class ConnectorManager {
   constructor() {
@@ -31,20 +52,28 @@ export class ConnectorManager {
    * Enhanced connector path resolution for development scenarios
    */
   async resolveConnectorModule(connectorName) {
+    if (!isValidConnectorPackageName(connectorName)) {
+      throw new Error(
+        `Invalid connector package name '${connectorName}'. Configure connectors by their npm package name.`
+      );
+    }
+
+    const projectRoot = this.projectRoot || process.cwd();
+
     // 1. First try as a standard node module
     try {
       const connectorModule = await import(connectorName);
       return {
         module: connectorModule,
         path: connectorName,
-        type: 'npm'
+        type: 'npm',
       };
     } catch (importError) {
       // Continue to other resolution strategies
     }
 
     // 2. Check if it's an npm-linked package in node_modules
-    const nodeModulesPath = path.join(process.cwd(), 'node_modules', connectorName);
+    const nodeModulesPath = path.join(projectRoot, 'node_modules', connectorName);
     if (await fs.pathExists(nodeModulesPath)) {
       try {
         const stats = await fs.lstat(nodeModulesPath);
@@ -52,23 +81,23 @@ export class ConnectorManager {
           const realPath = await fs.realpath(nodeModulesPath);
           const indexPath = await this.findConnectorEntryPoint(realPath);
           if (indexPath) {
-            const connectorModule = await import(indexPath);
+            const connectorModule = await import(pathToFileURL(indexPath).href);
             return {
               module: connectorModule,
               path: realPath,
               type: 'linked',
-              symlinkPath: nodeModulesPath
+              symlinkPath: nodeModulesPath,
             };
           }
         } else {
           // Regular npm-installed package
           const indexPath = await this.findConnectorEntryPoint(nodeModulesPath);
           if (indexPath) {
-            const connectorModule = await import(indexPath);
+            const connectorModule = await import(pathToFileURL(indexPath).href);
             return {
               module: connectorModule,
               path: nodeModulesPath,
-              type: 'installed'
+              type: 'installed',
             };
           }
         }
@@ -80,27 +109,24 @@ export class ConnectorManager {
     // 3. Try various relative and absolute path combinations
     const possiblePaths = [
       // Relative paths from current working directory
-      path.join(process.cwd(), '..', connectorName),
-      path.join(process.cwd(), connectorName),
-      
-      // If connectorName is already a path, use it directly
-      path.isAbsolute(connectorName) ? connectorName : null,
-      
+      path.join(projectRoot, '..', connectorName),
+      path.join(projectRoot, connectorName),
+
       // Common development directory structures
-      path.join(process.cwd(), '..', 'packages', connectorName),
-      path.join(process.cwd(), 'packages', connectorName),
-    ].filter(Boolean);
+      path.join(projectRoot, '..', 'packages', connectorName),
+      path.join(projectRoot, 'packages', connectorName),
+    ];
 
     for (const possiblePath of possiblePaths) {
       try {
         if (await fs.pathExists(path.join(possiblePath, 'package.json'))) {
           const indexPath = await this.findConnectorEntryPoint(possiblePath);
           if (indexPath) {
-            const connectorModule = await import(indexPath);
+            const connectorModule = await import(pathToFileURL(indexPath).href);
             return {
               module: connectorModule,
               path: possiblePath,
-              type: 'local'
+              type: 'local',
             };
           }
         }
@@ -109,53 +135,76 @@ export class ConnectorManager {
       }
     }
 
-    throw new Error(`Connector '${connectorName}' not found. Tried resolution paths: ${possiblePaths.join(', ')}`);
+    throw new Error(
+      `Connector '${connectorName}' not found. Tried resolution paths: ${possiblePaths.join(', ')}`
+    );
   }
 
   /**
    * Find the entry point for a connector package
    */
   async findConnectorEntryPoint(packagePath) {
+    const realPackagePath = await fs.realpath(packagePath);
+
     // Try package.json main field first
     try {
-      const packageJsonPath = path.join(packagePath, 'package.json');
+      const packageJsonPath = path.join(realPackagePath, 'package.json');
       const packageJson = await fs.readJson(packageJsonPath);
       if (packageJson.main) {
-        const mainPath = path.resolve(packagePath, packageJson.main);
-        if (await fs.pathExists(mainPath)) {
+        const mainPath = await this.resolveContainedEntryPoint(realPackagePath, packageJson.main);
+        if (mainPath) {
           return mainPath;
         }
       }
       if (packageJson.module) {
-        const modulePath = path.resolve(packagePath, packageJson.module);
-        if (await fs.pathExists(modulePath)) {
+        const modulePath = await this.resolveContainedEntryPoint(
+          realPackagePath,
+          packageJson.module
+        );
+        if (modulePath) {
           return modulePath;
         }
       }
     } catch (error) {
       // Continue to static entry points
     }
-    
+
     // Common entry points
     const possibleEntryPoints = [
-      path.join(packagePath, 'src', 'index.js'),
-      path.join(packagePath, 'lib', 'index.js'),
-      path.join(packagePath, 'dist', 'index.js'),
-      path.join(packagePath, 'index.js'),
-      path.join(packagePath, 'src', 'connector.js'),
-      path.join(packagePath, 'lib', 'connector.js'),
+      'src/index.js',
+      'lib/index.js',
+      'dist/index.js',
+      'index.js',
+      'src/connector.js',
+      'lib/connector.js',
     ];
 
-    return await this.findStaticEntryPoint(possibleEntryPoints);
+    return await this.findStaticEntryPoint(realPackagePath, possibleEntryPoints);
+  }
+
+  async resolveContainedEntryPoint(packagePath, entryPoint) {
+    const candidatePath = path.resolve(packagePath, entryPoint);
+    if (!isPathInside(packagePath, candidatePath) || !(await fs.pathExists(candidatePath))) {
+      return null;
+    }
+
+    const realCandidatePath = await fs.realpath(candidatePath);
+    if (!isPathInside(packagePath, realCandidatePath)) {
+      return null;
+    }
+
+    const stats = await fs.stat(realCandidatePath);
+    return stats.isFile() ? realCandidatePath : null;
   }
 
   /**
    * Find entry point from static paths
    */
-  async findStaticEntryPoint(entryPoints) {
+  async findStaticEntryPoint(packagePath, entryPoints) {
     for (const entryPoint of entryPoints) {
-      if (await fs.pathExists(entryPoint)) {
-        return entryPoint;
+      const resolvedEntryPoint = await this.resolveContainedEntryPoint(packagePath, entryPoint);
+      if (resolvedEntryPoint) {
+        return resolvedEntryPoint;
       }
     }
     return null;
@@ -176,20 +225,25 @@ export class ConnectorManager {
       connectorModule.Form0Connector,
       connectorModule.Connector,
       connectorModule[connectorName],
-      connectorModule
+      connectorModule,
     ];
 
     for (const possibleExport of possibleExports) {
       if (possibleExport && typeof possibleExport === 'function') {
         // Check if it looks like a constructor
-        if (possibleExport.prototype && typeof possibleExport.prototype.constructor === 'function') {
+        if (
+          possibleExport.prototype &&
+          typeof possibleExport.prototype.constructor === 'function'
+        ) {
           return possibleExport;
         }
       }
     }
 
     // If we get here, we couldn't find a suitable connector class
-    throw new Error(`Could not find a valid connector class in module. Available exports: ${Object.keys(connectorModule).join(', ')}`);
+    throw new Error(
+      `Could not find a valid connector class in module. Available exports: ${Object.keys(connectorModule).join(', ')}`
+    );
   }
 
   /**
@@ -211,7 +265,7 @@ export class ConnectorManager {
 
       // Enhanced module resolution
       const resolution = await this.resolveConnectorModule(connectorName);
-      
+
       // Extract the connector class
       const ConnectorClass = this.extractConnectorClass(resolution.module, connectorName);
 
@@ -231,19 +285,21 @@ export class ConnectorManager {
           path: resolution.path,
           type: resolution.type,
           symlinkPath: resolution.symlinkPath,
-          loadedAt: new Date().toISOString()
-        }
+          loadedAt: new Date().toISOString(),
+        },
       });
 
-      console.log(`🔌 Loaded connector '${connectorName}' from ${resolution.type} source: ${resolution.path}`);
+      console.log(
+        `🔌 Loaded connector '${connectorName}' from ${resolution.type} source: ${resolution.path}`
+      );
 
       return connector;
     } catch (error) {
       const errorMessage = `Failed to load connector '${connectorName}': ${error.message}`;
-      
+
       // Provide helpful troubleshooting information
       console.error(`❌ ${errorMessage}`);
-      
+
       if (error.message.includes('not found')) {
         console.log(`💡 Troubleshooting tips:`);
         console.log(`   • Ensure the connector is installed: npm install ${connectorName}`);
@@ -251,7 +307,7 @@ export class ConnectorManager {
         console.log(`   • For npm-linked packages: npm link ${connectorName}`);
         console.log(`   • Check the connector name spelling`);
       }
-      
+
       throw new Error(errorMessage);
     }
   }
@@ -287,11 +343,11 @@ export class ConnectorManager {
   async healthCheck(connectorName) {
     try {
       const connectorData = this.connectors.get(connectorName);
-      
+
       if (!connectorData) {
         return {
           healthy: false,
-          message: `Connector '${connectorName}' is not loaded`
+          message: `Connector '${connectorName}' is not loaded`,
         };
       }
 
@@ -300,7 +356,7 @@ export class ConnectorManager {
       if (typeof connector.healthCheck !== 'function') {
         return {
           healthy: false,
-          message: `Connector '${connectorName}' does not implement healthCheck method`
+          message: `Connector '${connectorName}' does not implement healthCheck method`,
         };
       }
 
@@ -308,7 +364,7 @@ export class ConnectorManager {
     } catch (error) {
       return {
         healthy: false,
-        message: `Health check failed: ${error.message}`
+        message: `Health check failed: ${error.message}`,
       };
     }
   }
@@ -318,11 +374,11 @@ export class ConnectorManager {
    */
   async healthCheckAll() {
     const results = {};
-    
+
     for (const connectorName of this.connectors.keys()) {
       results[connectorName] = await this.healthCheck(connectorName);
     }
-    
+
     return results;
   }
 
@@ -332,16 +388,16 @@ export class ConnectorManager {
    */
   async submitToConnectors(structuredRecord) {
     const results = [];
-    
+
     for (const [connectorName, connectorData] of this.connectors) {
       const connector = connectorData.instance;
-      
+
       try {
         if (typeof connector.onFormSubmit !== 'function') {
           results.push({
             connector: connectorName,
             success: false,
-            message: 'Connector does not implement onFormSubmit method'
+            message: 'Connector does not implement onFormSubmit method',
           });
           continue;
         }
@@ -349,18 +405,18 @@ export class ConnectorManager {
         const result = await connector.onFormSubmit(structuredRecord);
         results.push({
           connector: connectorName,
-          ...result
+          ...result,
         });
       } catch (error) {
         results.push({
           connector: connectorName,
           success: false,
           error: error.message,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     }
-    
+
     return results;
   }
 
@@ -370,7 +426,7 @@ export class ConnectorManager {
    */
   getConnectorMetadata(connectorName) {
     const connectorData = this.connectors.get(connectorName);
-    
+
     if (!connectorData) {
       return null;
     }
@@ -392,7 +448,7 @@ export class ConnectorManager {
       sourceType: loadMetadata.type,
       symlinkPath: loadMetadata.symlinkPath,
       loadedAt: loadMetadata.loadedAt,
-      ...connectorSpecificMetadata
+      ...connectorSpecificMetadata,
     };
   }
 
@@ -401,11 +457,11 @@ export class ConnectorManager {
    */
   getAllConnectorMetadata() {
     const metadata = {};
-    
+
     for (const connectorName of this.connectors.keys()) {
       metadata[connectorName] = this.getConnectorMetadata(connectorName);
     }
-    
+
     return metadata;
   }
 
@@ -415,7 +471,7 @@ export class ConnectorManager {
    */
   async unloadConnector(connectorName) {
     const connectorData = this.connectors.get(connectorName);
-    
+
     if (!connectorData) {
       return false;
     }
@@ -433,7 +489,7 @@ export class ConnectorManager {
       console.log(`🔌 Unloaded connector '${connectorName}'`);
       return true;
     } catch (error) {
-      console.error(`Failed to cleanly unload connector '${connectorName}':`, error.message);
+      console.error("Failed to cleanly unload connector '%s': %s", connectorName, error.message);
       // Still remove it from cache even if cleanup failed
       this.connectors.delete(connectorName);
       return false;
@@ -445,11 +501,11 @@ export class ConnectorManager {
    */
   async unloadAllConnectors() {
     const promises = [];
-    
+
     for (const connectorName of this.connectors.keys()) {
       promises.push(this.unloadConnector(connectorName));
     }
-    
+
     await Promise.allSettled(promises);
     this.connectors.clear();
   }
@@ -463,18 +519,18 @@ export class ConnectorManager {
     try {
       // Try to temporarily load the connector
       await this.loadConnector(connectorName, { envVars: config });
-      
+
       // Test the connection
       const healthResult = await this.healthCheck(connectorName);
-      
+
       // Clean up the temporary connector
       await this.unloadConnector(connectorName);
-      
+
       return healthResult;
     } catch (error) {
       return {
         healthy: false,
-        message: `Test connection failed: ${error.message}`
+        message: `Test connection failed: ${error.message}`,
       };
     }
   }
@@ -496,7 +552,7 @@ export class ConnectorManager {
 
       // Load the connector again
       await this.loadConnector(connectorName);
-      
+
       console.log(`✅ Successfully reloaded connector '${connectorName}'`);
       return true;
     } catch (error) {
