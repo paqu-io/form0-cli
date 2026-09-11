@@ -18,13 +18,7 @@
 It is an interactive command-line toolkit for creating projects and building, validating,
 previewing, testing, and serving form schemas locally.
 
-## 🗂️ Documentation
-
-- Quickstart: https://docs.form0.dev/getting-started/quickstart
-- Edit your first schema: https://docs.form0.dev/getting-started/schema-edit
-- Full docs: https://docs.form0.dev
-
-## ⚙️ Installation
+## 📦 Installation
 
 Install the CLI globally to get the `form0` command:
 
@@ -67,7 +61,7 @@ What you get in a Standard project:
 - `supporting-images/` for field assets
 - `package.json` and `README.md` scaffolding
 
-## ✏️ Edit your first schema
+## Edit your first schema
 
 This workflow assumes the dev server is running (`serve`) and the live preview is open.
 
@@ -177,30 +171,6 @@ form0 locale [name]
 form0 interactive   # or: form0 shell
 ```
 
-## Converting Form.io schemas
-
-> **Preview feature:** Form.io conversion is under active development. Review the conversion
-> report and validate the generated schema before using it. Behavior may change in future releases.
-
-Convert a local exported Form.io form JSON file into a validated form0 schema:
-
-```bash
-form0 schema convert formio formio-form.json -o form.schema.json
-form0 schema convert formio formio-form.json --dry-run --report conversion-report.json
-```
-
-Conversion is strict by default. Unsupported data components, custom validation, and calculations
-outside the safe supported subset prevent schema output. Use `--allow-lossy` to explicitly permit
-documented omissions and blank calculated-field placeholders. The converter reads form schemas
-only; it does not fetch remote forms or convert submissions.
-
-Form.io Wizard pages become drilldown Sections. Panels and Fieldsets become nested Sections, and
-Collapsible components become drilldown Sections. Selectboxes member references such as
-`data.features.fastMode` are translated to MultiChoice membership checks.
-
-The interactive shell accepts the same options and automatically loads a successfully written
-schema.
-
 ## Working with values
 
 `form0-cli` accepts JSON strings or files for `--values`:
@@ -217,11 +187,14 @@ Invalid fields are filtered out with warnings based on the schema.
 
 - Node.js 22+
 
-## 🔗 Related repositories
+## 📚 Documentation
 
-- [form0-core](https://github.com/paqu-io/form0-core) - Core form engine
-- [form0-react](https://github.com/paqu-io/form0-react) - React components
-- [form0-react-native](https://github.com/paqu-io/form0-react-native) - React Native components
+- [CLI overview](https://docs.form0.dev/cli/overview)
+- [Initialize a project](https://docs.form0.dev/cli/initialize-project)
+- [Interactive shell](https://docs.form0.dev/cli/interactive-shell)
+- [Command reference](https://docs.form0.dev/cli/command-reference)
+- [Quickstart](https://docs.form0.dev/getting-started/quickstart)
+- [Full documentation](https://docs.form0.dev)
 
 ## 🔒 Security
 
@@ -232,14 +205,16 @@ schema behavior. Use trusted projects and connectors. It binds to `localhost` by
 Do not report suspected vulnerabilities through public issues. See
 [SECURITY.md](./SECURITY.md) for private reporting instructions.
 
-For ordinary usage help, see
-[SUPPORT.md](https://github.com/paqu-io/form0-cli/blob/main/SUPPORT.md).
+## 🔗 Related repositories
 
-## 🤝 Contributing
+- [form0-core](https://github.com/paqu-io/form0-core) - Core form engine
+- [form0-react](https://github.com/paqu-io/form0-react) - React components
+- [form0-react-native](https://github.com/paqu-io/form0-react-native) - React Native components
 
-Contributions are welcome. See
-[CONTRIBUTING.md](https://github.com/paqu-io/form0-cli/blob/main/CONTRIBUTING.md) before opening an
-issue or pull request.
+## 🤝 Support and contributing
+
+See [SUPPORT.md](https://github.com/paqu-io/form0-cli/blob/main/SUPPORT.md) for help and
+[CONTRIBUTING.md](https://github.com/paqu-io/form0-cli/blob/main/CONTRIBUTING.md) to contribute.
 
 ## 📄 License
 
