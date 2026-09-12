@@ -11,6 +11,7 @@ import {
   updateProjectConnectorConfig,
 } from '../utils/project-config.js';
 import { resolveProjectEnv, upsertProjectEnv, removeProjectEnvKeys } from '../utils/project-env.js';
+import { getConnectorEnvKeys, getPostgreSQLStorageDefaults } from '../utils/connector-settings.js';
 import readline from 'readline';
 
 /**
@@ -47,37 +48,6 @@ function convertInputToBoolean(input, defaultValue = false) {
 
   const lowerInput = input.toLowerCase().trim();
   return ['y', 'yes', 'true', '1', 'on'].includes(lowerInput);
-}
-
-function getConnectorEnvKeys(connectorName) {
-  if (connectorName === 'form0-connector-pg') {
-    return [
-      'FORM0_CONNECTOR_PG_HOST',
-      'FORM0_CONNECTOR_PG_PORT',
-      'FORM0_CONNECTOR_PG_DATABASE',
-      'FORM0_CONNECTOR_PG_USERNAME',
-      'FORM0_CONNECTOR_PG_PASSWORD',
-      'FORM0_CONNECTOR_PG_SSL',
-      'FORM0_CONNECTOR_PG_SSL_REJECT_UNAUTHORIZED',
-      'FORM0_CONNECTOR_PG_MAX_CONNECTIONS',
-      'FORM0_CONNECTOR_PG_IDLE_TIMEOUT',
-      'FORM0_CONNECTOR_PG_CONNECTION_TIMEOUT',
-      'FORM0_CONNECTOR_PG_TABLE_NAME',
-      'FORM0_CONNECTOR_PG_SCHEMA',
-      'FORM0_CONNECTOR_PG_DEBUG',
-    ];
-  }
-
-  if (connectorName === 'form0-connector-sqlite') {
-    return [
-      'FORM0_CONNECTOR_SQLITE_PATH',
-      'FORM0_CONNECTOR_SQLITE_TABLE_NAME',
-      'FORM0_CONNECTOR_SQLITE_CHILD_TABLE_NAME',
-      'FORM0_CONNECTOR_SQLITE_DEBUG',
-    ];
-  }
-
-  return [];
 }
 
 function extractDatabasePath(metadata) {
@@ -425,12 +395,18 @@ async function configurePostgreSQLConnector(rl, connectorName) {
   );
   const ssl = convertInputToBoolean(sslInput, currentEnv.FORM0_CONNECTOR_PG_SSL === 'true');
 
-  const currentTableName =
-    currentConfig.tableName || currentEnv.FORM0_CONNECTOR_PG_TABLE_NAME || 'form0_submissions';
+  const {
+    tableName: currentTableName,
+    childTableName: currentChildTableName,
+    schema: currentSchema,
+  } = getPostgreSQLStorageDefaults(currentConfig, currentEnv);
   const tableName =
     (await askQuestion(rl, `Table name (current: ${currentTableName}): `)) || currentTableName;
 
-  const currentSchema = currentConfig.schema || currentEnv.FORM0_CONNECTOR_PG_SCHEMA || 'public';
+  const childTableName =
+    (await askQuestion(rl, `Child table name (current: ${currentChildTableName}): `)) ||
+    currentChildTableName;
+
   const schema =
     (await askQuestion(rl, `Database schema (current: ${currentSchema}): `)) || currentSchema;
 
@@ -449,6 +425,7 @@ async function configurePostgreSQLConnector(rl, connectorName) {
   return {
     connectorConfig: {
       tableName,
+      childTableName,
       schema,
       enabled,
       autoLoad,

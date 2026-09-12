@@ -8,6 +8,7 @@ import path from 'path';
 import { connectorManager } from '../../../utils/connector-manager.js';
 import { colors } from '../../../utils/theme.js';
 import { validateConnectorForConfiguration } from '../../../utils/connector-validation.js';
+import { getPostgreSQLStorageDefaults } from '../../../utils/connector-settings.js';
 
 /**
  * Prompt user for input using provided readline interface
@@ -99,12 +100,18 @@ async function configurePostgreSQLConnector(rl, connectorName) {
     );
     const ssl = convertInputToBoolean(sslInput, currentEnv.FORM0_CONNECTOR_PG_SSL === 'true');
 
-    const currentTableName =
-      currentConfig.tableName || currentEnv.FORM0_CONNECTOR_PG_TABLE_NAME || 'form0_submissions';
+    const {
+      tableName: currentTableName,
+      childTableName: currentChildTableName,
+      schema: currentSchema,
+    } = getPostgreSQLStorageDefaults(currentConfig, currentEnv);
     const tableName =
       (await askQuestion(rl, `Table name (current: ${currentTableName}): `)) || currentTableName;
 
-    const currentSchema = currentConfig.schema || currentEnv.FORM0_CONNECTOR_PG_SCHEMA || 'public';
+    const childTableName =
+      (await askQuestion(rl, `Child table name (current: ${currentChildTableName}): `)) ||
+      currentChildTableName;
+
     const schema =
       (await askQuestion(rl, `Database schema (current: ${currentSchema}): `)) || currentSchema;
 
@@ -123,6 +130,7 @@ async function configurePostgreSQLConnector(rl, connectorName) {
     return {
       connectorConfig: {
         tableName,
+        childTableName,
         schema,
         enabled,
         autoLoad,

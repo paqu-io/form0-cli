@@ -1,4 +1,5 @@
 import { colors } from '../../../utils/theme.js';
+import { getConnectorEnvKeys } from '../../../utils/connector-settings.js';
 import { t } from '../../../utils/i18n.js';
 import { connectorManager } from '../../../utils/connector-manager.js';
 import {
@@ -31,37 +32,6 @@ function convertInputToBoolean(input, defaultValue = false) {
   }
   const lowerInput = input.toLowerCase().trim();
   return ['y', 'yes', 'true', '1', 'on'].includes(lowerInput);
-}
-
-function getConnectorEnvKeys(connectorName) {
-  if (connectorName === 'form0-connector-pg') {
-    return [
-      'FORM0_CONNECTOR_PG_HOST',
-      'FORM0_CONNECTOR_PG_PORT',
-      'FORM0_CONNECTOR_PG_DATABASE',
-      'FORM0_CONNECTOR_PG_USERNAME',
-      'FORM0_CONNECTOR_PG_PASSWORD',
-      'FORM0_CONNECTOR_PG_SSL',
-      'FORM0_CONNECTOR_PG_SSL_REJECT_UNAUTHORIZED',
-      'FORM0_CONNECTOR_PG_MAX_CONNECTIONS',
-      'FORM0_CONNECTOR_PG_IDLE_TIMEOUT',
-      'FORM0_CONNECTOR_PG_CONNECTION_TIMEOUT',
-      'FORM0_CONNECTOR_PG_TABLE_NAME',
-      'FORM0_CONNECTOR_PG_SCHEMA',
-      'FORM0_CONNECTOR_PG_DEBUG',
-    ];
-  }
-
-  if (connectorName === 'form0-connector-sqlite') {
-    return [
-      'FORM0_CONNECTOR_SQLITE_PATH',
-      'FORM0_CONNECTOR_SQLITE_TABLE_NAME',
-      'FORM0_CONNECTOR_SQLITE_CHILD_TABLE_NAME',
-      'FORM0_CONNECTOR_SQLITE_DEBUG',
-    ];
-  }
-
-  return [];
 }
 
 function extractDatabasePath(metadata) {
