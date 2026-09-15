@@ -27,7 +27,8 @@ export class CommandHandler {
     serverManager,
     readline,
     shell = null,
-    schemaEditor = null
+    schemaEditor = null,
+    aiManager = null
   ) {
     this.schemaManager = schemaManager;
     this.engineRunner = engineRunner;
@@ -36,6 +37,7 @@ export class CommandHandler {
     this.readline = readline;
     this.shell = shell; // Reference to shell for readline coordination
     this.schemaEditor = schemaEditor;
+    this.aiManager = aiManager;
   }
 
   /**
@@ -57,6 +59,7 @@ export class CommandHandler {
       'c',
       'schema',
       'reform',
+      'ai',
     ];
 
     if (!allowedCommands.includes(command.toLowerCase())) {
@@ -108,6 +111,11 @@ export class CommandHandler {
     const [command, ...args] = input.split(' ');
 
     try {
+      if (this.aiManager && this.aiManager.isActive()) {
+        await this.aiManager.handleCommand(input);
+        return;
+      }
+
       if (this.schemaEditor && this.schemaEditor.isActive()) {
         await this.schemaEditor.handleCommand(input);
         return;
@@ -207,6 +215,10 @@ export class CommandHandler {
 
         case 'schema':
           await this.handleSchemaCommand(args);
+          break;
+
+        case 'ai':
+          await this.aiManager.enter();
           break;
 
         case 'reform':

@@ -450,6 +450,7 @@
     "schemaNewCommand": "    schema new           Crear un nuevo esquema",
     "schemaDeleteCommand": "    schema delete [name] Eliminar un esquema",
     "schemaEditCommand": "    schema edit           Entrar en modo de edición de esquema",
+    "aiCommand": "    ai                    Entrar en el modo de creación con IA (vista previa)",
     "schemaKeysCommand": "    schema keys           Generar claves faltantes",
     "reloadCommand": "    reload, rld          Recargar el archivo de esquema actual",
     "runCommand": "    run [options], r     Ejecutar el motor del formulario con valores opcionales",

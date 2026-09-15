@@ -164,6 +164,12 @@ if (process.argv.length === 2) {
     .description('Enter interactive form0 environment')
     .action(interactiveCommand);
 
+  program
+    .command('ai')
+    .argument('[schema]', 'Path to a schema JSON file')
+    .description('[PREVIEW] Author a form schema with AI')
+    .action((schema) => interactiveCommand({ initialAI: true, schemaPath: schema }));
+
   // Theme command
   program
     .command('theme')

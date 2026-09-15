@@ -510,6 +510,14 @@ export class ServerManager {
     this.devServer.updateSchema(schema);
   }
 
+  /** Broadcast an in-memory AI draft without changing the loaded or on-disk schema. */
+  previewSchema(schema, meta = {}) {
+    if (!this.devServer || !this.devServer.getStatus().running) return;
+    const label = meta.state === 'draft' ? 'Interactive Mode — AI draft' : 'Interactive Mode';
+    this.devServer.currentSchema = schema;
+    this.devServer.wsServer?.broadcastSchemaUpdate(schema, label);
+  }
+
   /**
    * Get server status for display
    */

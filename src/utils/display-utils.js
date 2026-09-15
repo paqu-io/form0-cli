@@ -40,6 +40,7 @@ export function showHelp() {
   console.log(colors.text(t('help.schemaNewCommand')));
   console.log(colors.text(t('help.schemaDeleteCommand')));
   console.log(colors.text(t('help.schemaEditCommand')));
+  console.log(colors.text(t('help.aiCommand')));
   console.log(colors.text(t('help.schemaKeysCommand')));
   console.log();
   console.log(colors.accent1(t('help.engineOperations')));

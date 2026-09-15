@@ -450,6 +450,7 @@
     "schemaNewCommand": "    schema new           Crea un nuovo schema",
     "schemaDeleteCommand": "    schema delete [name] Elimina uno schema",
     "schemaEditCommand": "    schema edit          Entra in modalità modifica schema",
+    "aiCommand": "    ai                   Entra nella modalità di creazione con IA (anteprima)",
     "schemaKeysCommand": "    schema keys          Genera le chiavi mancanti dei campi",
     "reloadCommand": "    reload, rld          Ricarica il file schema corrente",
     "runCommand": "    run [options], r     Esegui il motore con valori opzionali",

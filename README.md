@@ -32,6 +32,8 @@ Or run without a global install:
 npx form0-cli
 ```
 
+Requires Node.js 22.19.0 or newer.
+
 ## 🚀 Quickstart
 
 1. Start the interactive shell:
@@ -130,6 +132,46 @@ This workflow assumes the dev server is running (`serve`) and the live preview i
 
 ## Command reference summary
 
+## AI authoring (preview)
+
+Start directly with `form0 ai [schema]`, or enter `ai` from the interactive shell. AI composes with
+the live server, so `serve` followed by `ai` produces a `form0(server,ai)>` prompt and broadcasts
+validated drafts to the browser without saving them.
+
+The selected provider receives the complete form schema and installed form0 authoring catalog.
+Every change is a transient semantic mutation batch: inspect it with `/preview` or `/diff`, then use
+`/apply` or `/discard`. Writes require explicit approval, are atomic, and are rejected if the schema
+changed on disk. `/undo` stages the last saved version for approval.
+
+Provider authentication and per-schema conversations are stored under `~/.form0-cli/ai/`, not in
+projects or schemas. Pi exposes its provider catalog; the preview baseline covers OpenAI API keys and
+Codex OAuth, Anthropic API keys and Claude OAuth, Gemini API keys, OpenRouter key/OAuth, and local
+Ollama models. Environment credentials remain supported. Use `/providers`, `/login`, `/model`, and
+`/privacy` inside AI mode. `/status` shows the selected provider and model, locally configured
+authentication sources, draft state, schema path, cloud policy, and conversation persistence without
+contacting a provider. Use `/model` without an argument to show the current model.
+
+The selected model is part of the per-schema Pi conversation and is restored when AI mode is
+re-entered. `/new` and `/clear` keep the current model for the new conversation. If that model is no
+longer available or authenticated, the CLI shows Pi's fallback warning instead of silently changing
+it.
+
+While a request is running, the CLI displays `[AI] Thinking with <provider>/<model>…` and changes the
+prompt to `form0(ai,busy)>` (or `form0(server,ai,busy)>`). Natural-language input entered while busy
+is queued in order as follow-up requests; an empty Enter only redraws the prompt. `/help`, `/status`,
+`/privacy`, and `/cancel` remain available. `/cancel` stops the active request and clears queued
+follow-ups; other commands are unavailable until processing has finished.
+
+`ai.allowCloud: false` on the form or any field blocks cloud models with no CLI override. Any
+`requiresConsent: true` asks before the first cloud request and after switching cloud providers.
+Otherwise provider selection counts as consent after the CLI states that the full schema is sent.
+
+The agent may read relevant Markdown from `https://docs.form0.dev`, beginning at `llms.txt`; fetched
+text is untrusted supplementary guidance and installed core catalogs win on conflicts. There is no
+filesystem, shell, arbitrary web, extension, skill, MCP, image, or record-data access. Forms that do
+not fit completely in the selected model context are refused rather than truncated. Calculations and
+events are checked by form0-core before approval, but generated JavaScript still deserves review.
+
 ### Interactive shell (`form0`)
 
 - `init [dir]` - Initialize a project (Standard/Web/Mobile)
@@ -140,6 +182,7 @@ This workflow assumes the dev server is running (`serve`) and the live preview i
 - `watch [--auto-run] [--auto-validate]` - Watch schema changes
 - `serve [--app] [--port] [--host]` - Start live preview; `--app` runs the app dev server from `form0.config.js`
 - `schema edit` - Open the schema editor
+- `ai` - Enter preview AI authoring mode
 - `schema import <csv> [--force]` / `schema export [csv] [--force]` - Convert JSON ↔ CSV
 - `schema convert formio <json> [options]` - **Preview:** Convert an exported Form.io form schema to form0
 - `schema keys` - Generate missing field keys
@@ -169,6 +212,7 @@ form0 connector <action> [name]
 form0 theme [name]
 form0 locale [name]
 form0 interactive   # or: form0 shell
+form0 ai [schema]   # preview AI authoring
 ```
 
 ## Working with values
@@ -185,7 +229,7 @@ Invalid fields are filtered out with warnings based on the schema.
 
 ## ✅ Requirements
 
-- Node.js 22+
+- Node.js 22.19.0+
 
 ## 📚 Documentation
 

@@ -48,6 +48,7 @@ export const COMMANDS = [
   'locale',
   'serve',
   'schema',
+  'ai',
   'reform',
 ];
 

@@ -514,6 +514,7 @@
     "schemaNewCommand": "    schema new                    Create a new schema",
     "schemaDeleteCommand": "    schema delete [name]          Delete a schema",
     "schemaEditCommand": "    schema edit                   Enter schema edit mode",
+    "aiCommand": "    ai                            Enter preview AI authoring mode",
     "schemaKeysCommand": "    schema keys                   Generate missing field keys",
     "engineOperations": "  Engine Operations:",
     "runCommand": "    run [options], r     Execute form engine with optional values",
