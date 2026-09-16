@@ -43,7 +43,8 @@ export function schemaSessionKey(schemaPath) {
 export class AISchemaWorkspace {
   constructor({ schema, schemaPath = null, onPreview = null, onCommit = null }) {
     this.schemaPath = schemaPath ? path.resolve(schemaPath) : null;
-    this.committed = clone(schema || createEmptyFormSchema());
+    this.baseline = clone(schema || createEmptyFormSchema());
+    this.committed = clone(this.baseline);
     this.committedRevision = requireCoreAuthoring().getFormSchemaRevision(this.committed);
     this.pending = null;
     this.undoSnapshot = null;
@@ -57,6 +58,18 @@ export class AISchemaWorkspace {
 
   getCommittedSchema() {
     return clone(this.committed);
+  }
+
+  getBaselineSchema() {
+    return clone(this.baseline);
+  }
+
+  getCumulativeDiff() {
+    return createJsonDiff(this.baseline, this.getCurrentSchema());
+  }
+
+  getPendingDiff() {
+    return this.pending ? createJsonDiff(this.committed, this.pending.schema) : [];
   }
 
   getRevision() {

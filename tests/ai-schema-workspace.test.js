@@ -45,3 +45,32 @@ test('AI workspace rejects apply after an external edit and supports discard and
   await workspace.discard();
   assert.equal(workspace.getPendingProposal(), null);
 });
+
+test('AI workspace keeps cumulative history across applies and isolates pending changes', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-ai-cumulative-'));
+  const schemaPath = path.join(directory, 'form.schema.json');
+  await fs.writeJson(schemaPath, schema);
+  const workspace = new AISchemaWorkspace({ schema, schemaPath });
+
+  workspace.stage({
+    baseRevision: workspace.getRevision(),
+    operations: [{ op: 'updateForm', changes: { name: 'Applied once' } }],
+  });
+  assert.equal(workspace.getCumulativeDiff().length, 1);
+  await workspace.apply();
+  assert.equal(workspace.getPendingDiff().length, 0);
+  assert.equal(workspace.getCumulativeDiff()[0].after, 'Applied once');
+
+  workspace.stage({
+    baseRevision: workspace.getRevision(),
+    operations: [{ op: 'updateForm', changes: { description: 'Pending second change' } }],
+  });
+  assert.equal(workspace.getPendingDiff().length, 1);
+  assert.equal(workspace.getCumulativeDiff().length, 2);
+  await workspace.discard();
+  assert.equal(workspace.getPendingDiff().length, 0);
+  assert.equal(workspace.getCumulativeDiff().length, 1);
+
+  await workspace.undo();
+  assert.equal(workspace.getPendingDiff()[0].after, 'Before');
+});

@@ -70,7 +70,7 @@ test('AI status reports local Pi authentication without exposing credentials', (
   });
 });
 
-test('Pi restores the selected model from the schema conversation', async () => {
+test('Pi restores the global selected model independently of schema conversations', async () => {
   const storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-ai-model-'));
   const schemaPath = path.join(storageRoot, 'form.schema.json');
   await fs.writeJson(path.join(storageRoot, 'auth.json'), {
@@ -99,6 +99,45 @@ test('Pi restores the selected model from the schema conversation', async () => 
   await resumed.initialize();
   assert.equal(resumed.model?.provider, 'openai');
   assert.equal(resumed.model?.id, selected.id);
+  assert.equal((await fs.stat(path.join(storageRoot, 'settings.json'))).mode & 0o777, 0o600);
+  await resumed.dispose();
+
+  const unsaved = new Form0PiSession({
+    workspace: new AISchemaWorkspace({
+      schema: { form: { name: 'Unsaved', description: null, elements: [] } },
+    }),
+    storageRoot,
+  });
+  await unsaved.initialize();
+  assert.equal(unsaved.model?.provider, 'openai');
+  assert.equal(unsaved.model?.id, selected.id);
+  await unsaved.dispose();
+});
+
+test('Pi falls back cleanly when the globally saved model is no longer available', async () => {
+  const storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-ai-model-fallback-'));
+  await fs.writeJson(
+    path.join(storageRoot, 'models.json'),
+    ollamaModelsConfig(['temporary:latest'])
+  );
+  const createWorkspace = () =>
+    new AISchemaWorkspace({
+      schema: { form: { name: 'Fallback', description: null, elements: [] } },
+    });
+
+  const first = new Form0PiSession({ workspace: createWorkspace(), storageRoot });
+  await first.initialize();
+  await first.selectModel('ollama/temporary:latest');
+  await first.dispose();
+
+  await fs.writeJson(path.join(storageRoot, 'models.json'), { providers: {} });
+  await fs.remove(path.join(storageRoot, 'models-cache.json'));
+  const resumed = new Form0PiSession({ workspace: createWorkspace(), storageRoot });
+  await resumed.initialize();
+
+  assert.notEqual(`${resumed.model?.provider}/${resumed.model?.id}`, 'ollama/temporary:latest');
+  assert.equal(resumed.getSavedModelReference(), 'ollama/temporary:latest');
+  assert.match(resumed.takeModelFallbackMessage(), /No models available/i);
   await resumed.dispose();
 });
 
@@ -183,6 +222,8 @@ test('Pi adapter supplies the complete current schema on every request', async (
   assert.equal(await adapter.prompt('Edit it'), 'Ready');
   assert.match(prompts[0], /Complete context marker/);
   assert.match(prompts[0], /Unique marker/);
+  assert.match(prompts[0], /"eventGuidance"/);
+  assert.match(prompts[0], /CHOICEVALUE/);
   assert.match(prompts[0], /<user-request>\nEdit it/);
 });
 

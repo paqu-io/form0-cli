@@ -23,7 +23,7 @@ test('shell prompt composes server and AI state', () => {
   assert.equal(plain(shell.getPromptString()), 'form0(server,ai,busy)> ');
 });
 
-test('AI entry is allowed with a running server and active mode owns input', async () => {
+test('AI entry is allowed with a running server and routes requests to AI mode', async () => {
   const inputs = [];
   const aiManager = {
     isActive: () => true,
@@ -113,12 +113,31 @@ test('AI status identifies the selected model and configured authentication', ()
   assert.ok(lines.includes('    openai-codex  oauth (stored, subscription) [selected]'));
 });
 
-test('/status and /model without arguments report the current selection', async (context) => {
+test('/status reports the current selection and /model opens the picker', async (context) => {
   const output = [];
   context.mock.method(console, 'log', (value) => output.push(plain(String(value))));
-  const manager = new AIManager({}, {}, {}, {}, {});
+  const selections = [];
+  const presentation = {
+    write: (value) => output.push(plain(String(value))),
+    writeLines: (lines) => output.push(...lines.map((line) => plain(String(line)))),
+    select: async ({ items }) => {
+      selections.push(items);
+      return 'openai-codex/gpt-5.6-luna';
+    },
+  };
+  const manager = new AIManager({}, {}, {}, {}, {}, { presentation });
   manager.agent = {
     model: { provider: 'openai-codex', id: 'gpt-5.6-luna' },
+    listProviders: async () => [
+      {
+        id: 'openai-codex',
+        name: 'OpenAI Codex',
+        authTypes: ['oauth'],
+        auth: { configured: true, source: 'stored' },
+        models: ['gpt-5.6-luna'],
+      },
+    ],
+    selectModel: async () => ({ provider: 'openai-codex', id: 'gpt-5.6-luna' }),
     getStatus: () => ({
       schemaPath: null,
       draft: null,
@@ -133,7 +152,41 @@ test('/status and /model without arguments report the current selection', async 
   await manager.handleCommand('/model');
 
   assert.ok(output.some((line) => line.includes('AI authoring status')));
-  assert.ok(output.includes('Current model: openai-codex/gpt-5.6-luna'));
+  assert.equal(selections.length, 1);
+  assert.match(selections[0][0].label, /current/);
+  assert.ok(output.includes('Selected openai-codex/gpt-5.6-luna'));
+});
+
+test('AI mode routes server controls to form0 and keeps preview on the draft', async () => {
+  const aiInputs = [];
+  const serverInputs = [];
+  const aiManager = {
+    isActive: () => true,
+    handleCommand: async (input) => aiInputs.push(input),
+  };
+  const handler = new CommandHandler(
+    { validateCurrentSchema: async () => serverInputs.push('validate') },
+    {},
+    {},
+    {
+      isServerRunning: () => true,
+      handleServeCommand: async (args) => serverInputs.push(`serve ${args.join(' ')}`),
+    },
+    {},
+    null,
+    null,
+    aiManager
+  );
+
+  await handler.handleCommand('p');
+  await handler.handleCommand('preview');
+  await handler.handleCommand('serve status');
+  await handler.handleCommand('serve stop');
+  await handler.handleCommand('validate');
+  await handler.handleCommand('please stop the server after editing');
+
+  assert.deepEqual(aiInputs, ['p', 'preview', 'please stop the server after editing']);
+  assert.deepEqual(serverInputs, ['serve status', 'serve stop', 'validate']);
 });
 
 test('messages submitted while AI is busy run later in FIFO order', async (context) => {

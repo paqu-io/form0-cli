@@ -220,96 +220,70 @@ export function printFields(elements, indentOrOptions = '', maybeOptions = {}) {
   const indent = hasIndent ? indentOrOptions : '';
   const options = hasIndent ? maybeOptions : indentOrOptions || {};
   const counter = options.counter || { value: 0 };
-  const showIds = options.showIds === true;
+  const lines = [];
+  appendFieldPreviewLines(elements, lines, indent, options, counter);
+  for (const line of lines) console.log(line);
+}
 
+function appendFieldPreviewLines(elements, lines, indent, options, counter) {
   elements.forEach((element, index) => {
     const isLast = index === elements.length - 1;
     const connector = isLast ? '└─' : '├─';
     const childIndent = indent + (isLast ? '  ' : '│ ');
     counter.value += 1;
-    const idPrefix = showIds ? `${counter.value} | ` : '';
-
-    let typeColor = colors.fieldDefault;
-    switch (element.type) {
-      case 'Section':
-      case 'RepeatableSection':
-      case 'BuildingPlanSection':
-        typeColor = colors.fieldSection;
-        break;
-      case 'TextField':
-        typeColor = colors.fieldText;
-        break;
-      case 'NumericField':
-        typeColor = colors.fieldNumeric;
-        break;
-      case 'CalculatedField':
-        typeColor = colors.fieldCalculated;
-        break;
-      case 'SingleChoiceField':
-        typeColor = colors.fieldChoice;
-        break;
-      case 'MultiChoiceField':
-        typeColor = colors.fieldChoice;
-        break;
-      case 'BooleanField':
-        typeColor = colors.fieldChoice;
-        break;
-      case 'DateField':
-        typeColor = colors.fieldDate;
-        break;
-      case 'TimeField':
-        typeColor = colors.fieldTime;
-        break;
-      case 'LabelField':
-        typeColor = colors.fieldLabel;
-        break;
-      case 'SignatureField':
-        typeColor = colors.fieldSignature;
-        break;
-      case 'PhotoField':
-        typeColor = colors.fieldMedia;
-        break;
-      default:
-        typeColor = colors.fieldDefault;
-    }
-
+    const idPrefix = options.showIds ? `${counter.value} | ` : '';
+    const typeColor =
+      {
+        Section: colors.fieldSection,
+        RepeatableSection: colors.fieldSection,
+        BuildingPlanSection: colors.fieldSection,
+        TextField: colors.fieldText,
+        NumericField: colors.fieldNumeric,
+        CalculatedField: colors.fieldCalculated,
+        SingleChoiceField: colors.fieldChoice,
+        MultiChoiceField: colors.fieldChoice,
+        BooleanField: colors.fieldChoice,
+        DateField: colors.fieldDate,
+        TimeField: colors.fieldTime,
+        LabelField: colors.fieldLabel,
+        SignatureField: colors.fieldSignature,
+        PhotoField: colors.fieldMedia,
+      }[element.type] || colors.fieldDefault;
     const label = element.label || element.data_name || t('commands.preview.unlabeled');
     const dataNameDisplay = element.data_name ? colors.textMuted(` [${element.data_name}]`) : '';
     const keyDisplay = element.key ? colors.textMuted(` (key: ${element.key})`) : '';
-
-    console.log(
+    lines.push(
       `${indent}${connector} ${idPrefix}${typeColor(element.type)} ${colors.label(label)}${dataNameDisplay}${keyDisplay}`
     );
-
     if (
-      (element.type === 'Section' ||
-        element.type === 'RepeatableSection' ||
-        element.type === 'BuildingPlanSection') &&
-      element.elements
+      ['Section', 'RepeatableSection', 'BuildingPlanSection'].includes(element.type) &&
+      Array.isArray(element.elements)
     ) {
-      printFields(element.elements, childIndent, { ...options, counter });
+      appendFieldPreviewLines(element.elements, lines, childIndent, options, counter);
     }
   });
+}
+
+/** Return the friendly schema preview as terminal-formatted lines. */
+export function formatSchemaPreviewLines(schema, options = {}) {
+  const form = schema.form;
+  const lines = [
+    colors.header(
+      t('commands.preview.formTitle', { name: form.name || t('commands.preview.unnamed') })
+    ),
+  ];
+  if (form.description) lines.push(colors.textSecondary(`   ${form.description}`));
+  lines.push('');
+  appendFieldPreviewLines(form.elements || [], lines, '', options, { value: 0 });
+  return lines;
 }
 
 /**
  * Display schema preview
  */
 export function showSchemaPreview(schema, options = {}) {
-  const form = schema.form;
-  console.log(
-    colors.header(
-      '\n' + t('commands.preview.formTitle', { name: form.name || t('commands.preview.unnamed') })
-    )
-  );
-  if (form.description) {
-    console.log(colors.textSecondary(`   ${form.description}`));
-  }
-  console.log();
-
-  printFields(form.elements || [], '', {
-    showIds: options.showIds === true,
-  });
+  console.log('');
+  for (const line of formatSchemaPreviewLines(schema, options)) console.log(line);
   console.log();
 }
 

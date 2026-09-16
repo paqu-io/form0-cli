@@ -40,6 +40,14 @@ export class CommandHandler {
     this.aiManager = aiManager;
   }
 
+  /** Route unambiguous form0 commands without stealing ordinary AI requests. */
+  isShellCommandInAIMode(command, args) {
+    const normalized = command.toLowerCase();
+    if (['validate', 'v', 'status', 's'].includes(normalized)) return args.length === 0;
+    if (normalized === 'serve') return args.length === 1 && ['stop', 'status'].includes(args[0]);
+    return false;
+  }
+
   /**
    * Check if command is allowed in server mode
    */
@@ -112,8 +120,14 @@ export class CommandHandler {
 
     try {
       if (this.aiManager && this.aiManager.isActive()) {
-        await this.aiManager.handleCommand(input);
-        return;
+        const isAICommand =
+          input.startsWith('/') ||
+          ['preview', 'p'].includes(command.toLowerCase()) ||
+          !this.isShellCommandInAIMode(command, args);
+        if (isAICommand) {
+          await this.aiManager.handleCommand(input);
+          return;
+        }
       }
 
       if (this.schemaEditor && this.schemaEditor.isActive()) {

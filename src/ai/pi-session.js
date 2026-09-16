@@ -76,6 +76,7 @@ export class Form0PiSession {
     this.modelFallbackMessage = null;
     this.sessionKey = schemaSessionKey(workspace.schemaPath);
     this.startFresh = false;
+    this.settingsManager = null;
   }
 
   async initialize() {
@@ -100,7 +101,13 @@ export class Form0PiSession {
       modelsPath,
       modelsStorePath: path.join(this.storageRoot, 'models-cache.json'),
     });
-    const settingsManager = SettingsManager.inMemory({ compaction: { enabled: true } });
+    const settingsManager = SettingsManager.create(process.cwd(), this.storageRoot, {
+      projectTrusted: false,
+    });
+    if (!settingsManager.getGlobalSettings().compaction) {
+      settingsManager.setCompactionEnabled(true);
+    }
+    this.settingsManager = settingsManager;
     const resourceLoader = new DefaultResourceLoader({
       cwd: process.cwd(),
       agentDir: this.storageRoot,
@@ -138,7 +145,7 @@ export class Form0PiSession {
     });
     this.session = result.session;
     this.model = result.session.model || null;
-    this.modelFallbackMessage = result.modelFallbackMessage || null;
+    this.modelFallbackMessage = result.modelFallbackMessage?.split('\n')[0] || null;
     if (startingFresh && this.model) await this.session.setModel(this.model);
     await this.refreshStoredContext();
     await this.hardenFiles();
@@ -198,7 +205,7 @@ export class Form0PiSession {
   }
 
   async hardenFiles() {
-    for (const name of ['auth.json', 'models.json', 'models-cache.json']) {
+    for (const name of ['auth.json', 'models.json', 'models-cache.json', 'settings.json']) {
       const file = path.join(this.storageRoot, name);
       if (await fs.pathExists(file)) await fs.chmod(file, 0o600);
     }
@@ -222,6 +229,12 @@ export class Form0PiSession {
       auth: this.modelRuntime.getProviderAuthStatus(provider.id),
       models: this.modelRuntime.getModels(provider.id).map((model) => model.id),
     }));
+  }
+
+  getSavedModelReference() {
+    const provider = this.settingsManager?.getDefaultProvider();
+    const model = this.settingsManager?.getDefaultModel();
+    return provider && model ? `${provider}/${model}` : null;
   }
 
   getStatus() {
@@ -277,7 +290,9 @@ export class Form0PiSession {
     if (this.isCloudProvider(provider) && !this.getCloudPolicy().allowCloud) {
       throw new Error('Cloud AI is disabled by this form schema');
     }
-    await this.session.setModel(model);
+    await this.session.setModel(model, { persist: true });
+    await this.settingsManager?.flush();
+    await this.hardenFiles();
     this.model = model;
     return model;
   }

@@ -3,6 +3,9 @@ import { clearLine, cursorTo } from 'node:readline';
 import fs from 'fs-extra';
 import { colors } from '../../../utils/theme.js';
 import { confirmOverwrite } from '../../schema.js';
+import { formatSchemaPreviewLines } from '../../../utils/display-utils.js';
+import { PlainAIConsole } from '../../../ai/console.js';
+import { formatSchemaDiffLines } from '../../../ai/diff-format.js';
 import { AISchemaWorkspace, createEmptyFormSchema } from '../../../ai/schema-workspace.js';
 import { Form0PiSession } from '../../../ai/pi-session.js';
 
@@ -10,10 +13,12 @@ const AI_HELP_COMMANDS = [
   ['/status', 'Show the current AI authoring status'],
   ['/providers', 'List providers and authentication methods'],
   ['/models <provider>', 'List model identifiers for one provider'],
-  ['/login <provider> <api_key|oauth>', 'Authenticate with a provider'],
-  ['/model <provider>/<model>', 'Select the active model'],
+  ['/login [provider] [method]', 'Authenticate with a provider'],
+  ['/model [provider/model]', 'Pick or explicitly select the active model'],
   ['/privacy', 'Explain the effective schema policy'],
-  ['/preview, /diff', 'Inspect the pending proposal'],
+  ['/preview, p, preview', 'Preview the working form'],
+  ['/json', 'Show the working schema as JSON'],
+  ['/diff [--pending]', 'Show cumulative or pending changes'],
   ['/apply [schema-path]', 'Atomically save the approved batch'],
   ['/discard, /undo', 'Discard a draft or stage the last saved version'],
   ['/new, /clear', 'Start a conversation or delete its stored history'],
@@ -58,7 +63,6 @@ function formatAIStatusLines(status) {
     lines.push(`  ${'Authentication:'.padEnd(labelWidth + 3)}none configured`);
     return lines;
   }
-
   lines.push('  Authentication:');
   const providerWidth = Math.max(...status.authentications.map(({ provider }) => provider.length));
   for (const authentication of status.authentications) {
@@ -75,15 +79,8 @@ function formatAIStatusLines(status) {
   return lines;
 }
 
-function authenticationPromptAbortError(signal) {
-  if (signal?.reason instanceof Error) return signal.reason;
-  const error = new Error('Authentication prompt cancelled');
-  error.name = 'AbortError';
-  return error;
-}
-
 function yes(value) {
-  return /^(y|yes)$/i.test(value.trim());
+  return /^(y|yes)$/i.test(String(value || '').trim());
 }
 
 export class AIManager {
@@ -94,6 +91,7 @@ export class AIManager {
     this.readline = readline;
     this.shell = shell;
     this.sessionFactory = options.sessionFactory || ((input) => new Form0PiSession(input));
+    this.presentation = options.presentation || new PlainAIConsole({ readline });
     this.active = false;
     this.workspace = null;
     this.agent = null;
@@ -105,6 +103,14 @@ export class AIManager {
 
   isActive() {
     return this.active;
+  }
+
+  write(message, tone) {
+    this.presentation.write(message, tone ? { tone } : undefined);
+  }
+
+  writeLines(lines) {
+    this.presentation.writeLines(lines);
   }
 
   async enter() {
@@ -120,19 +126,21 @@ export class AIManager {
       },
     });
     this.agent = this.sessionFactory({ workspace: this.workspace });
-    await this.agent.initialize();
-    this.busy = false;
-    this.queuedRequests = [];
-    this.cancelRequested = false;
-    this.active = true;
-    this.shell.setAIMode(true);
-    console.log(colors.header('\n[PREVIEW] form0 AI authoring'));
-    console.log(
-      colors.textSecondary('The complete form schema is supplied to the selected model.')
-    );
-    console.log(colors.textSecondary('Type a request, or /help for AI commands.'));
-    const fallback = this.agent.takeModelFallbackMessage?.();
-    if (fallback) console.log(colors.warning(`[AI] ${fallback}`));
+    try {
+      await this.agent.initialize();
+      this.active = true;
+      this.shell.setAIMode(true);
+      this.write('[PREVIEW] form0 AI authoring', 'header');
+      this.write('The complete form schema is supplied to the selected model.', 'muted');
+      this.write('Type a request, or /help for AI commands.', 'muted');
+      const fallback = this.agent.takeModelFallbackMessage?.();
+      if (fallback) this.write(`[AI] ${fallback}`, 'warning');
+    } catch (error) {
+      await this.agent?.dispose?.();
+      this.active = false;
+      this.shell.setAIMode(false);
+      throw error;
+    }
   }
 
   async exit() {
@@ -163,122 +171,59 @@ export class AIManager {
     cursorTo(this.readline.output, 0);
   }
 
-  async ask(question, { signal } = {}) {
-    return new Promise((resolve, reject) => {
-      if (signal?.aborted) {
-        reject(authenticationPromptAbortError(signal));
-        return;
-      }
-      let settled = false;
-      const finish = (callback, value) => {
-        if (settled) return;
-        settled = true;
-        signal?.removeEventListener('abort', onAbort);
-        callback(value);
-      };
-      const onAbort = () => {
-        this.readline.output?.write('\n');
-        finish(reject, authenticationPromptAbortError(signal));
-      };
-      signal?.addEventListener('abort', onAbort, { once: true });
-      const callback = (answer) => finish(resolve, answer);
-      if (signal) this.readline.question(colors.text(question), { signal }, callback);
-      else this.readline.question(colors.text(question), callback);
-    });
-  }
-
-  async askSecret(question, { signal } = {}) {
-    if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== 'function') {
-      return this.ask(question, { signal });
-    }
-    signal?.throwIfAborted();
-    this.readline.pause();
-    process.stdout.write(colors.text(question));
-    return new Promise((resolve, reject) => {
-      let value = '';
-      let settled = false;
-      const wasRaw = process.stdin.isRaw;
-      process.stdin.setRawMode(true);
-      process.stdin.resume();
-      const finish = (error) => {
-        if (settled) return;
-        settled = true;
-        process.stdin.off('data', onData);
-        signal?.removeEventListener('abort', onAbort);
-        process.stdin.setRawMode(Boolean(wasRaw));
-        this.readline.resume();
-        process.stdout.write('\n');
-        if (error) reject(error);
-        else resolve(value);
-      };
-      const onAbort = () => finish(authenticationPromptAbortError(signal));
-      const onData = (data) => {
-        const input = data.toString('utf8');
-        if (input === '\u0003') return finish(new Error('Authentication cancelled'));
-        if (input === '\r' || input === '\n') return finish();
-        if (input === '\u007f') value = value.slice(0, -1);
-        else value += input;
-      };
-      signal?.addEventListener('abort', onAbort, { once: true });
-      process.stdin.on('data', onData);
-    });
+  async ask(message, { signal, type = 'text', options = [] } = {}) {
+    return this.presentation.prompt({ message: formatAuthPrompt(message), signal, type, options });
   }
 
   authInteraction() {
     return {
-      prompt: async (prompt) => {
-        if (prompt.type === 'select') {
-          console.log(prompt.options.map((option) => `  ${option.id}: ${option.label}`).join('\n'));
-        }
-        const message = formatAuthPrompt(prompt.message || prompt.label);
-        const options = { signal: prompt.signal };
-        return prompt.type === 'secret'
-          ? this.askSecret(message, options)
-          : this.ask(message, options);
-      },
+      prompt: async (prompt) =>
+        this.ask(prompt.message || prompt.label, {
+          signal: prompt.signal,
+          type: prompt.type === 'manual_code' ? 'text' : prompt.type,
+          options: prompt.options,
+        }),
       notify: (event) => {
         const message = event.message || event.url || JSON.stringify(event);
-        console.log(colors.textSecondary(message));
+        this.write(message, 'muted');
       },
     };
   }
 
   showHelp() {
-    console.log(colors.header('\nAI authoring commands'));
-    for (const line of formatAIHelpLines()) console.log(colors.text(line));
+    this.write('AI authoring commands', 'header');
+    this.writeLines(formatAIHelpLines().map((line) => colors.text(line)));
   }
 
   showPrivacy() {
     const policy = this.agent.getCloudPolicy();
-    console.log(colors.header('\nEffective AI privacy policy'));
-    console.log(`  Complete schema sent: yes`);
-    console.log(`  Cloud providers: ${policy.allowCloud ? 'allowed' : 'blocked'}`);
-    console.log(
-      `  Explicit consent: ${policy.requiresConsent ? 'required' : 'covered by provider selection'}`
-    );
-    for (const blocker of [...policy.cloudBlockers, ...policy.consentReasons]) {
-      console.log(
-        colors.textSecondary(`  - ${blocker.scope}${blocker.key ? ` (${blocker.key})` : ''}`)
-      );
-    }
-    console.log(
-      colors.textSecondary('Credentials and sessions: ~/.form0-cli/ai (user-only permissions)')
-    );
+    const lines = [
+      '  Complete schema sent: yes',
+      `  Cloud providers: ${policy.allowCloud ? 'allowed' : 'blocked'}`,
+      `  Explicit consent: ${policy.requiresConsent ? 'required' : 'covered by provider selection'}`,
+      ...[...policy.cloudBlockers, ...policy.consentReasons].map(
+        (blocker) => `  - ${blocker.scope}${blocker.key ? ` (${blocker.key})` : ''}`
+      ),
+      '  Credentials and sessions: ~/.form0-cli/ai (user-only permissions)',
+    ];
+    this.write('Effective AI privacy policy', 'header');
+    this.writeLines(lines);
   }
 
   showStatus() {
-    console.log(colors.header('\nAI authoring status'));
-    const status = {
-      ...this.agent.getStatus(),
-      activity: this.busy ? 'processing' : 'idle',
-      queuedRequestCount: this.queuedRequests.length,
-    };
-    for (const line of formatAIStatusLines(status)) console.log(colors.text(line));
+    this.write('AI authoring status', 'header');
+    this.writeLines(
+      formatAIStatusLines({
+        ...this.agent.getStatus(),
+        activity: this.busy ? 'processing' : 'idle',
+        queuedRequestCount: this.queuedRequests.length,
+      }).map((line) => colors.text(line))
+    );
   }
 
   queueRequest(request) {
     this.queuedRequests.push(request);
-    console.log(colors.textSecondary(`Queued follow-up (${this.queuedRequests.length} pending).`));
+    this.write(`Queued follow-up (${this.queuedRequests.length} pending).`, 'muted');
   }
 
   async processRequestQueue(initialRequest) {
@@ -292,31 +237,31 @@ export class AIManager {
           this.queuedRequests = [];
           return;
         }
+        this.write(`› ${request}`, 'accent');
         const model = this.agent.model;
         const modelReference = model ? ` with ${model.provider}/${model.id}` : '';
-        console.log(colors.textSecondary(`[AI] Thinking${modelReference}…`));
+        this.write(`[AI] Thinking${modelReference}…`, 'muted');
         this.shell.prompt?.();
         const response = await this.agent.prompt(request);
         this.clearPromptLine();
         if (this.cancelRequested) {
-          console.log(colors.warning('[AI] Request cancelled; queued follow-ups cleared.'));
+          this.write('[AI] Request cancelled; queued follow-ups cleared.', 'warning');
           return;
         }
-        if (response) console.log(colors.text(response));
+        if (response) this.write(response);
         request = this.queuedRequests.shift();
       }
       if (this.workspace.getPendingProposal()) {
-        console.log(
-          colors.accent1(
-            '\nProposal ready: /preview, /diff, /apply, /discard, or ask for a revision.'
-          )
+        this.write(
+          'Proposal ready: /preview, /diff, /apply, /discard, or ask for a revision.',
+          'accent'
         );
       }
     } catch (error) {
       this.clearPromptLine();
       this.queuedRequests = [];
       if (this.cancelRequested) {
-        console.log(colors.warning('[AI] Request cancelled; queued follow-ups cleared.'));
+        this.write('[AI] Request cancelled; queued follow-ups cleared.', 'warning');
         return;
       }
       throw error;
@@ -329,17 +274,15 @@ export class AIManager {
 
   cancelProcessing() {
     if (!this.busy) {
-      console.log(colors.textSecondary('No AI request is currently processing.'));
+      this.write('No AI request is currently processing.', 'muted');
       return;
     }
     this.cancelRequested = true;
     this.queuedRequests = [];
-    console.log(colors.warning('[AI] Cancelling request…'));
+    this.write('[AI] Cancelling request…', 'warning');
     void this.agent.abort().catch((error) => {
       this.cancelRequested = false;
-      this.clearPromptLine();
-      console.log(colors.error(`❌ Could not cancel AI request: ${error.message}`));
-      this.shell.prompt?.();
+      this.write(`❌ Could not cancel AI request: ${error.message}`, 'error');
     });
   }
 
@@ -350,7 +293,7 @@ export class AIManager {
     const provider = this.agent.model?.provider;
     if (!policy.requiresConsent || this.cloudConsentProvider === provider) return true;
     const answer = await this.ask(
-      `Send the complete schema to ${provider} for this session? (y/N): `
+      `Send the complete schema to ${provider} for this session? (y/N)`
     );
     if (!yes(answer)) return false;
     this.cloudConsentProvider = provider;
@@ -361,8 +304,7 @@ export class AIManager {
     if (!this.workspace.getPendingProposal()) throw new Error('There is no pending AI proposal');
     const wasUnsaved = !this.workspace.schemaPath;
     let target = args[0] || this.workspace.schemaPath;
-    if (!target)
-      target = (await this.ask('Schema path [form.schema.json]: ')) || 'form.schema.json';
+    if (!target) target = (await this.ask('Schema path [form.schema.json]')) || 'form.schema.json';
     target = path.resolve(target);
     if (!this.workspace.schemaPath && (await fs.pathExists(target))) {
       const allowed = await confirmOverwrite(target, { readlineInterface: this.readline });
@@ -370,11 +312,93 @@ export class AIManager {
     }
     await this.workspace.apply({ schemaPath: target });
     if (wasUnsaved) await this.agent.adoptSchemaPath();
-    console.log(colors.success(`Applied AI proposal to ${target}`));
+    this.write(`Applied AI proposal to ${target}`, 'success');
+  }
+
+  async selectModelInteractive() {
+    const providers = await this.agent.listProviders();
+    const current = this.agent.model ? `${this.agent.model.provider}/${this.agent.model.id}` : null;
+    const items = providers.flatMap((provider) =>
+      provider.models.map((model) => {
+        const value = `${provider.id}/${model}`;
+        const availability = provider.auth?.configured
+          ? provider.auth.source || 'authenticated'
+          : provider.authTypes.length > 0
+            ? `login: ${provider.authTypes.join('/')}`
+            : 'ambient authentication';
+        return {
+          value,
+          label: `${value}${value === current ? ' (current)' : ''}`,
+          description: `${provider.name} · ${availability}`,
+        };
+      })
+    );
+    const saved = this.agent.getSavedModelReference?.();
+    if (saved && !items.some((item) => item.value === saved)) {
+      items.unshift({
+        value: saved,
+        label: `${saved} (saved, unavailable)`,
+        description: 'Authenticate the provider or restore its model configuration',
+      });
+    }
+    if (items.length === 0) throw new Error('No models are currently available');
+    const reference = await this.presentation.select({ title: 'Select a model', items });
+    if (!reference) return null;
+    return this.selectModel(reference);
+  }
+
+  async loginInteractive(providerId, authType) {
+    const providers = await this.agent.listProviders();
+    let provider = providers.find((entry) => entry.id === providerId);
+    if (providerId && !provider) throw new Error(`Unknown provider: ${providerId}`);
+    if (!provider) {
+      const loginProviders = providers.filter((entry) => entry.authTypes.length > 0);
+      if (loginProviders.length === 0) throw new Error('No providers offer interactive login');
+      const selectedProvider = await this.presentation.select({
+        title: 'Select an AI provider',
+        items: loginProviders.map((entry) => ({
+          value: entry.id,
+          label: entry.name,
+          description: entry.auth?.configured ? 'configured' : entry.authTypes.join(' / '),
+        })),
+      });
+      if (!selectedProvider) return null;
+      provider = providers.find((entry) => entry.id === selectedProvider);
+    }
+    if (!provider) throw new Error(`Unknown provider: ${providerId}`);
+    if (authType && !provider.authTypes.includes(authType)) {
+      throw new Error(
+        `Unsupported authentication method for ${provider.id}: ${authType} (use ${provider.authTypes.join(' or ')})`
+      );
+    }
+    if (!authType) {
+      authType = await this.presentation.select({
+        title: `Authenticate with ${provider.name}`,
+        items: provider.authTypes.map((type) => ({
+          value: type,
+          label: type === 'api_key' ? 'API key' : type,
+          description: type === 'api_key' ? 'Stored privately and never echoed' : undefined,
+        })),
+      });
+    }
+    if (!authType) return null;
+    await this.agent.login(provider.id, authType, this.authInteraction());
+    this.write(`Authenticated ${provider.id}. Select a model with /model.`, 'success');
+    return provider.id;
+  }
+
+  async selectModel(reference) {
+    const previous = this.agent.model?.provider;
+    const model = await this.agent.selectModel(reference);
+    if (model.provider !== previous) this.cloudConsentProvider = null;
+    this.write(`Selected ${model.provider}/${model.id}`, 'success');
+    return model;
   }
 
   async handleCommand(input) {
-    const [rawCommand, ...args] = input.trim().split(/\s+/);
+    const normalized = input.trim();
+    if (normalized === 'p' || normalized === 'preview') return this.handleCommand('/preview');
+    const [rawCommand, ...args] = normalized.split(/\s+/);
     const command = rawCommand.startsWith('/') ? rawCommand.slice(1).toLowerCase() : null;
     if (!command) {
       if (this.busy) this.queueRequest(input);
@@ -398,59 +422,47 @@ export class AIManager {
         break;
       case 'providers': {
         const providers = await this.agent.listProviders();
-        for (const provider of providers) {
-          const auth = provider.auth?.configured
-            ? 'configured'
-            : provider.authTypes.join('/') || 'ambient';
-          console.log(`${provider.id}: ${provider.models.length} model(s), ${auth}`);
-        }
+        this.writeLines(
+          providers.map((provider) => {
+            const auth = provider.auth?.configured
+              ? 'configured'
+              : provider.authTypes.join('/') || 'ambient';
+            return `${provider.id}: ${provider.models.length} model(s), ${auth}`;
+          })
+        );
         break;
       }
       case 'models': {
         if (!args[0]) throw new Error('Usage: /models <provider>');
         const provider = (await this.agent.listProviders()).find((entry) => entry.id === args[0]);
         if (!provider) throw new Error(`Unknown provider: ${args[0]}`);
-        console.log(provider.models.join('\n') || 'No models currently known.');
+        this.writeLines(
+          provider.models.length > 0 ? provider.models : ['No models currently known.']
+        );
         break;
       }
       case 'login':
-        if (!args[0] || !args[1]) throw new Error('Usage: /login <provider> <api_key|oauth>');
-        await this.agent.login(args[0], args[1], this.authInteraction());
-        console.log(colors.success(`Authenticated ${args[0]}. Select a model with /model.`));
+        await this.loginInteractive(args[0], args[1]);
         break;
-      case 'model': {
-        if (!args[0]) {
-          const model = this.agent.model;
-          console.log(
-            model
-              ? colors.text(`Current model: ${model.provider}/${model.id}`)
-              : colors.warning(
-                  'No model selected. Use /models <provider>, then /model <provider>/<model>.'
-                )
-          );
-          break;
-        }
-        const previous = this.agent.model?.provider;
-        const model = await this.agent.selectModel(args[0]);
-        if (model.provider !== previous) this.cloudConsentProvider = null;
-        console.log(colors.success(`Selected ${model.provider}/${model.id}`));
+      case 'model':
+        if (args[0]) await this.selectModel(args[0]);
+        else await this.selectModelInteractive();
         break;
-      }
       case 'preview':
-        console.log(JSON.stringify(this.workspace.getCurrentSchema(), null, 2));
+        this.writeLines(formatSchemaPreviewLines(this.workspace.getCurrentSchema()));
+        break;
+      case 'json':
+        this.writeLines(JSON.stringify(this.workspace.getCurrentSchema(), null, 2).split('\n'));
         break;
       case 'diff': {
-        const proposal = this.workspace.getPendingProposal();
-        if (!proposal) throw new Error('There is no pending AI proposal');
-        console.log(
-          JSON.stringify(
-            {
-              semantic: proposal.semanticDiff,
-              json: proposal.jsonDiff,
-              operations: proposal.operations,
-            },
-            null,
-            2
+        if (args.length > 0 && (args.length !== 1 || args[0] !== '--pending')) {
+          throw new Error('Usage: /diff [--pending]');
+        }
+        const pendingOnly = args[0] === '--pending';
+        this.writeLines(
+          formatSchemaDiffLines(
+            pendingOnly ? this.workspace.getPendingDiff() : this.workspace.getCumulativeDiff(),
+            pendingOnly ? 'Pending' : 'Cumulative'
           )
         );
         break;
@@ -460,20 +472,20 @@ export class AIManager {
         break;
       case 'discard':
         await this.workspace.discard();
-        console.log(colors.success('Discarded AI proposal.'));
+        this.write('Discarded AI proposal.', 'success');
         break;
       case 'undo':
         await this.workspace.undo();
         await this.workspace.preview();
-        console.log(colors.warning('Undo staged; inspect it and use /apply to confirm.'));
+        this.write('Undo staged; inspect it and use /apply to confirm.', 'warning');
         break;
       case 'new':
         await this.agent.newConversation();
-        console.log(colors.success('Started a new conversation.'));
+        this.write('Started a new conversation.', 'success');
         break;
       case 'clear':
         await this.agent.newConversation({ clearStored: true });
-        console.log(colors.success('Removed stored conversation history.'));
+        this.write('Removed stored conversation history.', 'success');
         break;
       case 'cancel':
         this.cancelProcessing();
