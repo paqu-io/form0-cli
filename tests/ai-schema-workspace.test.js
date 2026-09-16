@@ -23,9 +23,11 @@ test('AI workspace previews without writing and applies atomically after approva
     operations: [{ op: 'updateForm', changes: { name: 'After' } }],
   });
   assert.equal(staged.valid, true);
+  assert.equal(workspace.validateCurrent().valid, true);
   assert.equal((await fs.readJson(schemaPath)).form.name, 'Before');
   await workspace.preview();
-  assert.deepEqual(messages, ['draft']);
+  await workspace.publishCurrent();
+  assert.deepEqual(messages, ['draft', 'draft']);
   await workspace.apply();
   assert.equal((await fs.readJson(schemaPath)).form.name, 'After');
   assert.equal((await fs.stat(schemaPath)).mode & 0o777, 0o644);

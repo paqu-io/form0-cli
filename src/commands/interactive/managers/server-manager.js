@@ -38,7 +38,7 @@ export class ServerManager {
   /**
    * Handle serve command
    */
-  async handleServeCommand(args) {
+  async handleServeCommand(args, options = {}) {
     const [action, ...rest] = args;
 
     switch (action) {
@@ -51,7 +51,7 @@ export class ServerManager {
         if (rest.includes('--app') || rest.includes('app')) {
           await this.startDevAndAppServers(rest);
         } else {
-          await this.startDevServer(rest);
+          await this.startDevServer(rest, options);
         }
         break;
 
@@ -73,7 +73,7 @@ export class ServerManager {
           break;
         }
         // Default action: start server
-        await this.startDevServer(args);
+        await this.startDevServer(args, options);
         break;
     }
   }
@@ -103,19 +103,19 @@ export class ServerManager {
 
     try {
       // Parse options
-      const options = {};
+      const serverOptions = {};
       for (let i = 0; i < args.length; i += 1) {
         if (args[i] === '--port' || args[i] === '-p') {
-          options.port = args[i + 1];
+          serverOptions.port = args[i + 1];
           i += 1;
         } else if (args[i] === '--host') {
-          options.host = args[i + 1];
+          serverOptions.host = args[i + 1];
           i += 1;
         }
       }
 
       // Create server with current schema
-      this.devServer = new Form0Server('interactive-schema', options);
+      this.devServer = new Form0Server('interactive-schema', serverOptions);
 
       // Set the actual schema path for better display
       const actualSchemaPath = this.schemaManager.getCurrentSchemaPath();

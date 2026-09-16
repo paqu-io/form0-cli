@@ -1,6 +1,7 @@
 import path from 'path';
 import { colors } from './theme.js';
 import { t, tn } from './i18n.js';
+import { getServerModeHelpEntries } from '../commands/interactive/command-catalog.js';
 
 /**
  * Display the welcome banner with ASCII art
@@ -23,8 +24,17 @@ export function showWelcomeBanner() {
 /**
  * Display the help text with all available commands
  */
-export function showHelp() {
+export function showHelp({ serverMode = false } = {}) {
   console.log(colors.header('\n' + t('help.availableCommands') + '\n'));
+  if (serverMode) {
+    console.log(colors.textSecondary(t('interactive.serverMode.activeHelpNote')));
+    console.log();
+    for (const entry of getServerModeHelpEntries()) {
+      console.log(colors.text(t(`interactive.serverMode.${entry.translationKey}`)));
+    }
+    console.log();
+    return;
+  }
   console.log(colors.textSecondary(t('help.notation')));
   console.log();
   console.log(colors.accent1(t('help.schemaManagement')));
@@ -61,10 +71,12 @@ export function showHelp() {
   console.log();
   console.log(colors.accent1(t('help.dataConnectivity')));
   console.log(colors.text(t('help.connectorCommand')));
+  console.log(colors.text(t('help.connectorInstallCommand')));
   console.log(colors.text(t('help.connectorListCommand')));
   console.log(colors.text(t('help.connectorStatusCommand')));
   console.log(colors.text(t('help.connectorLoadCommand')));
   console.log(colors.text(t('help.connectorTestCommand')));
+  console.log(colors.textSecondary(t('help.connectorHelpCommand')));
   console.log();
   console.log(colors.accent1(t('help.reformSection')));
   console.log(colors.text(t('help.reformLoginCommand')));

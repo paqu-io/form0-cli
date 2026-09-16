@@ -104,7 +104,7 @@ test('preview and diff commands render working, cumulative, and pending state', 
     getPendingDiff: () => [{ path: '$.form.description', before: null, after: 'Pending' }],
   };
 
-  await manager.handleCommand('p');
+  await manager.handleCommand('/preview');
   await manager.handleCommand('/json');
   await manager.handleCommand('/diff');
   await manager.handleCommand('/diff --pending');

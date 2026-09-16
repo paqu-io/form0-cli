@@ -18,40 +18,6 @@ export const COMMON_TEST_VALUE_FILES = [
   'test-data.json',
 ];
 
-export const COMMANDS = [
-  'help',
-  'h',
-  'load',
-  'l',
-  'preview',
-  'p',
-  'run',
-  'r',
-  'validate',
-  'v',
-  'watch',
-  'w',
-  'status',
-  's',
-  'values',
-  'reload',
-  'rld',
-  'clear',
-  'cls',
-  'exit',
-  'quit',
-  'q',
-  'init',
-  'fields',
-  'f',
-  'theme',
-  'locale',
-  'serve',
-  'schema',
-  'ai',
-  'reform',
-];
-
 export const WATCH_OPTIONS = ['--auto-run', '--auto-validate', '--values', 'stop'];
 export const CLEAR_OPTIONS = ['values'];
 export const RUN_OPTIONS = ['--values'];

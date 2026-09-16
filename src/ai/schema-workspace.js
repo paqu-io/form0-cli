@@ -80,6 +80,24 @@ export class AISchemaWorkspace {
     return this.pending ? clone(this.pending) : null;
   }
 
+  validateCurrent() {
+    const core = requireCoreAuthoring();
+    if (!core.validateFormAuthoringSchema) {
+      throw new Error('This AI validation requires a newer form0-core authoring contract');
+    }
+    return core.validateFormAuthoringSchema({ schema: this.getCurrentSchema() });
+  }
+
+  async publishCurrent() {
+    const schema = this.getCurrentSchema();
+    await this.onPreview?.(schema, {
+      state: this.pending ? 'draft' : 'committed',
+      revision: this.getRevision(),
+      summary: this.pending?.summary || '',
+    });
+    return schema;
+  }
+
   stage({ baseRevision, operations, summary = '' }) {
     const base = this.pending?.schema || this.committed;
     const result = requireCoreAuthoring().applyFormMutationBatch({
@@ -104,11 +122,7 @@ export class AISchemaWorkspace {
 
   async preview() {
     if (!this.pending) throw new Error('There is no pending AI proposal');
-    await this.onPreview?.(this.pending.schema, {
-      state: 'draft',
-      revision: this.pending.revision,
-      summary: this.pending.summary,
-    });
+    await this.publishCurrent();
     return this.getPendingProposal();
   }
 

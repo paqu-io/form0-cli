@@ -157,7 +157,7 @@ test('/status reports the current selection and /model opens the picker', async 
   assert.ok(output.includes('Selected openai-codex/gpt-5.6-luna'));
 });
 
-test('AI mode routes server controls to form0 and keeps preview on the draft', async () => {
+test('AI mode routes every unprefixed input to AI', async () => {
   const aiInputs = [];
   const serverInputs = [];
   const aiManager = {
@@ -185,8 +185,126 @@ test('AI mode routes server controls to form0 and keeps preview on the draft', a
   await handler.handleCommand('validate');
   await handler.handleCommand('please stop the server after editing');
 
-  assert.deepEqual(aiInputs, ['p', 'preview', 'please stop the server after editing']);
-  assert.deepEqual(serverInputs, ['serve status', 'serve stop', 'validate']);
+  assert.deepEqual(aiInputs, [
+    'p',
+    'preview',
+    'serve status',
+    'serve stop',
+    'validate',
+    'please stop the server after editing',
+  ]);
+  assert.deepEqual(serverInputs, []);
+});
+
+test('AI slash controls validate and serve the working draft', async () => {
+  const output = [];
+  const serverInputs = [];
+  let published = 0;
+  const manager = new AIManager(
+    {},
+    {},
+    {
+      handleServeCommand: async (args, options) => serverInputs.push({ args, options }),
+      isServerRunning: () => true,
+    },
+    {},
+    {},
+    {
+      presentation: {
+        write: (value) => output.push(String(value)),
+        writeLines: (lines) => output.push(...lines.map(String)),
+      },
+    }
+  );
+  manager.workspace = {
+    validateCurrent: () => ({ valid: true, diagnostics: [] }),
+    publishCurrent: async () => {
+      published += 1;
+    },
+  };
+
+  await manager.handleCommand('/validate');
+  await manager.handleCommand('/serve --app --public-url exp://example');
+
+  assert.ok(output.includes('Working schema is valid.'));
+  assert.deepEqual(serverInputs, [
+    {
+      args: ['--app', '--public-url', 'exp://example'],
+      options: { allowNoSchema: true },
+    },
+  ]);
+  assert.equal(published, 1);
+});
+
+test('/exit confirms before discarding an unapplied proposal', async (context) => {
+  context.mock.method(console, 'log', () => {});
+  const answers = ['n', 'yes'];
+  const output = [];
+  let discarded = 0;
+  let disposed = 0;
+  const manager = new AIManager(
+    {},
+    {},
+    {},
+    {},
+    { setAIMode: () => {} },
+    {
+      presentation: {
+        prompt: async () => answers.shift(),
+        write: (value) => output.push(String(value)),
+        writeLines: () => {},
+      },
+    }
+  );
+  manager.active = true;
+  manager.workspace = {
+    getPendingProposal: () => ({ summary: 'Pending' }),
+    discard: async () => {
+      discarded += 1;
+    },
+  };
+  manager.agent = { dispose: async () => (disposed += 1) };
+
+  assert.equal(await manager.exit(), false);
+  assert.equal(manager.active, true);
+  assert.equal(discarded, 0);
+  assert.equal(await manager.exit(), true);
+  assert.equal(manager.active, false);
+  assert.equal(discarded, 1);
+  assert.equal(disposed, 1);
+  assert.ok(output.includes('Exit cancelled; the proposal remains available.'));
+});
+
+test('AI prints the staged summary when the model returns no text', async () => {
+  const output = [];
+  const manager = new AIManager(
+    {},
+    {},
+    {},
+    { terminal: false },
+    { setAIBusy: () => {}, prompt: () => {} },
+    {
+      presentation: {
+        write: (value) => output.push(String(value)),
+        writeLines: () => {},
+      },
+    }
+  );
+  manager.workspace = {
+    getPendingProposal: () => ({ summary: 'Correct the birth-town event', operations: [{}] }),
+  };
+  manager.agent = {
+    model: { provider: 'ollama', id: 'local-model' },
+    isCloudProvider: () => false,
+    prompt: async () => '',
+  };
+
+  await manager.handleCommand('Make the correction');
+
+  assert.ok(output.includes('Proposed changes: Correct the birth-town event'));
+  assert.ok(
+    output.includes('Proposal ready: /preview, /diff, /apply, /discard, or ask for a revision.')
+  );
 });
 
 test('messages submitted while AI is busy run later in FIFO order', async (context) => {

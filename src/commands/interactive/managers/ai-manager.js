@@ -16,17 +16,24 @@ const AI_HELP_COMMANDS = [
   ['/login [provider] [method]', 'Authenticate with a provider'],
   ['/model [provider/model]', 'Pick or explicitly select the active model'],
   ['/privacy', 'Explain the effective schema policy'],
-  ['/preview, p, preview', 'Preview the working form'],
+  ['/preview', 'Preview the working form'],
+  ['/validate', 'Validate the working form, including an unapplied draft'],
+  ['/serve [options|status|stop]', 'Start or control preview servers'],
   ['/json', 'Show the working schema as JSON'],
   ['/diff [--pending]', 'Show cumulative or pending changes'],
   ['/apply [schema-path]', 'Atomically save the approved batch'],
   ['/discard, /undo', 'Discard a draft or stage the last saved version'],
   ['/new, /clear', 'Start a conversation or delete its stored history'],
   ['/cancel', 'Cancel processing and clear queued follow-ups'],
-  ['/exit', 'Return to the form0 shell'],
+  ['/exit', 'Return to form0; confirm if a proposal is unapplied'],
 ];
 
 const COMMANDS_ALLOWED_WHILE_BUSY = new Set(['help', 'status', 'privacy', 'cancel']);
+
+function isCommandAllowedWhileBusy(command, args) {
+  if (COMMANDS_ALLOWED_WHILE_BUSY.has(command)) return true;
+  return command === 'serve' && ['status', 'stop'].includes(args[0]);
+}
 
 function formatAIHelpLines(commands = AI_HELP_COMMANDS) {
   const commandWidth = Math.max(...commands.map(([command]) => command.length));
@@ -132,7 +139,8 @@ export class AIManager {
       this.shell.setAIMode(true);
       this.write('[PREVIEW] form0 AI authoring', 'header');
       this.write('The complete form schema is supplied to the selected model.', 'muted');
-      this.write('Type a request, or /help for AI commands.', 'muted');
+      this.write('Unprefixed input is sent to AI. Commands always start with /.', 'muted');
+      this.write('Type a request, or /help for available commands.', 'muted');
       const fallback = this.agent.takeModelFallbackMessage?.();
       if (fallback) this.write(`[AI] ${fallback}`, 'warning');
     } catch (error) {
@@ -144,6 +152,13 @@ export class AIManager {
   }
 
   async exit() {
+    if (this.workspace?.getPendingProposal()) {
+      const answer = await this.ask('Discard the unapplied proposal and exit AI mode? (y/N)');
+      if (!yes(answer)) {
+        this.write('Exit cancelled; the proposal remains available.', 'muted');
+        return false;
+      }
+    }
     if (this.workspace) await this.workspace.discard();
     await this.agent?.dispose();
     this.busy = false;
@@ -152,6 +167,7 @@ export class AIManager {
     this.active = false;
     this.shell.setAIMode(false);
     console.log(colors.success('Exited AI authoring mode.'));
+    return true;
   }
 
   async dispose() {
@@ -192,6 +208,7 @@ export class AIManager {
 
   showHelp() {
     this.write('AI authoring commands', 'header');
+    this.write('Unprefixed input is sent to AI. Commands always start with /.', 'muted');
     this.writeLines(formatAIHelpLines().map((line) => colors.text(line)));
   }
 
@@ -231,6 +248,7 @@ export class AIManager {
     this.cancelRequested = false;
     this.shell.setAIBusy(true);
     let request = initialRequest;
+    let lastResponse = '';
     try {
       while (request) {
         if (!(await this.ensureCloudConsent())) {
@@ -243,6 +261,7 @@ export class AIManager {
         this.write(`[AI] Thinking${modelReference}…`, 'muted');
         this.shell.prompt?.();
         const response = await this.agent.prompt(request);
+        lastResponse = response;
         this.clearPromptLine();
         if (this.cancelRequested) {
           this.write('[AI] Request cancelled; queued follow-ups cleared.', 'warning');
@@ -251,7 +270,17 @@ export class AIManager {
         if (response) this.write(response);
         request = this.queuedRequests.shift();
       }
-      if (this.workspace.getPendingProposal()) {
+      const proposal = this.workspace.getPendingProposal();
+      if (proposal) {
+        if (!String(lastResponse || '').trim()) {
+          const summary = String(proposal.summary || '').trim();
+          this.write(
+            summary
+              ? `Proposed changes: ${summary}`
+              : `Proposed ${proposal.operations.length} schema mutation(s).`,
+            'success'
+          );
+        }
         this.write(
           'Proposal ready: /preview, /diff, /apply, /discard, or ask for a revision.',
           'accent'
@@ -395,9 +424,37 @@ export class AIManager {
     return model;
   }
 
+  validateWorkingSchema() {
+    const result = this.workspace.validateCurrent();
+    if (!result.valid) {
+      const details = result.diagnostics.map(
+        (diagnostic) =>
+          `  ${diagnostic.source ? `${diagnostic.source}: ` : ''}${diagnostic.message}`
+      );
+      this.write('Working schema validation failed.', 'error');
+      this.writeLines(details);
+      return false;
+    }
+    this.write('Working schema is valid.', 'success');
+    const warnings = result.diagnostics.filter((diagnostic) => diagnostic.severity === 'warning');
+    if (warnings.length > 0) {
+      this.writeLines(
+        warnings.map(
+          (diagnostic) =>
+            `  Warning${diagnostic.source ? ` (${diagnostic.source})` : ''}: ${diagnostic.message}`
+        )
+      );
+    }
+    return true;
+  }
+
+  async handleServeCommand(args) {
+    await this.serverManager.handleServeCommand(args, { allowNoSchema: true });
+    if (this.serverManager.isServerRunning()) await this.workspace.publishCurrent();
+  }
+
   async handleCommand(input) {
     const normalized = input.trim();
-    if (normalized === 'p' || normalized === 'preview') return this.handleCommand('/preview');
     const [rawCommand, ...args] = normalized.split(/\s+/);
     const command = rawCommand.startsWith('/') ? rawCommand.slice(1).toLowerCase() : null;
     if (!command) {
@@ -405,7 +462,7 @@ export class AIManager {
       else await this.processRequestQueue(input);
       return;
     }
-    if (this.busy && !COMMANDS_ALLOWED_WHILE_BUSY.has(command)) {
+    if (this.busy && !isCommandAllowedWhileBusy(command, args)) {
       throw new Error(
         `AI is processing. Wait for it to finish or use /cancel; ${rawCommand} is unavailable while busy.`
       );
@@ -450,6 +507,12 @@ export class AIManager {
         break;
       case 'preview':
         this.writeLines(formatSchemaPreviewLines(this.workspace.getCurrentSchema()));
+        break;
+      case 'validate':
+        this.validateWorkingSchema();
+        break;
+      case 'serve':
+        await this.handleServeCommand(args);
         break;
       case 'json':
         this.writeLines(JSON.stringify(this.workspace.getCurrentSchema(), null, 2).split('\n'));
