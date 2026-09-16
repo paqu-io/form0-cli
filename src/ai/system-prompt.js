@@ -16,4 +16,6 @@ claim that a proposal was saved or applied. The user alone can preview, apply, r
 Honor requests to inspect, explain, or diagnose without making changes; do not propose mutations
 unless the user asks for changes. After staging a successful proposal, briefly summarize what the
 proposal changes. If no changes were requested or proposed, say so clearly.
+Reply in the language of the user's latest request unless that request explicitly asks for another
+language. Do not carry a language choice forward from earlier conversation turns.
 Do not request or expose credentials, record values, project files, image contents, or unrelated data.`;

@@ -9,6 +9,7 @@ import {
   formatAuthPrompt,
 } from '../src/commands/interactive/managers/ai-manager.js';
 import { ShellCore } from '../src/commands/interactive/shell-core.js';
+import { FORM0_AI_SYSTEM_PROMPT } from '../src/ai/system-prompt.js';
 
 function plain(value) {
   return value.replace(/\u001b\[[0-9;]*m/g, '');
@@ -49,6 +50,11 @@ test('AI help descriptions use one aligned column', () => {
   const descriptionColumns = lines.map((line, index) => line.indexOf(AI_HELP_COMMANDS[index][1]));
   assert.equal(new Set(descriptionColumns).size, 1);
   assert.ok(AI_HELP_COMMANDS.every(([, description]) => description.length > 0));
+});
+
+test('AI replies follow the language of the latest request', () => {
+  assert.match(FORM0_AI_SYSTEM_PROMPT, /language of the user's latest request/);
+  assert.match(FORM0_AI_SYSTEM_PROMPT, /Do not carry a language choice forward/);
 });
 
 test('authentication prompts do not duplicate trailing punctuation', () => {
@@ -234,6 +240,50 @@ test('AI slash controls validate and serve the working draft', async () => {
     },
   ]);
   assert.equal(published, 1);
+});
+
+test('/load switches schema workspace and schema-specific session after confirmation', async () => {
+  const adopted = [];
+  let resetCount = 0;
+  let updateCount = 0;
+  let previousDisposed = 0;
+  let initialized = 0;
+  const schema = { form: { name: 'Loaded form', description: null, elements: [] } };
+  const manager = new AIManager(
+    {
+      resolveLoadTarget: async () => ({ path: 'loaded.json', displayPath: 'loaded.json' }),
+      prepareSchema: async () => schema,
+      adoptSchema: (value, schemaPath) => adopted.push({ value, schemaPath }),
+    },
+    { resetEngine: () => (resetCount += 1) },
+    {
+      previewSchema: () => {},
+      updateDevServerSchema: () => (updateCount += 1),
+    },
+    {},
+    {},
+    {
+      presentation: {
+        prompt: async () => 'yes',
+        write: () => {},
+        writeLines: () => {},
+      },
+      sessionFactory: () => ({
+        initialize: async () => (initialized += 1),
+        dispose: async () => {},
+      }),
+    }
+  );
+  manager.workspace = { getPendingProposal: () => ({ summary: 'Pending' }) };
+  manager.agent = { dispose: async () => (previousDisposed += 1) };
+
+  assert.equal(await manager.handleLoadCommand(['loaded.json']), true);
+  assert.deepEqual(adopted, [{ value: schema, schemaPath: 'loaded.json' }]);
+  assert.match(manager.workspace.schemaPath, /\/loaded\.json$/);
+  assert.equal(initialized, 1);
+  assert.equal(previousDisposed, 1);
+  assert.equal(resetCount, 1);
+  assert.equal(updateCount, 1);
 });
 
 test('/exit confirms before discarding an unapplied proposal', async (context) => {

@@ -20,6 +20,11 @@ function styleMessage(message, tone) {
   return style(String(message));
 }
 
+function formatPromptMessage(message) {
+  const label = String(message || '').trimEnd();
+  return /[:?!](?:\s*\([^)]*\))?$/.test(label) ? `${label} ` : `${label}: `;
+}
+
 /** Readline-native interaction adapter for AI authoring. */
 export class PlainAIConsole {
   constructor({ readline }) {
@@ -75,7 +80,7 @@ export class PlainAIConsole {
         signal?.removeEventListener('abort', onAbort);
         resolve(answer);
       };
-      const question = `${message.replace(/\s*$/, '')}: `;
+      const question = formatPromptMessage(message);
       if (signal) this.readline.question(question, { signal }, callback);
       else this.readline.question(question, callback);
     });
@@ -84,7 +89,7 @@ export class PlainAIConsole {
   async promptSecret(message, signal) {
     signal?.throwIfAborted();
     this.readline.pause();
-    process.stdout.write(`${message.replace(/\s*$/, '')}: `);
+    process.stdout.write(formatPromptMessage(message));
     return new Promise((resolve, reject) => {
       let value = '';
       const wasRaw = process.stdin.isRaw;
@@ -112,3 +117,5 @@ export class PlainAIConsole {
     });
   }
 }
+
+export { formatPromptMessage };

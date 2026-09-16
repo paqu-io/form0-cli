@@ -16,6 +16,7 @@ const AI_HELP_COMMANDS = [
   ['/login [provider] [method]', 'Authenticate with a provider'],
   ['/model [provider/model]', 'Pick or explicitly select the active model'],
   ['/privacy', 'Explain the effective schema policy'],
+  ['/load [file|form]', 'Load a form and switch its AI conversation'],
   ['/preview', 'Preview the working form'],
   ['/validate', 'Validate the working form, including an unapplied draft'],
   ['/serve [options|status|stop]', 'Start or control preview servers'],
@@ -120,24 +121,44 @@ export class AIManager {
     this.presentation.writeLines(lines);
   }
 
-  async enter() {
-    if (this.active) return;
-    this.workspace = new AISchemaWorkspace({
-      schema: this.schemaManager.getCurrentSchema() || createEmptyFormSchema(),
-      schemaPath: this.schemaManager.getCurrentSchemaPath(),
-      onPreview: async (schema, meta) => this.serverManager.previewSchema(schema, meta),
-      onCommit: async (_schema, schemaPath) => {
-        await this.schemaManager.loadSchema(schemaPath);
+  createWorkspace(schema, schemaPath) {
+    return new AISchemaWorkspace({
+      schema,
+      schemaPath,
+      onPreview: async (previewSchema, meta) =>
+        this.serverManager.previewSchema(previewSchema, meta),
+      onCommit: async (_schema, committedPath) => {
+        await this.schemaManager.loadSchema(committedPath);
         this.engineRunner.resetEngine();
         this.serverManager.updateDevServerSchema();
       },
     });
-    this.agent = this.sessionFactory({ workspace: this.workspace });
+  }
+
+  async createAgent(workspace) {
+    const agent = this.sessionFactory({ workspace });
     try {
-      await this.agent.initialize();
+      await agent.initialize();
+      return agent;
+    } catch (error) {
+      await agent.dispose?.();
+      throw error;
+    }
+  }
+
+  async enter() {
+    if (this.active) return;
+    const workspace = this.createWorkspace(
+      this.schemaManager.getCurrentSchema() || createEmptyFormSchema(),
+      this.schemaManager.getCurrentSchemaPath()
+    );
+    try {
+      const agent = await this.createAgent(workspace);
+      this.workspace = workspace;
+      this.agent = agent;
       this.active = true;
       this.shell.setAIMode(true);
-      this.write('[PREVIEW] form0 AI authoring', 'header');
+      this.write('[PREVIEW] Enter AI authoring mode', 'header');
       this.write('The complete form schema is supplied to the selected model.', 'muted');
       this.write('Unprefixed input is sent to AI. Commands always start with /.', 'muted');
       this.write('Type a request, or /help for available commands.', 'muted');
@@ -453,6 +474,33 @@ export class AIManager {
     if (this.serverManager.isServerRunning()) await this.workspace.publishCurrent();
   }
 
+  async handleLoadCommand(args) {
+    const target = await this.schemaManager.resolveLoadTarget(args);
+    if (!target) return false;
+    if (this.workspace.getPendingProposal()) {
+      const answer = await this.ask('Discard the unapplied proposal and load another form? (y/N)');
+      if (!yes(answer)) {
+        this.write('Load cancelled; the proposal remains available.', 'muted');
+        return false;
+      }
+    }
+
+    const schema = await this.schemaManager.prepareSchema(target.path);
+    const workspace = this.createWorkspace(schema, target.path);
+    const agent = await this.createAgent(workspace);
+    const previousAgent = this.agent;
+
+    this.schemaManager.adoptSchema(schema, target.path);
+    this.workspace = workspace;
+    this.agent = agent;
+    this.cloudConsentProvider = null;
+    this.engineRunner.resetEngine();
+    this.serverManager.updateDevServerSchema();
+    await previousAgent?.dispose();
+    this.write(`Loaded ${target.displayPath || target.path}.`, 'success');
+    return true;
+  }
+
   async handleCommand(input) {
     const normalized = input.trim();
     const [rawCommand, ...args] = normalized.split(/\s+/);
@@ -504,6 +552,9 @@ export class AIManager {
       case 'model':
         if (args[0]) await this.selectModel(args[0]);
         else await this.selectModelInteractive();
+        break;
+      case 'load':
+        await this.handleLoadCommand(args);
         break;
       case 'preview':
         this.writeLines(formatSchemaPreviewLines(this.workspace.getCurrentSchema()));

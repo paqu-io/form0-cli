@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AIManager } from '../src/commands/interactive/managers/ai-manager.js';
+import { formatPromptMessage } from '../src/ai/console.js';
+
+test('plain prompts do not duplicate punctuation', () => {
+  assert.equal(
+    formatPromptMessage('Discard the unapplied proposal and exit AI mode? (y/N)'),
+    'Discard the unapplied proposal and exit AI mode? (y/N) '
+  );
+  assert.equal(formatPromptMessage('Schema path'), 'Schema path: ');
+});
 
 function createPresentation({ selections = [], promptValue = '' } = {}) {
   const events = { output: [], prompts: [] };
@@ -84,7 +93,7 @@ test('AI lifecycle initializes the session without taking over shell input', asy
 
   assert.deepEqual(shellStates, [true, false]);
   assert.equal(
-    presentation.events.output.some((line) => line.includes('form0 AI authoring')),
+    presentation.events.output.some((line) => line.includes('Enter AI authoring mode')),
     true
   );
 });
