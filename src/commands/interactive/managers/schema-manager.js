@@ -253,18 +253,32 @@ export class SchemaManager {
   }
 
   /**
-   * Load a schema from file
+   * Read and validate a schema without changing the active session
    */
-  async loadSchema(schemaPath) {
+  async prepareSchema(schemaPath) {
     const data = await fs.readJson(schemaPath);
 
     // Process SingleChoiceField choices before validation
     ensureChoiceValuesForSchema(data.form.elements || []);
 
     validateSchema(data.form);
+    return data;
+  }
+
+  /**
+   * Adopt an already validated schema as the active session schema
+   */
+  adoptSchema(data, schemaPath) {
     this.currentSchema = data;
     this.currentSchemaPath = schemaPath;
     return data;
+  }
+
+  /**
+   * Load a schema from file
+   */
+  async loadSchema(schemaPath) {
+    return this.adoptSchema(await this.prepareSchema(schemaPath), schemaPath);
   }
 
   /**

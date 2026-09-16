@@ -1,4 +1,8 @@
-import { COMMANDS, WATCH_OPTIONS, CLEAR_OPTIONS, RUN_OPTIONS } from './constants.js';
+import { WATCH_OPTIONS, CLEAR_OPTIONS, RUN_OPTIONS } from './constants.js';
+import {
+  getInteractiveCommandCompletions,
+  getInteractiveCommandNames,
+} from '../commands/interactive/command-catalog.js';
 import { getAvailableThemes } from './theme.js';
 import { getAvailableLocales } from './config.js';
 
@@ -13,7 +17,7 @@ export function completer(line) {
 
   if (args.length === 1) {
     // Complete main commands
-    const hits = COMMANDS.filter((cmd) => cmd.startsWith(line));
+    const hits = getInteractiveCommandNames().filter((cmd) => cmd.startsWith(line));
     return [hits.length ? hits : [], line];
   }
 
@@ -51,43 +55,10 @@ export function completer(line) {
     return [hits, args[1]];
   }
 
-  if (command === 'serve' && args.length >= 2) {
-    // Complete serve subcommands and options
-    const serveOptions = ['start', 'stop', 'status', 'update', '--port', '--host'];
+  const commandCompletions = getInteractiveCommandCompletions(command);
+  if (commandCompletions.length > 0 && args.length >= 2) {
     const lastArg = args[args.length - 1];
-    const hits = serveOptions.filter((opt) => opt.startsWith(lastArg));
-    return [hits, lastArg];
-  }
-
-  if (command === 'schema' && args.length >= 2) {
-    // Complete schema subcommands
-    const schemaOptions = ['import', 'export', 'edit', 'keys', 'new', 'delete'];
-    const lastArg = args[args.length - 1];
-    const hits = schemaOptions.filter((opt) => opt.startsWith(lastArg));
-    return [hits, lastArg];
-  }
-
-  if (command === 'reform' && args.length >= 2) {
-    const reformOptions = [
-      'login',
-      'logout',
-      'whoami',
-      'orgs',
-      'scope',
-      'sync',
-      'list',
-      'show',
-      'use',
-      'pull',
-      'status',
-      'prune',
-      '--main',
-      '--sub',
-      '--force',
-      '--dry-run',
-    ];
-    const lastArg = args[args.length - 1];
-    const hits = reformOptions.filter((opt) => opt.startsWith(lastArg));
+    const hits = commandCompletions.filter((option) => option.startsWith(lastArg));
     return [hits, lastArg];
   }
 

@@ -164,6 +164,12 @@ if (process.argv.length === 2) {
     .description('Enter interactive form0 environment')
     .action(interactiveCommand);
 
+  program
+    .command('ai')
+    .argument('[schema]', 'Path to a schema JSON file')
+    .description('[PREVIEW] Enter AI authoring mode')
+    .action((schema) => interactiveCommand({ initialAI: true, schemaPath: schema }));
+
   // Theme command
   program
     .command('theme')
@@ -178,13 +184,57 @@ if (process.argv.length === 2) {
     .description('View or change the current locale/language')
     .action(localeCommand);
 
-  // Connector command
-  program
+  const connectorProgram = program
     .command('connector')
-    .argument('[action]', 'Action to perform (install, configure, test, status, remove, list)')
-    .argument('[name]', 'Connector name (e.g., form0-connector-pg)')
-    .description('Manage form connectors for data storage and integration')
-    .action(connectorCommand);
+    .description('Install, configure, and manage form connectors')
+    .action(() => connectorCommand());
+
+  connectorProgram
+    .command('install')
+    .argument('<name-or-path>', 'Connector package name or local package path')
+    .description('Install a connector package')
+    .action((name) => connectorCommand('install', name));
+
+  connectorProgram
+    .command('configure')
+    .argument('<name>', 'Installed connector package name')
+    .description('Configure a connector interactively')
+    .action((name) => connectorCommand('configure', name));
+
+  connectorProgram
+    .command('test')
+    .argument('<name>', 'Configured connector package name')
+    .description('Test a connector connection')
+    .action((name) => connectorCommand('test', name));
+
+  connectorProgram
+    .command('reload')
+    .argument('<name>', 'Connector package name')
+    .description('Reload a connector during development')
+    .action((name) => connectorCommand('reload', name));
+
+  connectorProgram
+    .command('status')
+    .argument('[name]', 'Connector package name')
+    .description('Show connector status')
+    .action((name) => connectorCommand('status', name));
+
+  connectorProgram
+    .command('remove')
+    .argument('<name>', 'Connector package name')
+    .description('Remove connector configuration')
+    .action((name) => connectorCommand('remove', name));
+
+  connectorProgram
+    .command('uninstall')
+    .argument('<name>', 'Connector package name')
+    .description('Uninstall a connector package and clear its configuration')
+    .action((name) => connectorCommand('uninstall', name));
+
+  connectorProgram
+    .command('list')
+    .description('List available and installed connectors')
+    .action(() => connectorCommand('list'));
 
   const reformProgram = program
     .command('reform')

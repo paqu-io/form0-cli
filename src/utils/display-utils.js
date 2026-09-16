@@ -1,6 +1,69 @@
 import path from 'path';
 import { colors } from './theme.js';
 import { t, tn } from './i18n.js';
+import { getServerModeHelpEntries } from '../commands/interactive/command-catalog.js';
+
+const ROOT_HELP_COMMAND_KEYS = [
+  'initCommand',
+  'loadCommand',
+  'reloadCommand',
+  'validateCommand',
+  'previewCommand',
+  'schemaImportCommand',
+  'schemaExportCommand',
+  'schemaConvertCommand',
+  'schemaNewCommand',
+  'schemaDeleteCommand',
+  'schemaEditCommand',
+  'aiCommand',
+  'schemaKeysCommand',
+  'runCommand',
+  'testCommand',
+  'watchCommand',
+  'watchStopCommand',
+  'valuesCommand',
+  'fieldsCommand',
+  'serveCommand',
+  'serveStopCommand',
+  'serveStatusCommand',
+  'connectorCommand',
+  'connectorInstallCommand',
+  'connectorListCommand',
+  'connectorStatusCommand',
+  'connectorLoadCommand',
+  'connectorTestCommand',
+  'reformLoginCommand',
+  'reformLogoutCommand',
+  'reformWhoamiCommand',
+  'reformOrgsListCommand',
+  'reformScopeShowCommand',
+  'reformScopeUseCommand',
+  'reformSyncPullCommand',
+  'reformSyncStatusCommand',
+  'reformSyncPruneCommand',
+  'statusCommand',
+  'themeCommand',
+  'localeCommand',
+  'clearValuesCommand',
+  'clearCommand',
+  'helpCommand',
+  'exitCommand',
+];
+
+function parseHelpCommand(value) {
+  const match = String(value).match(/^(\s*)(.*?\S)\s{2,}(\S.*)$/);
+  return match ? { indent: match[1], command: match[2], description: match[3] } : null;
+}
+
+export function formatRootHelpCommands(entries) {
+  const parsed = entries.map(parseHelpCommand);
+  const width = Math.max(0, ...parsed.filter(Boolean).map(({ command }) => command.length));
+  return parsed.map((entry, index) =>
+    entry
+      ? `${entry.indent}${entry.command.padEnd(width + 2)}${entry.description}`
+      : String(entries[index])
+  );
+}
 
 /**
  * Display the welcome banner with ASCII art
@@ -23,67 +86,86 @@ export function showWelcomeBanner() {
 /**
  * Display the help text with all available commands
  */
-export function showHelp() {
+export function showHelp({ serverMode = false } = {}) {
   console.log(colors.header('\n' + t('help.availableCommands') + '\n'));
+  if (serverMode) {
+    console.log(colors.textSecondary(t('interactive.serverMode.activeHelpNote')));
+    console.log();
+    for (const entry of getServerModeHelpEntries()) {
+      console.log(colors.text(t(`interactive.serverMode.${entry.translationKey}`)));
+    }
+    console.log();
+    return;
+  }
+  const formattedCommands = formatRootHelpCommands(
+    ROOT_HELP_COMMAND_KEYS.map((key) => t(`help.${key}`))
+  );
+  const alignedCommands = new Map(
+    ROOT_HELP_COMMAND_KEYS.map((key, index) => [key, formattedCommands[index]])
+  );
+  const command = (key) => alignedCommands.get(key);
   console.log(colors.textSecondary(t('help.notation')));
   console.log();
   console.log(colors.accent1(t('help.schemaManagement')));
-  console.log(colors.text(t('help.initCommand')));
-  console.log(colors.text(t('help.loadCommand')));
-  console.log(colors.text(t('help.reloadCommand')));
-  console.log(colors.text(t('help.validateCommand')));
-  console.log(colors.text(t('help.previewCommand')));
-  console.log(colors.text(t('help.schemaImportCommand')));
-  console.log(colors.text(t('help.schemaExportCommand')));
-  console.log(colors.text(t('help.schemaConvertCommand')));
+  console.log(colors.text(command('initCommand')));
+  console.log(colors.text(command('loadCommand')));
+  console.log(colors.text(command('reloadCommand')));
+  console.log(colors.text(command('validateCommand')));
+  console.log(colors.text(command('previewCommand')));
+  console.log(colors.text(command('schemaImportCommand')));
+  console.log(colors.text(command('schemaExportCommand')));
+  console.log(colors.text(command('schemaConvertCommand')));
   console.log(colors.textSecondary(t('help.schemaConvertOptions')));
-  console.log(colors.text(t('help.schemaNewCommand')));
-  console.log(colors.text(t('help.schemaDeleteCommand')));
-  console.log(colors.text(t('help.schemaEditCommand')));
-  console.log(colors.text(t('help.schemaKeysCommand')));
+  console.log(colors.text(command('schemaNewCommand')));
+  console.log(colors.text(command('schemaDeleteCommand')));
+  console.log(colors.text(command('schemaEditCommand')));
+  console.log(colors.text(command('aiCommand')));
+  console.log(colors.text(command('schemaKeysCommand')));
   console.log();
   console.log(colors.accent1(t('help.engineOperations')));
-  console.log(colors.text(t('help.runCommand')));
+  console.log(colors.text(command('runCommand')));
   console.log(colors.textSecondary(t('help.runOptions')));
-  console.log(colors.text(t('help.testCommand')));
-  console.log(colors.text(t('help.watchCommand')));
+  console.log(colors.text(command('testCommand')));
+  console.log(colors.text(command('watchCommand')));
   console.log(colors.textSecondary(t('help.watchOptions')));
-  console.log(colors.text(t('help.watchStopCommand')));
-  console.log(colors.text(t('help.valuesCommand')));
-  console.log(colors.text(t('help.fieldsCommand')));
+  console.log(colors.text(command('watchStopCommand')));
+  console.log(colors.text(command('valuesCommand')));
+  console.log(colors.text(command('fieldsCommand')));
   console.log();
   console.log(colors.accent1(t('help.development')));
-  console.log(colors.text(t('help.serveCommand')));
+  console.log(colors.text(command('serveCommand')));
   console.log(colors.textSecondary(t('help.serveOptions')));
-  console.log(colors.text(t('help.serveStopCommand')));
-  console.log(colors.text(t('help.serveStatusCommand')));
+  console.log(colors.text(command('serveStopCommand')));
+  console.log(colors.text(command('serveStatusCommand')));
   console.log();
   console.log(colors.accent1(t('help.dataConnectivity')));
-  console.log(colors.text(t('help.connectorCommand')));
-  console.log(colors.text(t('help.connectorListCommand')));
-  console.log(colors.text(t('help.connectorStatusCommand')));
-  console.log(colors.text(t('help.connectorLoadCommand')));
-  console.log(colors.text(t('help.connectorTestCommand')));
+  console.log(colors.text(command('connectorCommand')));
+  console.log(colors.text(command('connectorInstallCommand')));
+  console.log(colors.text(command('connectorListCommand')));
+  console.log(colors.text(command('connectorStatusCommand')));
+  console.log(colors.text(command('connectorLoadCommand')));
+  console.log(colors.text(command('connectorTestCommand')));
+  console.log(colors.textSecondary(t('help.connectorHelpCommand')));
   console.log();
   console.log(colors.accent1(t('help.reformSection')));
-  console.log(colors.text(t('help.reformLoginCommand')));
-  console.log(colors.text(t('help.reformLogoutCommand')));
-  console.log(colors.text(t('help.reformWhoamiCommand')));
-  console.log(colors.text(t('help.reformOrgsListCommand')));
-  console.log(colors.text(t('help.reformScopeShowCommand')));
-  console.log(colors.text(t('help.reformScopeUseCommand')));
-  console.log(colors.text(t('help.reformSyncPullCommand')));
-  console.log(colors.text(t('help.reformSyncStatusCommand')));
-  console.log(colors.text(t('help.reformSyncPruneCommand')));
+  console.log(colors.text(command('reformLoginCommand')));
+  console.log(colors.text(command('reformLogoutCommand')));
+  console.log(colors.text(command('reformWhoamiCommand')));
+  console.log(colors.text(command('reformOrgsListCommand')));
+  console.log(colors.text(command('reformScopeShowCommand')));
+  console.log(colors.text(command('reformScopeUseCommand')));
+  console.log(colors.text(command('reformSyncPullCommand')));
+  console.log(colors.text(command('reformSyncStatusCommand')));
+  console.log(colors.text(command('reformSyncPruneCommand')));
   console.log();
   console.log(colors.accent1(t('help.sessionManagement')));
-  console.log(colors.text(t('help.statusCommand')));
-  console.log(colors.text(t('help.themeCommand')));
-  console.log(colors.text(t('help.localeCommand')));
-  console.log(colors.text(t('help.clearValuesCommand')));
-  console.log(colors.text(t('help.clearCommand')));
-  console.log(colors.text(t('help.helpCommand')));
-  console.log(colors.text(t('help.exitCommand')));
+  console.log(colors.text(command('statusCommand')));
+  console.log(colors.text(command('themeCommand')));
+  console.log(colors.text(command('localeCommand')));
+  console.log(colors.text(command('clearValuesCommand')));
+  console.log(colors.text(command('clearCommand')));
+  console.log(colors.text(command('helpCommand')));
+  console.log(colors.text(command('exitCommand')));
   console.log();
   console.log(colors.textMuted(t('help.navigation')));
   console.log(colors.textMuted(t('common.examples')));
@@ -219,96 +301,70 @@ export function printFields(elements, indentOrOptions = '', maybeOptions = {}) {
   const indent = hasIndent ? indentOrOptions : '';
   const options = hasIndent ? maybeOptions : indentOrOptions || {};
   const counter = options.counter || { value: 0 };
-  const showIds = options.showIds === true;
+  const lines = [];
+  appendFieldPreviewLines(elements, lines, indent, options, counter);
+  for (const line of lines) console.log(line);
+}
 
+function appendFieldPreviewLines(elements, lines, indent, options, counter) {
   elements.forEach((element, index) => {
     const isLast = index === elements.length - 1;
     const connector = isLast ? '└─' : '├─';
     const childIndent = indent + (isLast ? '  ' : '│ ');
     counter.value += 1;
-    const idPrefix = showIds ? `${counter.value} | ` : '';
-
-    let typeColor = colors.fieldDefault;
-    switch (element.type) {
-      case 'Section':
-      case 'RepeatableSection':
-      case 'BuildingPlanSection':
-        typeColor = colors.fieldSection;
-        break;
-      case 'TextField':
-        typeColor = colors.fieldText;
-        break;
-      case 'NumericField':
-        typeColor = colors.fieldNumeric;
-        break;
-      case 'CalculatedField':
-        typeColor = colors.fieldCalculated;
-        break;
-      case 'SingleChoiceField':
-        typeColor = colors.fieldChoice;
-        break;
-      case 'MultiChoiceField':
-        typeColor = colors.fieldChoice;
-        break;
-      case 'BooleanField':
-        typeColor = colors.fieldChoice;
-        break;
-      case 'DateField':
-        typeColor = colors.fieldDate;
-        break;
-      case 'TimeField':
-        typeColor = colors.fieldTime;
-        break;
-      case 'LabelField':
-        typeColor = colors.fieldLabel;
-        break;
-      case 'SignatureField':
-        typeColor = colors.fieldSignature;
-        break;
-      case 'PhotoField':
-        typeColor = colors.fieldMedia;
-        break;
-      default:
-        typeColor = colors.fieldDefault;
-    }
-
+    const idPrefix = options.showIds ? `${counter.value} | ` : '';
+    const typeColor =
+      {
+        Section: colors.fieldSection,
+        RepeatableSection: colors.fieldSection,
+        BuildingPlanSection: colors.fieldSection,
+        TextField: colors.fieldText,
+        NumericField: colors.fieldNumeric,
+        CalculatedField: colors.fieldCalculated,
+        SingleChoiceField: colors.fieldChoice,
+        MultiChoiceField: colors.fieldChoice,
+        BooleanField: colors.fieldChoice,
+        DateField: colors.fieldDate,
+        TimeField: colors.fieldTime,
+        LabelField: colors.fieldLabel,
+        SignatureField: colors.fieldSignature,
+        PhotoField: colors.fieldMedia,
+      }[element.type] || colors.fieldDefault;
     const label = element.label || element.data_name || t('commands.preview.unlabeled');
     const dataNameDisplay = element.data_name ? colors.textMuted(` [${element.data_name}]`) : '';
     const keyDisplay = element.key ? colors.textMuted(` (key: ${element.key})`) : '';
-
-    console.log(
+    lines.push(
       `${indent}${connector} ${idPrefix}${typeColor(element.type)} ${colors.label(label)}${dataNameDisplay}${keyDisplay}`
     );
-
     if (
-      (element.type === 'Section' ||
-        element.type === 'RepeatableSection' ||
-        element.type === 'BuildingPlanSection') &&
-      element.elements
+      ['Section', 'RepeatableSection', 'BuildingPlanSection'].includes(element.type) &&
+      Array.isArray(element.elements)
     ) {
-      printFields(element.elements, childIndent, { ...options, counter });
+      appendFieldPreviewLines(element.elements, lines, childIndent, options, counter);
     }
   });
+}
+
+/** Return the friendly schema preview as terminal-formatted lines. */
+export function formatSchemaPreviewLines(schema, options = {}) {
+  const form = schema.form;
+  const lines = [
+    colors.header(
+      t('commands.preview.formTitle', { name: form.name || t('commands.preview.unnamed') })
+    ),
+  ];
+  if (form.description) lines.push(colors.textSecondary(`   ${form.description}`));
+  lines.push('');
+  appendFieldPreviewLines(form.elements || [], lines, '', options, { value: 0 });
+  return lines;
 }
 
 /**
  * Display schema preview
  */
 export function showSchemaPreview(schema, options = {}) {
-  const form = schema.form;
-  console.log(
-    colors.header(
-      '\n' + t('commands.preview.formTitle', { name: form.name || t('commands.preview.unnamed') })
-    )
-  );
-  if (form.description) {
-    console.log(colors.textSecondary(`   ${form.description}`));
-  }
-  console.log();
-
-  printFields(form.elements || [], '', {
-    showIds: options.showIds === true,
-  });
+  console.log('');
+  for (const line of formatSchemaPreviewLines(schema, options)) console.log(line);
   console.log();
 }
 

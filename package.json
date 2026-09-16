@@ -43,7 +43,7 @@
     "developer-tools",
     "scaffolding"
   ],
-  "author": "paqu.io <hello@paqu.io> (https://paqu.io/)",
+  "author": "paqu technologies <hello@paqu.io> (https://paqu.io/)",
   "contributors": [
     {
       "name": "aragornii"
@@ -55,18 +55,21 @@
   },
   "homepage": "https://form0.dev",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.19.0"
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.85.1",
     "acorn": "^8.17.0",
     "chalk": "^5.4.1",
     "chokidar": "^3.6.0",
     "commander": "^11.0.0",
     "dotenv": "^17.0.0",
     "express": "^5.1.0",
-    "form0-core": "^0.2.1",
+    "form0-core": "^0.3.0",
     "fs-extra": "^11.1.1",
     "tar": "^7.5.22",
+    "typebox": "1.3.7",
     "uuid": "^11.1.1",
     "ws": "^8.21.3",
     "yaml": "^2.9.0"

@@ -15,6 +15,7 @@ import fs from 'fs-extra';
 import { ensureMissingKeysForSchema } from '../../utils/ensure-missing-keys.js';
 import { handleReformCommand } from '../reform.js';
 import { parseInteractiveFormioConvertArgs, runFormioConvertCommand } from '../formio-convert.js';
+import { getServerModeAvailability, parseInteractiveInput } from './command-catalog.js';
 
 /**
  * Handles command processing for interactive shell
@@ -27,7 +28,8 @@ export class CommandHandler {
     serverManager,
     readline,
     shell = null,
-    schemaEditor = null
+    schemaEditor = null,
+    aiManager = null
   ) {
     this.schemaManager = schemaManager;
     this.engineRunner = engineRunner;
@@ -36,49 +38,14 @@ export class CommandHandler {
     this.readline = readline;
     this.shell = shell; // Reference to shell for readline coordination
     this.schemaEditor = schemaEditor;
+    this.aiManager = aiManager;
   }
 
   /**
    * Check if command is allowed in server mode
    */
   isCommandAllowedInServerMode(command, args) {
-    const allowedCommands = [
-      'serve',
-      'status',
-      's',
-      'preview',
-      'p',
-      'validate',
-      'v',
-      'help',
-      'h',
-      'connector',
-      'conn',
-      'c',
-      'schema',
-      'reform',
-    ];
-
-    if (!allowedCommands.includes(command.toLowerCase())) {
-      return { allowed: false, reason: 'command_blocked' };
-    }
-
-    // For serve command, only allow stop/status or app start while server mode is active
-    if (command.toLowerCase() === 'serve') {
-      const [action] = args;
-      const wantsApp = args.includes('--app') || args.includes('app');
-      const allowedActions = ['stop', 'status', 'app', '--app'];
-
-      if (action === 'start' && wantsApp) {
-        return { allowed: true };
-      }
-
-      if (!allowedActions.includes(action)) {
-        return { allowed: false, reason: 'serve_action_blocked', action };
-      }
-    }
-
-    return { allowed: true };
+    return getServerModeAvailability(command, args);
   }
 
   /**
@@ -88,13 +55,7 @@ export class CommandHandler {
     if (reason === 'command_blocked') {
       console.log(colors.warning(t('interactive.serverMode.commandBlocked', { command })));
       console.log(colors.textSecondary(t('interactive.serverMode.availableCommands')));
-      console.log(colors.textSecondary(t('interactive.serverMode.serveStop')));
-      console.log(colors.textSecondary(t('interactive.serverMode.serveStatus')));
-      console.log(colors.textSecondary(t('interactive.serverMode.sessionStatus')));
-      console.log(colors.textSecondary(t('interactive.serverMode.preview')));
-      console.log(colors.textSecondary(t('interactive.serverMode.validate')));
-      console.log(colors.textSecondary(t('interactive.serverMode.help')));
-      console.log(colors.textSecondary(t('interactive.serverMode.connectorCommands')));
+      console.log(colors.textSecondary(t('interactive.serverMode.useHelp')));
     } else if (reason === 'serve_action_blocked') {
       console.log(colors.warning(t('interactive.serverMode.serveActionBlocked', { action })));
       console.log(colors.textSecondary(t('interactive.serverMode.useServeStop')));
@@ -105,9 +66,14 @@ export class CommandHandler {
    * Handle incoming commands
    */
   async handleCommand(input) {
-    const [command, ...args] = input.split(' ');
+    const { command, args } = parseInteractiveInput(input);
 
     try {
+      if (this.aiManager && this.aiManager.isActive()) {
+        await this.aiManager.handleCommand(input);
+        return;
+      }
+
       if (this.schemaEditor && this.schemaEditor.isActive()) {
         await this.schemaEditor.handleCommand(input);
         return;
@@ -126,7 +92,7 @@ export class CommandHandler {
         case 'help':
         case 'h':
           const { showHelp } = await import('../../utils/display-utils.js');
-          showHelp();
+          showHelp({ serverMode: this.serverManager.isServerRunning() });
           break;
 
         case 'init':
@@ -207,6 +173,10 @@ export class CommandHandler {
 
         case 'schema':
           await this.handleSchemaCommand(args);
+          break;
+
+        case 'ai':
+          await this.aiManager.enter();
           break;
 
         case 'reform':

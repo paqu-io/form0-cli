@@ -15,7 +15,7 @@ import { hasConfiguredAppDevServer } from '../../utils/app-dev-server.js';
  * Manages the interactive shell core functionality
  */
 export class ShellCore {
-  constructor(schemaManager, engineRunner, fileWatcher) {
+  constructor(schemaManager, engineRunner, fileWatcher, options = {}) {
     this.schemaManager = schemaManager;
     this.engineRunner = engineRunner;
     this.fileWatcher = fileWatcher;
@@ -24,12 +24,15 @@ export class ShellCore {
     this.commandHandler = null;
     this.schemaEditor = null;
     this.schemaMode = false;
+    this.aiMode = false;
+    this.aiBusy = false;
+    this.options = options;
   }
 
   /**
    * Initialize the readline interface and managers
    */
-  initializeReadline() {
+  async initializeReadline() {
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
@@ -49,6 +52,15 @@ export class ShellCore {
       this.rl,
       this
     );
+    const { AIManager } = await import('./managers/ai-manager.js');
+    this.aiManager = new AIManager(
+      this.schemaManager,
+      this.engineRunner,
+      this.serverManager,
+      this.rl,
+      this,
+      this.options.ai || {}
+    );
     // Pass shell reference to command handler for readline coordination
     this.commandHandler = new CommandHandler(
       this.schemaManager,
@@ -57,7 +69,8 @@ export class ShellCore {
       this.serverManager,
       this.rl,
       this, // Pass shell reference for readline coordination
-      this.schemaEditor
+      this.schemaEditor,
+      this.aiManager
     );
 
     // Set circular dependency for file watcher to access server manager
@@ -82,7 +95,7 @@ export class ShellCore {
     // Load configuration first
     await loadConfig();
 
-    this.initializeReadline();
+    await this.initializeReadline();
 
     showWelcomeBanner();
     console.log(colors.brandBold(t('interactive.welcome')));
@@ -96,13 +109,15 @@ export class ShellCore {
         ? config.cli.schemaPromptOnStart
         : true;
 
-    if (!isAppProject && schemaPromptOnStart) {
+    if (this.options.schemaPath) {
+      await this.schemaManager.loadSchema(this.options.schemaPath);
+    } else if (this.options.initialAI) {
+      // Direct AI authoring intentionally starts from the canonical in-memory empty form.
+    } else if (!isAppProject && schemaPromptOnStart) {
       await this.schemaManager.smartInit();
     } else if (!isAppProject && !schemaPromptOnStart) {
       await this.schemaManager.smartInit({ allowPrompt: false });
     }
-
-    this.rl.prompt();
 
     this.rl.on('line', async (input) => {
       const trimmed = input.trim();
@@ -118,6 +133,15 @@ export class ShellCore {
       console.log(colors.brandBold('\n' + t('interactive.goodbye')));
       process.exit(0);
     });
+
+    if (this.options.initialAI) {
+      try {
+        await this.aiManager.enter();
+      } catch (error) {
+        console.log(colors.error(`[AI] ${error.message}`));
+      }
+    }
+    this.rl.prompt();
   }
 
   /**
@@ -138,6 +162,17 @@ export class ShellCore {
     return this.schemaMode;
   }
 
+  setAIMode(enabled) {
+    this.aiMode = Boolean(enabled);
+    if (!this.aiMode) this.aiBusy = false;
+    this.refreshPrompt(false);
+  }
+
+  setAIBusy(enabled) {
+    this.aiBusy = Boolean(enabled);
+    this.refreshPrompt(false);
+  }
+
   getPromptString() {
     const parts = [];
     if (this.serverManager && this.serverManager.isServerRunning()) {
@@ -145,6 +180,12 @@ export class ShellCore {
     }
     if (this.schemaMode) {
       parts.push('schema');
+    }
+    if (this.aiMode) {
+      parts.push('ai');
+    }
+    if (this.aiBusy) {
+      parts.push('busy');
     }
 
     if (parts.length === 0) {
@@ -173,6 +214,8 @@ export class ShellCore {
     if (this.serverManager) {
       this.serverManager.cleanup();
     }
+
+    void this.aiManager?.dispose?.();
 
     this.fileWatcher.cleanup();
     if (this.rl) {

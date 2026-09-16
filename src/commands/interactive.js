@@ -8,12 +8,17 @@ import { ShellCore } from './interactive/shell-core.js';
  * Coordinates all modules for the form0 interactive environment
  */
 class Form0Interactive {
-  constructor() {
+  constructor(options = {}) {
     // Initialize all modules
     this.schemaManager = new SchemaManager();
     this.engineRunner = new EngineRunner(this.schemaManager);
     this.fileWatcher = new FileWatcher(this.schemaManager, this.engineRunner);
-    this.shellCore = new ShellCore(this.schemaManager, this.engineRunner, this.fileWatcher);
+    this.shellCore = new ShellCore(
+      this.schemaManager,
+      this.engineRunner,
+      this.fileWatcher,
+      options
+    );
 
     // Set up circular dependency for re-prompting
     this.fileWatcher.shellCore = this.shellCore;
@@ -30,7 +35,7 @@ class Form0Interactive {
 /**
  * Entry point for the interactive command
  */
-export async function interactiveCommand() {
-  const interactive = new Form0Interactive();
+export async function interactiveCommand(options = {}) {
+  const interactive = new Form0Interactive(options);
   await interactive.start();
 }
