@@ -484,9 +484,8 @@ async function triggerFormEvent(eventType, fieldKey = null) {
 
 // Initialize WebSocket connection
 function initializeWebSocket() {
-  const wsHost = window.location.hostname;
-  const wsPort = window.location.port;
-  ws = new WebSocket(`ws://${wsHost}:${wsPort}`);
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${wsProtocol}//${window.location.host}`);
 
   ws.onopen = () => {
     console.log(t('websocketConnected'));
