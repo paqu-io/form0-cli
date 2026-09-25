@@ -231,6 +231,34 @@ export class Form0PiSession {
     }));
   }
 
+  async refreshModels(providers) {
+    try {
+      const result = await this.modelRuntime.refresh({
+        ...(providers ? { providers } : {}),
+        allowNetwork: true,
+      });
+      return {
+        aborted: result.aborted,
+        errors: [...result.errors].map(([provider, error]) => ({
+          provider,
+          message: error instanceof Error ? error.message : String(error),
+        })),
+      };
+    } catch (error) {
+      return {
+        aborted: false,
+        errors: [
+          {
+            provider: providers?.length === 1 ? providers[0] : 'provider',
+            message: error instanceof Error ? error.message : String(error),
+          },
+        ],
+      };
+    } finally {
+      await this.hardenFiles();
+    }
+  }
+
   getSavedModelReference() {
     const provider = this.settingsManager?.getDefaultProvider();
     const model = this.settingsManager?.getDefaultModel();
@@ -285,11 +313,15 @@ export class Form0PiSession {
     if (separator < 1) throw new Error('Use <provider>/<model>');
     const provider = reference.slice(0, separator);
     const modelId = reference.slice(separator + 1);
-    const model = this.modelRuntime.getModel(provider, modelId);
-    if (!model) throw new Error(`Unknown model: ${reference}`);
     if (this.isCloudProvider(provider) && !this.getCloudPolicy().allowCloud) {
       throw new Error('Cloud AI is disabled by this form schema');
     }
+    let model = this.modelRuntime.getModel(provider, modelId);
+    if (!model) {
+      await this.refreshModels([provider]);
+      model = this.modelRuntime.getModel(provider, modelId);
+    }
+    if (!model) throw new Error(`Unknown model: ${reference}`);
     await this.session.setModel(model, { persist: true });
     await this.settingsManager?.flush();
     await this.hardenFiles();

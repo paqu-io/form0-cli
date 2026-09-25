@@ -58,8 +58,8 @@
     "node": ">=22.19.0"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.85.1",
-    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@earendil-works/pi-ai": "0.87.1",
+    "@earendil-works/pi-coding-agent": "0.87.1",
     "acorn": "^8.17.0",
     "chalk": "^5.4.1",
     "chokidar": "^3.6.0",

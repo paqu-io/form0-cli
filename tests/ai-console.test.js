@@ -38,6 +38,7 @@ test('/login uses provider and method selection and keeps API keys out of output
     promptValue: secret,
   });
   const manager = new AIManager({}, {}, {}, {}, {}, { presentation });
+  const refreshCalls = [];
   manager.agent = {
     listProviders: async () => [
       {
@@ -50,6 +51,10 @@ test('/login uses provider and method selection and keeps API keys out of output
     ],
     login: async (_provider, _type, interaction) => {
       assert.equal(await interaction.prompt({ type: 'secret', message: 'API key' }), secret);
+    },
+    refreshModels: async (providers) => {
+      refreshCalls.push(providers);
+      return { aborted: false, errors: [] };
     },
   };
 
@@ -64,6 +69,41 @@ test('/login uses provider and method selection and keeps API keys out of output
     presentation.events.output.includes('Authenticated openai. Select a model with /model.'),
     true
   );
+  assert.deepEqual(refreshCalls, [['openai']]);
+});
+
+test('/models preserves cached models and warns when live catalog refresh fails', async () => {
+  const presentation = createPresentation();
+  const manager = new AIManager({}, {}, {}, {}, {}, { presentation });
+  const refreshCalls = [];
+  manager.agent = {
+    listProviders: async () => [
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        authTypes: ['api_key'],
+        auth: { configured: true },
+        models: ['cached-model'],
+      },
+    ],
+    refreshModels: async (providers) => {
+      refreshCalls.push(providers);
+      return {
+        aborted: false,
+        errors: [{ provider: 'openai', message: 'catalog unavailable' }],
+      };
+    },
+  };
+
+  await manager.handleCommand('/models openai');
+
+  assert.deepEqual(refreshCalls, [['openai']]);
+  assert.ok(
+    presentation.events.output.includes(
+      'Could not refresh openai models; showing cached models: catalog unavailable'
+    )
+  );
+  assert.ok(presentation.events.output.includes('cached-model'));
 });
 
 test('AI lifecycle initializes the session without taking over shell input', async (context) => {
