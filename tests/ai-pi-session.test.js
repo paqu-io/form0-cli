@@ -32,6 +32,60 @@ test('Pi login provider and auth identifiers pass through unchanged', async () =
   ]);
 });
 
+test('Pi model catalog refresh is provider-scoped and keeps errors non-fatal', async () => {
+  const storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-ai-refresh-'));
+  const calls = [];
+  const workspace = new AISchemaWorkspace({
+    schema: { form: { name: 'Refresh test', description: null, elements: [] } },
+  });
+  const adapter = new Form0PiSession({
+    workspace,
+    storageRoot,
+    modelRuntime: {
+      refresh: async (options) => {
+        calls.push(options);
+        return {
+          aborted: false,
+          errors: new Map([['openai', new Error('catalog unavailable')]]),
+        };
+      },
+    },
+  });
+
+  const result = await adapter.refreshModels(['openai']);
+
+  assert.deepEqual(calls, [{ providers: ['openai'], allowNetwork: true }]);
+  assert.deepEqual(result, {
+    aborted: false,
+    errors: [{ provider: 'openai', message: 'catalog unavailable' }],
+  });
+});
+
+test('Pi retries an explicit missing model after refreshing only its provider', async () => {
+  const storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-ai-select-refresh-'));
+  const refreshCalls = [];
+  let refreshed = false;
+  const selected = { provider: 'openai', id: 'new-model' };
+  const adapter = new Form0PiSession({
+    workspace: new AISchemaWorkspace({
+      schema: { form: { name: 'Selection test', description: null, elements: [] } },
+    }),
+    storageRoot,
+    modelRuntime: {
+      getModel: () => (refreshed ? selected : undefined),
+      refresh: async (options) => {
+        refreshCalls.push(options);
+        refreshed = true;
+        return { aborted: false, errors: new Map() };
+      },
+    },
+  });
+  adapter.session = { setModel: async () => {} };
+
+  assert.equal(await adapter.selectModel('openai/new-model'), selected);
+  assert.deepEqual(refreshCalls, [{ providers: ['openai'], allowNetwork: true }]);
+});
+
 test('AI status reports local Pi authentication without exposing credentials', () => {
   const workspace = new AISchemaWorkspace({
     schema: { form: { name: 'Status test', description: null, elements: [] } },

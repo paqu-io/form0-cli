@@ -121,6 +121,20 @@ export class AIManager {
     this.presentation.writeLines(lines);
   }
 
+  async refreshModelCatalogs(providers) {
+    if (typeof this.agent?.refreshModels !== 'function') return;
+    const result = await this.agent.refreshModels(providers);
+    if (result?.aborted) {
+      this.write('Model catalog refresh was cancelled; showing cached models.', 'warning');
+    }
+    for (const error of result?.errors || []) {
+      this.write(
+        `Could not refresh ${error.provider} models; showing cached models: ${error.message}`,
+        'warning'
+      );
+    }
+  }
+
   createWorkspace(schema, schemaPath) {
     return new AISchemaWorkspace({
       schema,
@@ -366,6 +380,7 @@ export class AIManager {
   }
 
   async selectModelInteractive() {
+    await this.refreshModelCatalogs();
     const providers = await this.agent.listProviders();
     const current = this.agent.model ? `${this.agent.model.provider}/${this.agent.model.id}` : null;
     const items = providers.flatMap((provider) =>
@@ -433,6 +448,7 @@ export class AIManager {
     }
     if (!authType) return null;
     await this.agent.login(provider.id, authType, this.authInteraction());
+    await this.refreshModelCatalogs([provider.id]);
     this.write(`Authenticated ${provider.id}. Select a model with /model.`, 'success');
     return provider.id;
   }
@@ -539,8 +555,10 @@ export class AIManager {
       }
       case 'models': {
         if (!args[0]) throw new Error('Usage: /models <provider>');
-        const provider = (await this.agent.listProviders()).find((entry) => entry.id === args[0]);
+        let provider = (await this.agent.listProviders()).find((entry) => entry.id === args[0]);
         if (!provider) throw new Error(`Unknown provider: ${args[0]}`);
+        await this.refreshModelCatalogs([provider.id]);
+        provider = (await this.agent.listProviders()).find((entry) => entry.id === args[0]);
         this.writeLines(
           provider.models.length > 0 ? provider.models : ['No models currently known.']
         );
