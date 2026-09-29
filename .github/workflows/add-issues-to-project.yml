@@ -7,6 +7,10 @@ on:
       - reopened
       - transferred
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   add-to-project:
     uses: paqu-io/.github/.github/workflows/add-form0-issue-to-project.yml@main
