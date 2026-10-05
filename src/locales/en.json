@@ -91,6 +91,7 @@
     "serve": {
       "serverStarted": "form0 Development Server Started",
       "schemaFile": "Schema: {path}",
+      "noSchemaAppMode": "ℹ️  No schema loaded. App submissions should provide the schema to the dev server.",
       "localUrl": "Local: {url}",
       "networkUrl": "Network: {url}",
       "serverRunning": "Server running...",

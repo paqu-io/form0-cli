@@ -140,9 +140,10 @@ export class ServerManager {
       // Completely override server info display for interactive mode to control messaging
       this.devServer.showServerInfo = async () => {
         console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
-        console.log(
-          colors.info('📋 ' + t('commands.serve.schemaFile', { path: this.devServer.schemaPath }))
-        );
+        const schemaFile = this.devServer.actualSchemaPath;
+        if (schemaFile) {
+          console.log(colors.info('📋 ' + t('commands.serve.schemaFile', { path: schemaFile })));
+        }
         console.log(
           colors.success(
             '🌐 ' +
@@ -188,11 +189,7 @@ export class ServerManager {
       this.refreshPrompt();
 
       if (allowNoSchema && !this.schemaManager.getCurrentSchema()) {
-        console.log(
-          colors.textSecondary(
-            'ℹ️  No schema loaded. App submissions should provide the schema to the dev server.'
-          )
-        );
+        console.log(colors.textSecondary(t('commands.serve.noSchemaAppMode')));
         this.readline.prompt();
       }
     } catch (err) {

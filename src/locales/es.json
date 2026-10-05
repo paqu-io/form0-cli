@@ -73,6 +73,7 @@
       "schemaBroadcasted": "📡 Esquema transmitido a los clientes.",
       "schemaChanged": "[{timestamp}] Archivo de esquema modificado.",
       "schemaFile": "Esquema: {path}",
+      "noSchemaAppMode": "ℹ️  No hay ningún esquema cargado. Los envíos de la aplicación deben incluir el esquema para el servidor de desarrollo.",
       "serverRunning": "Servidor en ejecución...",
       "serverStarted": "Servidor de Desarrollo form0 iniciado",
       "shuttingDown": "🛑 Apagando servidor...",
