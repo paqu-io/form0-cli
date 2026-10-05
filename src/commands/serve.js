@@ -92,7 +92,7 @@ class Form0Server {
     } else if (this.schemaPath === 'interactive-schema') {
       return 'Interactive Mode';
     }
-    return this.schemaPath ? path.basename(this.schemaPath) : null;
+    return this.schemaPath ? path.basename(this.schemaPath) : '';
   }
 
   // Method to get the actual schema file path for interactive mode
