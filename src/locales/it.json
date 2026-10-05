@@ -73,6 +73,7 @@
       "schemaBroadcasted": "📡 Aggiornamento schema inviato ai client.",
       "schemaChanged": "[{timestamp}] File schema modificato.",
       "schemaFile": "Schema: {path}",
+      "noSchemaAppMode": "ℹ️  Nessuno schema caricato. Gli invii dell'app devono fornire lo schema al server di sviluppo.",
       "serverRunning": "Server in esecuzione...",
       "serverStarted": "Server di sviluppo form0 avviato",
       "shuttingDown": "🛑 Arresto del server in corso...",

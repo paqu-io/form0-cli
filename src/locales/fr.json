@@ -73,6 +73,7 @@
       "schemaBroadcasted": "📡 Mise à jour du schéma diffusée aux clients.",
       "schemaChanged": "[{timestamp}] Fichier de schéma modifié.",
       "schemaFile": "Schéma : {path}",
+      "noSchemaAppMode": "ℹ️  Aucun schéma chargé. Les soumissions de l’application doivent fournir le schéma au serveur de développement.",
       "serverRunning": "Serveur en cours d'exécution...",
       "serverStarted": "Serveur de développement form0 démarré",
       "shuttingDown": "🛑 Arrêt du serveur...",
