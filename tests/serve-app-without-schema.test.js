@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'fs-extra';
+import { WebSocket } from 'ws';
+import { Form0Server } from '../src/commands/serve.js';
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -57,5 +59,25 @@ test('serve --app still fails for an explicit schema path that does not exist', 
     assert.match(output, /ENOENT.*missing\.schema\.json/);
   } finally {
     await fs.remove(projectDir);
+  }
+});
+
+test('a server without a schema accepts preview WebSocket connections', async () => {
+  const server = new Form0Server(null, { port: 3987 });
+  await server.start();
+  try {
+    const socket = new WebSocket(`ws://localhost:${server.port}`);
+    await new Promise((resolve, reject) => {
+      socket.addEventListener('open', resolve);
+      socket.addEventListener('error', reject);
+    });
+    // Give the server's connection handler a turn to run before closing.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    socket.close();
+
+    assert.equal(server.getStatus().running, true);
+    assert.equal(server.getStatus().hasSchema, false);
+  } finally {
+    await server.stop();
   }
 });
