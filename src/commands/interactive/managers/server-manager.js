@@ -2,7 +2,11 @@ import path from 'path';
 import { Form0Server } from '../../serve.js';
 import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
-import { startAppDevServer, terminateAppDevServer } from '../../../utils/app-dev-server.js';
+import {
+  startAppDevServer,
+  stopAppDevServerOnCrash,
+  terminateAppDevServer,
+} from '../../../utils/app-dev-server.js';
 
 /**
  * Manages development server operations for interactive mode
@@ -22,6 +26,7 @@ export class ServerManager {
     this.appServerSigintHandlers = null;
     this.appServerReadlineSigintHandlers = null;
     this.appServerUseProcessGroup = false;
+    this.removeAppServerCrashHandler = null;
   }
 
   /**
@@ -241,6 +246,7 @@ export class ServerManager {
       this.appServerCommand = command;
       this.appServerProjectRoot = projectRoot;
       this.appServerUseProcessGroup = useProcessGroup;
+      this.removeAppServerCrashHandler = stopAppDevServerOnCrash(child, { useProcessGroup });
 
       console.log(colors.success(`\n🚀 App dev server started: "${command}"`));
       console.log(colors.textSecondary(`   cwd: ${projectRoot}`));
@@ -254,6 +260,7 @@ export class ServerManager {
       }
 
       const handleExit = () => {
+        this.clearAppServerCrashHandler();
         this.appServerProcess = null;
         this.appServerCommand = null;
         this.appServerProjectRoot = null;
@@ -581,10 +588,17 @@ export class ServerManager {
     }
   }
 
+  clearAppServerCrashHandler() {
+    this.removeAppServerCrashHandler?.();
+    this.removeAppServerCrashHandler = null;
+  }
+
   stopAppServer() {
     if (!this.appServerProcess) {
       return;
     }
+
+    this.clearAppServerCrashHandler();
 
     const child = this.appServerProcess;
     const useProcessGroup = this.appServerUseProcessGroup;

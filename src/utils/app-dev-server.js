@@ -458,3 +458,26 @@ export async function startAppDevServer(startDir = process.cwd(), options = {}) 
     mode: launch.mode,
   };
 }
+
+/**
+ * Stop the app dev server if the CLI crashes, so it does not keep running and holding its port.
+ * The CLI still exits with code 1, as Node.js does for an uncaught error.
+ * @param {import('child_process').ChildProcess} child
+ * @param {{ useProcessGroup?: boolean }} [options]
+ * @returns {() => void} Removes the crash handlers
+ */
+export function stopAppDevServerOnCrash(child, { useProcessGroup = false } = {}) {
+  const onCrash = (error) => {
+    terminateAppDevServer(child, { useProcessGroup });
+    console.error(error);
+    process.exit(1);
+  };
+
+  process.on('uncaughtException', onCrash);
+  process.on('unhandledRejection', onCrash);
+
+  return () => {
+    process.off('uncaughtException', onCrash);
+    process.off('unhandledRejection', onCrash);
+  };
+}

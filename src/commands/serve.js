@@ -8,7 +8,11 @@ import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
 import { t } from '../utils/i18n.js';
 import { createApp } from '../server/express-server.js';
 import { createWebSocketServer } from '../server/websocket.js';
-import { startAppDevServer, terminateAppDevServer } from '../utils/app-dev-server.js';
+import {
+  startAppDevServer,
+  stopAppDevServerOnCrash,
+  terminateAppDevServer,
+} from '../utils/app-dev-server.js';
 import { printCalculationIssues } from '../utils/calculation-checks.js';
 
 const DEFAULT_SCHEMA_PATH = 'form.schema.json';
@@ -418,6 +422,7 @@ export async function serveCommand(schemaPathArg, options) {
       );
       appProcess = child;
       appProcessUsesGroup = useProcessGroup;
+      stopAppDevServerOnCrash(child, { useProcessGroup });
       console.log(colors.success(`\n🚀 App dev server started: "${command}" (${projectRoot})\n`));
       if (publicUrl) {
         console.log(colors.textSecondary(`   Public URL: ${publicUrl}`));
