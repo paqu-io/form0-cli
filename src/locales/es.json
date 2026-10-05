@@ -405,6 +405,7 @@
     "keepingPrevious": "⚠️ Conservando el esquema previamente cargado.",
     "noSchemaLoaded": "❌ No hay esquema cargado. Usa \"load <path>\" para cargar uno primero.",
     "schemaIsValid": "✅ El esquema es válido.",
+    "calculationIssues": "⚠️ Problemas en los cálculos: {count}",
     "schemaLoaded": "✅ Esquema cargado: {path}",
     "schemaReloaded": "✅ Esquema recargado correctamente.",
     "usage": "  Uso:",

@@ -691,6 +691,7 @@
     "examples": "  Examples:",
     "usage": "  Usage:",
     "schemaIsValid": "✅ Schema is valid.",
+    "calculationIssues": "⚠️ Calculation issues: {count}",
     "failedToReload": "❌ Failed to reload schema: {message}",
     "keepingPrevious": "⚠️ Keeping previous schema loaded.",
     "watchingChanges": "👀 Watching {path} for changes...",

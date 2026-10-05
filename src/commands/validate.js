@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import { validateSchema } from 'form0-core';
 import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
 import { t } from '../utils/i18n.js';
+import { printCalculationIssues } from '../utils/calculation-checks.js';
 
 export async function validateCommand(file) {
   try {
@@ -14,6 +15,7 @@ export async function validateCommand(file) {
     validateSchema(data.form);
 
     console.log(t('common.schemaIsValid'));
+    printCalculationIssues(data);
   } catch (err) {
     console.error(t('commands.validate.validationFailed', { message: err.message }));
     process.exit(1);

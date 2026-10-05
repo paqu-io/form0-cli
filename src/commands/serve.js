@@ -9,6 +9,7 @@ import { t } from '../utils/i18n.js';
 import { createApp } from '../server/express-server.js';
 import { createWebSocketServer } from '../server/websocket.js';
 import { startAppDevServer, terminateAppDevServer } from '../utils/app-dev-server.js';
+import { printCalculationIssues } from '../utils/calculation-checks.js';
 
 class Form0Server {
   constructor(schemaPath, options = {}) {
@@ -106,6 +107,7 @@ class Form0Server {
     ensureChoiceValuesForSchema(data.form.elements || []);
 
     validateSchema(data.form);
+    printCalculationIssues(data);
     this.currentSchema = data;
   }
 

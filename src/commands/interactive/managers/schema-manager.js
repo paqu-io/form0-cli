@@ -9,6 +9,7 @@ import { discoverSchemas, formatSchemaCandidate } from '../../../utils/schema-ut
 import { showSchemaPreview } from '../../../utils/display-utils.js';
 import { t } from '../../../utils/i18n.js';
 import { colors } from '../../../utils/theme.js';
+import { printCalculationIssues } from '../../../utils/calculation-checks.js';
 
 /**
  * Manages schema loading, validation, and initialization
@@ -262,6 +263,7 @@ export class SchemaManager {
     ensureChoiceValuesForSchema(data.form.elements || []);
 
     validateSchema(data.form);
+    printCalculationIssues(data);
     return data;
   }
 

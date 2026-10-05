@@ -405,6 +405,7 @@
     "keepingPrevious": "⚠️ Mantenuto lo schema precedente caricato.",
     "noSchemaLoaded": "❌ Nessuno schema caricato. Usa \"load <path>\" per caricarne uno.",
     "schemaIsValid": "✅ Lo schema è valido.",
+    "calculationIssues": "⚠️ Problemi nei calcoli: {count}",
     "schemaLoaded": "✅ Schema caricato: {path}",
     "schemaReloaded": "✅ Schema ricaricato con successo.",
     "usage": "  Utilizzo:",
