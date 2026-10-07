@@ -8,10 +8,18 @@ import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
 import { t } from '../utils/i18n.js';
 import { createApp } from '../server/express-server.js';
 import { createWebSocketServer } from '../server/websocket.js';
-import { startAppDevServer, terminateAppDevServer } from '../utils/app-dev-server.js';
+import {
+  startAppDevServer,
+  stopAppDevServerOnCrash,
+  terminateAppDevServer,
+} from '../utils/app-dev-server.js';
+import { printCalculationIssues } from '../utils/calculation-checks.js';
+
+const DEFAULT_SCHEMA_PATH = 'form.schema.json';
 
 class Form0Server {
   constructor(schemaPath, options = {}) {
+    const requestedPort = Number.parseInt(options.port, 10);
     this.schemaPath = schemaPath;
     this.options = options;
     this.currentSchema = null;
@@ -19,7 +27,10 @@ class Form0Server {
     this.server = null;
     this.wsServer = null;
     this.watcher = null;
-    this.port = parseInt(options.port) || 3030;
+    this.port =
+      Number.isInteger(requestedPort) && requestedPort >= 0 && requestedPort <= 65_535
+        ? requestedPort
+        : 3030;
     this.host = options.host || 'localhost';
     this.actualSchemaPath = null; // For interactive mode to track the real schema file
     this.exitHandler = null;
@@ -30,10 +41,13 @@ class Form0Server {
     try {
       // Load initial schema
       await this.loadSchema();
-      console.log(colors.success('\n' + t('common.schemaLoaded', { path: this.schemaPath })));
+      // The interactive shell announces schema loads itself.
+      if (this.currentSchema && this.schemaPath !== 'interactive-schema') {
+        console.log(colors.success('\n' + t('common.schemaLoaded', { path: this.schemaPath })));
+      }
 
       // Setup Express app with schema provider, schema source, and project directory
-      const projectDir = path.dirname(this.schemaPath);
+      const projectDir = this.schemaPath ? path.dirname(this.schemaPath) : '.';
       this.app = createApp(
         () => this.currentSchema,
         () => this.getSchemaSource(),
@@ -86,7 +100,7 @@ class Form0Server {
     } else if (this.schemaPath === 'interactive-schema') {
       return 'Interactive Mode';
     }
-    return path.basename(this.schemaPath);
+    return this.schemaPath ? path.basename(this.schemaPath) : '';
   }
 
   // Method to get the actual schema file path for interactive mode
@@ -100,16 +114,25 @@ class Form0Server {
   }
 
   async loadSchema() {
+    // App projects can run without a schema file: the app sends its schema with each submission.
+    if (!this.schemaPath) {
+      this.currentSchema = null;
+      return;
+    }
+
     const data = await fs.readJson(this.schemaPath);
 
     // Process SingleChoiceField choices before validation
     ensureChoiceValuesForSchema(data.form.elements || []);
 
     validateSchema(data.form);
+    printCalculationIssues(data);
     this.currentSchema = data;
   }
 
   startWatching() {
+    if (!this.schemaPath) return;
+
     console.log(colors.accent1(t('common.watchingChanges', { path: this.schemaPath })));
 
     this.watcher = chokidar.watch(this.schemaPath, {
@@ -186,9 +209,13 @@ class Form0Server {
 
   async showServerInfo() {
     console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
-    console.log(
-      colors.textSecondary('   📋 ' + t('commands.serve.schemaFile', { path: this.schemaPath }))
-    );
+    if (this.schemaPath) {
+      console.log(
+        colors.textSecondary('   📋 ' + t('commands.serve.schemaFile', { path: this.schemaPath }))
+      );
+    } else {
+      console.log(colors.textSecondary('   ' + t('commands.serve.noSchemaAppMode')));
+    }
     console.log(
       colors.textSecondary(
         '   🌐 ' + t('commands.serve.localUrl', { url: `http://${this.host}:${this.port}` })
@@ -347,7 +374,12 @@ class Form0Server {
   }
 }
 
-export async function serveCommand(schemaPath = 'form.schema.json', options) {
+export async function serveCommand(schemaPathArg, options) {
+  let schemaPath = schemaPathArg ?? DEFAULT_SCHEMA_PATH;
+  if (options?.app && schemaPathArg === undefined && !(await fs.pathExists(schemaPath))) {
+    schemaPath = null;
+  }
+
   if (options?.app) {
     const server = new Form0Server(schemaPath, options);
     let appProcess = null;
@@ -394,6 +426,7 @@ export async function serveCommand(schemaPath = 'form.schema.json', options) {
       );
       appProcess = child;
       appProcessUsesGroup = useProcessGroup;
+      stopAppDevServerOnCrash(child, { useProcessGroup });
       console.log(colors.success(`\n🚀 App dev server started: "${command}" (${projectRoot})\n`));
       if (publicUrl) {
         console.log(colors.textSecondary(`   Public URL: ${publicUrl}`));

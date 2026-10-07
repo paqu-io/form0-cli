@@ -7,6 +7,7 @@ import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
 import { showSchemaPreview } from '../../../utils/display-utils.js';
 import { createFieldTemplate } from '../../../utils/field-template.js';
+import { printCalculationIssues } from '../../../utils/calculation-checks.js';
 
 const CONTAINER_TYPES = new Set(['Section', 'RepeatableSection', 'BuildingPlanSection']);
 
@@ -632,6 +633,7 @@ export class SchemaEditor {
 
     try {
       validateSchema(schema.form);
+      printCalculationIssues(schema);
     } catch (err) {
       console.log(colors.warning(t('interactive.schemaEdit.savedWithWarnings')));
       console.log(colors.textSecondary(err.message));

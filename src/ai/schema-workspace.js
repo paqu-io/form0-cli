@@ -106,16 +106,44 @@ export class AISchemaWorkspace {
       operations,
     });
     if (result.valid) {
+      const jsonDiff = createJsonDiff(base, result.schema);
+      if (jsonDiff.length === 0) {
+        return {
+          ...result,
+          valid: false,
+          staged: false,
+          schema: null,
+          semanticDiff: [],
+          diagnostics: [
+            ...result.diagnostics,
+            {
+              code: 'no_schema_changes',
+              severity: 'error',
+              message:
+                'The proposal does not change the schema. Provide actual changes using the core mutation operation formats; any existing draft is unchanged.',
+            },
+          ],
+        };
+      }
+      if (createJsonDiff(this.committed, result.schema).length === 0) {
+        this.pending = null;
+        return {
+          ...result,
+          staged: false,
+          message: 'The draft now matches the saved schema; there is nothing to apply.',
+        };
+      }
       this.pending = {
         schema: result.schema,
         revision: result.revision,
         baseCommittedRevision: this.committedRevision,
         semanticDiff: result.semanticDiff,
-        jsonDiff: createJsonDiff(base, result.schema),
+        jsonDiff,
         diagnostics: result.diagnostics,
         operations: clone(operations),
         summary,
       };
+      return { ...result, staged: true };
     }
     return result;
   }
@@ -141,6 +169,9 @@ export class AISchemaWorkspace {
 
   async apply({ schemaPath = this.schemaPath } = {}) {
     if (!this.pending) throw new Error('There is no pending AI proposal');
+    if (this.getPendingDiff().length === 0) {
+      throw new Error('The proposal does not change the saved schema; there is nothing to apply');
+    }
     if (!schemaPath) throw new Error('A schema path is required before applying a new form');
     const resolvedPath = path.resolve(schemaPath);
     if (this.schemaPath && (await this.readDiskRevision()) !== this.pending.baseCommittedRevision) {

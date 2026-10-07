@@ -7,6 +7,7 @@ import { filterValidValues } from '../utils/value-validation.js';
 import yaml from 'yaml';
 import { colors } from '../utils/theme.js';
 import { t, tn } from '../utils/i18n.js';
+import { printCalculationIssues } from '../utils/calculation-checks.js';
 
 class Form0Watcher {
   constructor(schemaPath, options = {}) {
@@ -98,6 +99,7 @@ class Form0Watcher {
     ensureChoiceValuesForSchema(data.form.elements || []);
 
     validateSchema(data.form); // Validate on load
+    printCalculationIssues(data);
     this.currentSchema = data;
   }
 
@@ -296,3 +298,5 @@ export async function watchCommand(schemaPath, options) {
 
   await watcher.start();
 }
+
+export { Form0Watcher };

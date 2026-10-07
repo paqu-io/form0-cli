@@ -320,6 +320,8 @@ export class AIManager {
           'Proposal ready: /preview, /diff, /apply, /discard, or ask for a revision.',
           'accent'
         );
+      } else {
+        this.write('No pending schema changes. Nothing to apply.', 'muted');
       }
     } catch (error) {
       this.clearPromptLine();

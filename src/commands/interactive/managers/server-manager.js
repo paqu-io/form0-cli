@@ -2,7 +2,11 @@ import path from 'path';
 import { Form0Server } from '../../serve.js';
 import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
-import { startAppDevServer, terminateAppDevServer } from '../../../utils/app-dev-server.js';
+import {
+  startAppDevServer,
+  stopAppDevServerOnCrash,
+  terminateAppDevServer,
+} from '../../../utils/app-dev-server.js';
 
 /**
  * Manages development server operations for interactive mode
@@ -22,6 +26,7 @@ export class ServerManager {
     this.appServerSigintHandlers = null;
     this.appServerReadlineSigintHandlers = null;
     this.appServerUseProcessGroup = false;
+    this.removeAppServerCrashHandler = null;
   }
 
   /**
@@ -140,9 +145,10 @@ export class ServerManager {
       // Completely override server info display for interactive mode to control messaging
       this.devServer.showServerInfo = async () => {
         console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
-        console.log(
-          colors.info('📋 ' + t('commands.serve.schemaFile', { path: this.devServer.schemaPath }))
-        );
+        const schemaFile = this.devServer.actualSchemaPath;
+        if (schemaFile) {
+          console.log(colors.info('📋 ' + t('commands.serve.schemaFile', { path: schemaFile })));
+        }
         console.log(
           colors.success(
             '🌐 ' +
@@ -188,11 +194,7 @@ export class ServerManager {
       this.refreshPrompt();
 
       if (allowNoSchema && !this.schemaManager.getCurrentSchema()) {
-        console.log(
-          colors.textSecondary(
-            'ℹ️  No schema loaded. App submissions should provide the schema to the dev server.'
-          )
-        );
+        console.log(colors.textSecondary(t('commands.serve.noSchemaAppMode')));
         this.readline.prompt();
       }
     } catch (err) {
@@ -244,6 +246,7 @@ export class ServerManager {
       this.appServerCommand = command;
       this.appServerProjectRoot = projectRoot;
       this.appServerUseProcessGroup = useProcessGroup;
+      this.removeAppServerCrashHandler = stopAppDevServerOnCrash(child, { useProcessGroup });
 
       console.log(colors.success(`\n🚀 App dev server started: "${command}"`));
       console.log(colors.textSecondary(`   cwd: ${projectRoot}`));
@@ -257,6 +260,7 @@ export class ServerManager {
       }
 
       const handleExit = () => {
+        this.clearAppServerCrashHandler();
         this.appServerProcess = null;
         this.appServerCommand = null;
         this.appServerProjectRoot = null;
@@ -584,10 +588,17 @@ export class ServerManager {
     }
   }
 
+  clearAppServerCrashHandler() {
+    this.removeAppServerCrashHandler?.();
+    this.removeAppServerCrashHandler = null;
+  }
+
   stopAppServer() {
     if (!this.appServerProcess) {
       return;
     }
+
+    this.clearAppServerCrashHandler();
 
     const child = this.appServerProcess;
     const useProcessGroup = this.appServerUseProcessGroup;

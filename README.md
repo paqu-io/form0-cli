@@ -143,6 +143,14 @@ Every change is a transient semantic mutation batch: inspect it with `/preview` 
 `/apply` or `/discard`. Writes require explicit approval, are atomic, and are rejected if the schema
 changed on disk. `/undo` stages the last saved version for approval.
 
+Unchanged batches are rejected: they cannot create a pending proposal, save an unchanged file, or
+create undo history. A rejected revision preserves any existing valid draft. Revising a draft back
+to the saved schema clears the pending proposal without writing the file. The CLI reports the actual
+pending state independently of the assistant's text.
+
+AI commands always start with `/`: use `/model <provider>/<model>`, not `model <provider>/<model>`.
+Without a selected model, requests show selection guidance rather than a zero-token context error.
+
 Provider authentication and per-schema conversations are stored under `~/.form0-cli/ai/`, not in
 projects or schemas. Pi exposes its provider catalog; the preview baseline covers OpenAI API keys and
 Codex OAuth, Anthropic API keys and Claude OAuth, Gemini API keys, OpenRouter key/OAuth, and local
@@ -171,6 +179,18 @@ text is untrusted supplementary guidance and installed core catalogs win on conf
 filesystem, shell, arbitrary web, extension, skill, MCP, image, or record-data access. Forms that do
 not fit completely in the selected model context are refused rather than truncated. Calculations and
 events are checked by form0-core before approval, but generated JavaScript still deserves review.
+
+### Pi SDK upgrade notes
+
+The CLI pins both Pi SDK packages to `1.0.4`. The Node.js requirement and the preview/approval
+workflow are unchanged; Pi's new built-in tools, MCP, and extensions are not enabled.
+
+- Azure users: Pi renamed `azure-openai-responses` to `azure`. Update explicit provider/model
+  references and custom provider configuration, then use `/login` if authentication needs to be
+  renewed. The CLI does not automatically migrate credential files.
+- Existing `openai-codex` OAuth remains available. The newer OpenAI ChatGPT sign-in method requests
+  a stable installation ID during authentication. The CLI creates it only when requested and
+  stores it privately in its AI settings. This integration does not enable Pi analytics.
 
 ### Interactive shell (`form0`)
 
