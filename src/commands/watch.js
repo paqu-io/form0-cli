@@ -298,3 +298,5 @@ export async function watchCommand(schemaPath, options) {
 
   await watcher.start();
 }
+
+export { Form0Watcher };
