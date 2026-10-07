@@ -34,6 +34,39 @@ test('Pi login provider and auth identifiers pass through unchanged', async () =
   ]);
 });
 
+test('Pi no-model requests give selection guidance, not a zero-token context error', async (t) => {
+  const storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-ai-no-model-'));
+  await fs.writeJson(path.join(storageRoot, 'auth.json'), {});
+  await fs.writeJson(path.join(storageRoot, 'models.json'), { providers: {} });
+  const modelRuntime = await ModelRuntime.create({
+    authPath: path.join(storageRoot, 'auth.json'),
+    modelsPath: path.join(storageRoot, 'models.json'),
+    modelsStorePath: path.join(storageRoot, 'models-cache.json'),
+  });
+  const adapter = new Form0PiSession({
+    workspace: new AISchemaWorkspace({
+      schema: { form: { name: 'No model', description: null, elements: [] } },
+    }),
+    storageRoot,
+    modelRuntime,
+  });
+  t.after(async () => {
+    await adapter.dispose();
+    await fs.remove(storageRoot);
+  });
+  await adapter.initialize();
+  await assert.rejects(adapter.prompt('model openai/gpt-5.6-luna'), (error) => {
+    assert.match(error.message, /No model is selected/);
+    assert.match(error.message, /\/model/);
+    assert.match(error.message, /leading \/|start with \//);
+    assert.doesNotMatch(error.message, /0-token/);
+    return true;
+  });
+  assert.equal(adapter.model, null);
+  await adapter.newConversation();
+  assert.equal(adapter.model, null);
+});
+
 test('Pi OAuth login supplies a stable, private installation ID only when requested', async (t) => {
   const storageRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-ai-device-id-'));
   t.after(() => fs.remove(storageRoot));

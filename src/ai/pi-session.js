@@ -17,6 +17,12 @@ import { schemaSessionKey } from './schema-workspace.js';
 const LOCAL_PROVIDERS = new Set(['ollama', 'llama.cpp', 'llamacpp']);
 const TOOL_NAMES = ['form0_authoring_context', 'form0_propose_mutations', 'form0_docs'];
 
+function isSelectedModel(model) {
+  return Boolean(
+    model?.provider && model.id && model.provider !== 'unknown' && model.id !== 'unknown'
+  );
+}
+
 function textResult(value, isError = false) {
   return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }], isError };
 }
@@ -144,7 +150,7 @@ export class Form0PiSession {
       settingsManager,
     });
     this.session = result.session;
-    this.model = result.session.model || null;
+    this.model = isSelectedModel(result.session.model) ? result.session.model : null;
     this.modelFallbackMessage = result.modelFallbackMessage?.split('\n')[0] || null;
     if (startingFresh && this.model) await this.session.setModel(this.model);
     await this.refreshStoredContext();
@@ -168,7 +174,7 @@ export class Form0PiSession {
         name: TOOL_NAMES[1],
         label: 'Propose form0 mutations',
         description:
-          'Validate and stage one coherent semantic mutation batch. Never writes a file.',
+          'Validate and stage one coherent semantic mutation batch using the installed core mutationOperationCatalog parameter formats. Unchanged batches are rejected. Never writes a file.',
         parameters: Type.Object({
           summary: Type.String(),
           baseRevision: Type.String(),
@@ -178,7 +184,7 @@ export class Form0PiSession {
           try {
             const result = this.workspace.stage(params);
             if (result.valid) {
-              await this.workspace.preview();
+              await this.workspace.publishCurrent();
               await this.refreshStoredContext();
             }
             return textResult(result, !result.valid);
@@ -357,9 +363,9 @@ export class Form0PiSession {
   }
 
   preflight(request) {
-    if (!this.model)
+    if (!isSelectedModel(this.model))
       throw new Error(
-        'No model is selected. Use /model <provider>/<model>; use /providers and /login first if needed.'
+        'No model is selected. Use /model <provider>/<model>; AI commands start with /. Use /providers and /login first if needed.'
       );
     const prompt = this.buildPrompt(request);
     const estimatedTokens = Math.ceil(prompt.length / 4) + 8192;

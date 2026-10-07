@@ -143,6 +143,14 @@ Every change is a transient semantic mutation batch: inspect it with `/preview` 
 `/apply` or `/discard`. Writes require explicit approval, are atomic, and are rejected if the schema
 changed on disk. `/undo` stages the last saved version for approval.
 
+Unchanged batches are rejected: they cannot create a pending proposal, save an unchanged file, or
+create undo history. A rejected revision preserves any existing valid draft. Revising a draft back
+to the saved schema clears the pending proposal without writing the file. The CLI reports the actual
+pending state independently of the assistant's text.
+
+AI commands always start with `/`: use `/model <provider>/<model>`, not `model <provider>/<model>`.
+Without a selected model, requests show selection guidance rather than a zero-token context error.
+
 Provider authentication and per-schema conversations are stored under `~/.form0-cli/ai/`, not in
 projects or schemas. Pi exposes its provider catalog; the preview baseline covers OpenAI API keys and
 Codex OAuth, Anthropic API keys and Claude OAuth, Gemini API keys, OpenRouter key/OAuth, and local
