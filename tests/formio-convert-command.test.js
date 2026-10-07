@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import fs from 'fs-extra';
 import {
   parseInteractiveFormioConvertArgs,
@@ -10,6 +11,8 @@ import {
 import { CommandHandler } from '../src/commands/interactive/command-handler.js';
 import { showHelp } from '../src/utils/display-utils.js';
 import { setLocale } from '../src/utils/i18n.js';
+
+const cliPath = fileURLToPath(new URL('../bin/form0.js', import.meta.url));
 
 async function testFileWorkflow() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-formio-command-'));
@@ -52,14 +55,14 @@ async function testFileWorkflow() {
 
   const cliSuccess = spawnSync(
     process.execPath,
-    ['bin/form0.js', 'schema', 'convert', 'formio', sourcePath, '--dry-run', '--force'],
+    [cliPath, 'schema', 'convert', 'formio', sourcePath, '--dry-run', '--force'],
     { cwd: path.resolve('.'), encoding: 'utf8' }
   );
   assert.equal(cliSuccess.status, 0, cliSuccess.stderr);
   assert.match(cliSuccess.stderr, /\[PREVIEW\].*Form\.io conversion is under active development/);
   const cliBlocked = spawnSync(
     process.execPath,
-    ['bin/form0.js', 'schema', 'convert', 'formio', blockedSource, '--dry-run', '--force'],
+    [cliPath, 'schema', 'convert', 'formio', blockedSource, '--dry-run', '--force'],
     { cwd: path.resolve('.'), encoding: 'utf8' }
   );
   assert.equal(cliBlocked.status, 1, cliBlocked.stderr);
@@ -67,7 +70,7 @@ async function testFileWorkflow() {
 }
 
 function testStandaloneHelpShowsPreviewStatus() {
-  const convertHelp = spawnSync(process.execPath, ['bin/form0.js', 'schema', 'convert', '--help'], {
+  const convertHelp = spawnSync(process.execPath, [cliPath, 'schema', 'convert', '--help'], {
     cwd: path.resolve('.'),
     encoding: 'utf8',
   });
@@ -76,7 +79,7 @@ function testStandaloneHelpShowsPreviewStatus() {
 
   const formioHelp = spawnSync(
     process.execPath,
-    ['bin/form0.js', 'schema', 'convert', 'formio', '--help'],
+    [cliPath, 'schema', 'convert', 'formio', '--help'],
     { cwd: path.resolve('.'), encoding: 'utf8' }
   );
   assert.equal(formioHelp.status, 0, formioHelp.stderr);
