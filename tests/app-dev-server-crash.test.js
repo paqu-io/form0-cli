@@ -2,13 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'fs-extra';
 
 const execFileAsync = promisify(execFile);
-const helperUrl = pathToFileURL(path.resolve('src/utils/app-dev-server.js')).href;
+const helperUrl = new URL('../src/utils/app-dev-server.js', import.meta.url).href;
 
 function isRunning(pid) {
   try {
@@ -52,6 +51,46 @@ setTimeout(() => { ${crash} }, 200);
   }
 }
 
+async function runCrashingProcessGroup() {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-crash-group-'));
+  const script = path.join(dir, 'crash-group.mjs');
+  await fs.writeFile(
+    script,
+    `import { spawn } from 'node:child_process';
+import { stopAppDevServerOnCrash } from ${JSON.stringify(helperUrl)};
+
+const childCode = \`
+  const { spawn } = require('node:child_process');
+  const grandchild = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+    stdio: 'ignore',
+  });
+  console.log(grandchild.pid);
+  setInterval(() => {}, 1000);
+\`;
+const child = spawn(process.execPath, ['-e', childCode], {
+  detached: true,
+  stdio: ['ignore', 'pipe', 'ignore'],
+});
+
+child.stdout.once('data', (chunk) => {
+  console.log(child.pid + ',' + String(chunk).trim());
+  stopAppDevServerOnCrash(child, { useProcessGroup: true });
+  setTimeout(() => { throw new Error('group-boom'); }, 200);
+});
+`
+  );
+
+  try {
+    await execFileAsync(process.execPath, [script], { encoding: 'utf8', timeout: 10000 });
+    assert.fail('the crashing script should exit with an error');
+  } catch (error) {
+    const [pid, grandchildPid] = error.stdout.trim().split(',').map(Number);
+    return { code: error.code, pid, grandchildPid, stderr: error.stderr };
+  } finally {
+    await fs.remove(dir);
+  }
+}
+
 test('an uncaught exception stops the app dev server', async () => {
   const { code, pid, stderr } = await runCrashingScript("throw new Error('boom');");
 
@@ -67,3 +106,20 @@ test('an unhandled rejection stops the app dev server', async () => {
   assert.match(stderr, /rejected/);
   assert.equal(await waitUntilStopped(pid), true, `app process ${pid} is still running`);
 });
+
+test(
+  'an uncaught exception stops the detached app process group',
+  { skip: process.platform === 'win32' },
+  async () => {
+    const { code, pid, grandchildPid, stderr } = await runCrashingProcessGroup();
+
+    assert.equal(code, 1);
+    assert.match(stderr, /group-boom/);
+    assert.equal(await waitUntilStopped(pid), true, `app process ${pid} is still running`);
+    assert.equal(
+      await waitUntilStopped(grandchildPid),
+      true,
+      `app grandchild process ${grandchildPid} is still running`
+    );
+  }
+);

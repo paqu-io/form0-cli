@@ -63,16 +63,20 @@ test('serve --app still fails for an explicit schema path that does not exist', 
 });
 
 test('a server without a schema accepts preview WebSocket connections', async () => {
-  const server = new Form0Server(null, { port: 3987 });
+  const server = new Form0Server(null, { port: 0 });
+  assert.equal(server.getStatus().port, 0, 'port 0 must request an OS-assigned test port');
   await server.start();
   try {
+    assert.ok(server.port > 0);
+    const serverAcceptedConnection = new Promise((resolve) => {
+      server.wsServer.wss.once('connection', resolve);
+    });
     const socket = new WebSocket(`ws://localhost:${server.port}`);
     await new Promise((resolve, reject) => {
       socket.addEventListener('open', resolve);
       socket.addEventListener('error', reject);
     });
-    // Give the server's connection handler a turn to run before closing.
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await serverAcceptedConnection;
     socket.close();
 
     assert.equal(server.getStatus().running, true);

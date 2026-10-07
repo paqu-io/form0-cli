@@ -19,6 +19,7 @@ const DEFAULT_SCHEMA_PATH = 'form.schema.json';
 
 class Form0Server {
   constructor(schemaPath, options = {}) {
+    const requestedPort = Number.parseInt(options.port, 10);
     this.schemaPath = schemaPath;
     this.options = options;
     this.currentSchema = null;
@@ -26,7 +27,10 @@ class Form0Server {
     this.server = null;
     this.wsServer = null;
     this.watcher = null;
-    this.port = parseInt(options.port) || 3030;
+    this.port =
+      Number.isInteger(requestedPort) && requestedPort >= 0 && requestedPort <= 65_535
+        ? requestedPort
+        : 3030;
     this.host = options.host || 'localhost';
     this.actualSchemaPath = null; // For interactive mode to track the real schema file
     this.exitHandler = null;
