@@ -172,6 +172,18 @@ filesystem, shell, arbitrary web, extension, skill, MCP, image, or record-data a
 not fit completely in the selected model context are refused rather than truncated. Calculations and
 events are checked by form0-core before approval, but generated JavaScript still deserves review.
 
+### Pi SDK upgrade notes
+
+The CLI pins both Pi SDK packages to `1.0.4`. The Node.js requirement and the preview/approval
+workflow are unchanged; Pi's new built-in tools, MCP, and extensions are not enabled.
+
+- Azure users: Pi renamed `azure-openai-responses` to `azure`. Update explicit provider/model
+  references and custom provider configuration, then use `/login` if authentication needs to be
+  renewed. The CLI does not automatically migrate credential files.
+- Existing `openai-codex` OAuth remains available. The newer OpenAI ChatGPT sign-in method requests
+  a stable installation ID during authentication. The CLI creates it only when requested and
+  stores it privately in its AI settings. This integration does not enable Pi analytics.
+
 ### Interactive shell (`form0`)
 
 - `init [dir]` - Initialize a project (Standard/Web/Mobile)

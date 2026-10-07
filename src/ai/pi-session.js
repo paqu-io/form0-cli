@@ -303,9 +303,14 @@ export class Form0PiSession {
   }
 
   async login(provider, type, interaction) {
-    const credential = await this.modelRuntime.login(provider, type, interaction);
-    await this.hardenFiles();
-    return credential;
+    try {
+      return await this.modelRuntime.login(provider, type, interaction, {
+        getDeviceId: () => this.settingsManager.getOrCreateDeviceId(),
+      });
+    } finally {
+      await this.settingsManager?.flush();
+      await this.hardenFiles();
+    }
   }
 
   async selectModel(reference) {
