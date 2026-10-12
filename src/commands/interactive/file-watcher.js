@@ -62,6 +62,7 @@ export class FileWatcher {
     const options = {
       autoRun: args.includes('--auto-run') || args.includes('-r'),
       autoValidate: args.includes('--auto-validate') || args.includes('-v'),
+      diagnostics: !args.includes('--no-diagnostics'),
     };
 
     // Look for --values flag
@@ -189,7 +190,10 @@ export class FileWatcher {
 
     try {
       // Try to reload schema
-      await this.schemaManager.reloadSchema();
+      await this.schemaManager.reloadSchema({
+        diagnostics: this.watchOptions.diagnostics,
+        deferDiagnostics: this.watchOptions.autoRun || this.watchOptions.autoValidate,
+      });
 
       // Reset engine since schema changed
       this.engineRunner.resetEngine();
@@ -211,7 +215,11 @@ export class FileWatcher {
 
       // Auto-validate if enabled
       if (this.watchOptions.autoValidate) {
-        await this.schemaManager.validateCurrentSchema();
+        await this.schemaManager.validateCurrentSchema({
+          reload: false,
+          diagnostics: this.watchOptions.diagnostics,
+          deferDiagnostics: this.watchOptions.autoRun,
+        });
       }
 
       // Auto-run if enabled
@@ -220,7 +228,10 @@ export class FileWatcher {
         if (Object.keys(lastValues).length > 0) {
           console.log(colors.textSecondary(t('fileWatcher.runningWithStoredValues')));
         }
-        await this.engineRunner.runEngine([]);
+        await this.engineRunner.runEngine([], {
+          continuous: true,
+          diagnostics: this.watchOptions.diagnostics,
+        });
       }
     } catch (err) {
       console.error(colors.error(t('common.failedToReload', { message: err.message })));

@@ -9,7 +9,30 @@
     "websocketConnected": "🔗 WebSocket connecté.",
     "websocketConnectionError": "❌ Erreur de connexion WebSocket.",
     "websocketDisconnected": "🔌 WebSocket déconnecté.",
-    "websocketError": "❌ Erreur WebSocket."
+    "websocketError": "❌ Erreur WebSocket.",
+    "diagnostics.heading": "Diagnostics de calcul : {summary}",
+    "diagnostics.runtime": "exécution",
+    "diagnostics.analysis": "analyse",
+    "diagnostics.warning": "Avertissement",
+    "diagnostics.error": "Erreur",
+    "diagnostics.suggestion": "Suggestion",
+    "diagnostics.position": "position {index}",
+    "diagnostics.resolved": "Diagnostics de calcul précédents résolus : {count}.",
+    "diagnostics.structureValid": "La structure du schéma est valide.",
+    "diagnostics.analysisErrors": "Échec de l’analyse des calculs : {summary}.",
+    "diagnostics.analysisWarnings": "L’analyse des calculs s’est terminée avec {summary}.",
+    "diagnostics.analysisValid": "L’analyse des calculs est réussie.",
+    "diagnostics.help": "  --no-diagnostics avec run/validate/watch/serve masque les détails de calcul ; les résultats restent actifs.",
+    "diagnostics.finding": "{severity} dans {field} : {message}",
+    "diagnostics.code": "Code",
+    "diagnostics.source": "Origine",
+    "diagnostics.phase": "Phase",
+    "diagnostics.oneError": "{count} erreur",
+    "diagnostics.errors": "{count} erreurs",
+    "diagnostics.oneWarning": "{count} avertissement",
+    "diagnostics.warnings": "{count} avertissements",
+    "diagnostics.and": "et",
+    "diagnostics.runFindings": "L’évaluation des calculs s’est terminée avec {summary}."
   },
   "commands": {
     "init": {
@@ -707,5 +730,30 @@
       "plural": "📡 Mise à jour envoyée à {count} clients connectés.",
       "singular": "📡 Mise à jour envoyée à {count} client connecté."
     }
+  },
+  "diagnostics": {
+    "heading": "Diagnostics de calcul : {summary}",
+    "runtime": "exécution",
+    "analysis": "analyse",
+    "warning": "Avertissement",
+    "error": "Erreur",
+    "suggestion": "Suggestion",
+    "position": "position {index}",
+    "resolved": "Diagnostics de calcul précédents résolus : {count}.",
+    "structureValid": "La structure du schéma est valide.",
+    "analysisErrors": "Échec de l’analyse des calculs : {summary}.",
+    "analysisWarnings": "L’analyse des calculs s’est terminée avec {summary}.",
+    "analysisValid": "L’analyse des calculs est réussie.",
+    "help": "  --no-diagnostics avec run/validate/watch/serve masque les détails de calcul ; les résultats restent actifs.",
+    "finding": "{severity} dans {field} : {message}",
+    "code": "Code",
+    "source": "Origine",
+    "phase": "Phase",
+    "oneError": "{count} erreur",
+    "errors": "{count} erreurs",
+    "oneWarning": "{count} avertissement",
+    "warnings": "{count} avertissements",
+    "and": "et",
+    "runFindings": "L’évaluation des calculs s’est terminée avec {summary}."
   }
 }

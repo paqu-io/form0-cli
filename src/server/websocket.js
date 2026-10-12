@@ -3,7 +3,7 @@ import { colors } from '../utils/theme.js';
 import { t, tn } from '../utils/i18n.js';
 import { expandBuildingPlanSchema } from 'form0-core';
 
-export function createWebSocketServer(server, getCurrentSchema, getSchemaSource) {
+export function createWebSocketServer(server, getCurrentSchema, getSchemaSource, options = {}) {
   const wss = new WebSocketServer({ server });
 
   wss.on('connection', (ws) => {
@@ -28,6 +28,7 @@ export function createWebSocketServer(server, getCurrentSchema, getSchemaSource)
           schema: preparedSchema,
           source: source,
           buildingPlanMeta,
+          diagnosticsConsole: options.diagnostics !== false,
         })
       );
     }
@@ -52,6 +53,7 @@ export function createWebSocketServer(server, getCurrentSchema, getSchemaSource)
       schema: preparedSchema,
       source: source,
       buildingPlanMeta,
+      diagnosticsConsole: options.diagnostics !== false,
     });
 
     let clientCount = 0;

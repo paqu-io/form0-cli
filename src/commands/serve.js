@@ -13,7 +13,8 @@ import {
   stopAppDevServerOnCrash,
   terminateAppDevServer,
 } from '../utils/app-dev-server.js';
-import { printCalculationIssues } from '../utils/calculation-checks.js';
+import { collectCalculationIssues } from '../utils/calculation-checks.js';
+import { createTerminalDiagnosticReporter } from '../utils/calculation-reporting.js';
 
 const DEFAULT_SCHEMA_PATH = 'form.schema.json';
 
@@ -35,6 +36,7 @@ class Form0Server {
     this.actualSchemaPath = null; // For interactive mode to track the real schema file
     this.exitHandler = null;
     this.connections = new Set();
+    this.diagnosticReporter = createTerminalDiagnosticReporter();
   }
 
   async start() {
@@ -51,7 +53,8 @@ class Form0Server {
       this.app = createApp(
         () => this.currentSchema,
         () => this.getSchemaSource(),
-        projectDir
+        projectDir,
+        this.options
       );
 
       // Find available port
@@ -69,7 +72,8 @@ class Form0Server {
       this.wsServer = createWebSocketServer(
         this.server,
         () => this.currentSchema,
-        () => this.getSchemaSource()
+        () => this.getSchemaSource(),
+        this.options
       );
 
       // Start server
@@ -126,7 +130,12 @@ class Form0Server {
     ensureChoiceValuesForSchema(data.form.elements || []);
 
     validateSchema(data.form);
-    printCalculationIssues(data);
+    if (JSON.stringify(data) !== JSON.stringify(this.currentSchema))
+      this.diagnosticReporter.reset();
+    this.diagnosticReporter.report([], {
+      staticIssues: collectCalculationIssues(data),
+      enabled: this.options.diagnostics !== false,
+    });
     this.currentSchema = data;
   }
 

@@ -9,6 +9,12 @@ import { parseValuesInput, findTestValueFile } from '../../../utils/schema-utils
 import { showValues, showValidFields } from '../../../utils/display-utils.js';
 import { t, tn } from '../../../utils/i18n.js';
 import { colors } from '../../../utils/theme.js';
+import { collectCalculationIssues } from '../../../utils/calculation-checks.js';
+import {
+  createTerminalDiagnosticReporter,
+  diagnosticsEnabled,
+  printRunOutcome,
+} from '../../../utils/calculation-reporting.js';
 
 /**
  * Manages form engine operations and value handling
@@ -18,6 +24,7 @@ export class EngineRunner {
     this.schemaManager = schemaManager;
     this.engine = null;
     this.lastValues = {}; // Store last used values for auto-run
+    this.diagnosticReporter = createTerminalDiagnosticReporter();
   }
 
   /**
@@ -44,7 +51,7 @@ export class EngineRunner {
   /**
    * Create a new engine instance
    */
-  createEngine(initialValues = {}) {
+  createEngine(initialValues = {}, options = {}) {
     const currentSchema = this.schemaManager.getCurrentSchema();
     if (!currentSchema) {
       throw new Error(t('common.noSchemaLoaded'));
@@ -53,6 +60,15 @@ export class EngineRunner {
     this.engine = createFormEngine({
       schema: currentSchema,
       initialValues,
+      diagnostics: { console: false },
+      onDiagnostics:
+        options.onDiagnostics ||
+        ((snapshot) =>
+          this.diagnosticReporter.report(snapshot, {
+            staticIssues: collectCalculationIssues(currentSchema),
+            explicit: !options.continuous,
+            enabled: options.diagnostics !== false,
+          })),
     });
     return this.engine;
   }
@@ -62,12 +78,15 @@ export class EngineRunner {
    */
   resetEngine() {
     this.engine = null;
+    this.diagnosticReporter.reset();
   }
 
   /**
    * Execute the engine with provided arguments
    */
-  async runEngine(args) {
+  async runEngine(args, options = {}) {
+    const enabled = diagnosticsEnabled(args, options);
+    args = args.filter((arg) => arg !== '--no-diagnostics');
     let initialValues = {};
 
     if (args.length > 0) {
@@ -98,12 +117,32 @@ export class EngineRunner {
       console.log(colors.textSecondary(t('interactive.usingPreviousValues')));
     }
 
-    const engine = this.createEngine(initialValues);
+    let completedDiagnostics = [];
+    const engine = this.createEngine(initialValues, {
+      ...options,
+      diagnostics: enabled,
+      onDiagnostics: (snapshot) => {
+        completedDiagnostics = snapshot;
+      },
+    });
     engine.eval();
 
     console.log(colors.header('\n' + t('common.engineState')));
     console.log(JSON.stringify(engine.getState(), null, 2));
     console.log();
+    const diagnostics = engine.getDiagnostics();
+    this.diagnosticReporter.report(completedDiagnostics, {
+      staticIssues: collectCalculationIssues(this.schemaManager.getCurrentSchema()),
+      explicit: !options.continuous,
+      enabled,
+    });
+    return {
+      state: engine.getState(),
+      diagnostics,
+      success: options.continuous
+        ? !diagnostics.some((item) => item.severity === 'error')
+        : printRunOutcome(diagnostics),
+    };
   }
 
   /**

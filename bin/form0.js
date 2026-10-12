@@ -65,6 +65,7 @@ if (process.argv.length === 2) {
   program
     .command('validate')
     .argument('<schema>', 'Path to schema JSON file')
+    .option('--no-diagnostics', 'Suppress calculation diagnostic details; keep exit status')
     .description('Validate a form schema using form0-core')
     .action(validateCommand);
 
@@ -77,6 +78,7 @@ if (process.argv.length === 2) {
   program
     .command('run')
     .argument('<schema>', 'Path to schema JSON file')
+    .option('--no-diagnostics', 'Suppress calculation diagnostic details; keep exit status')
     .option('--values <input>', 'Initial values (JSON string or path to .json/.yaml/.yml file)')
     .description('Run the form engine and print its state')
     .action(runCommand);
@@ -84,6 +86,7 @@ if (process.argv.length === 2) {
   program
     .command('watch')
     .argument('[schema]', 'Path to schema JSON file (defaults to form.schema.json)')
+    .option('--no-diagnostics', 'Suppress calculation diagnostic details')
     .option('--auto-run', 'Automatically run engine when schema changes')
     .option('--auto-validate', 'Automatically validate schema when it changes')
     .option(
@@ -96,6 +99,7 @@ if (process.argv.length === 2) {
   program
     .command('serve')
     .argument('[schema]', 'Path to schema JSON file (defaults to form.schema.json)')
+    .option('--no-diagnostics', 'Suppress CLI and built-in preview calculation diagnostics')
     .option('-p, --port <port>', 'Port to run server on', '3030')
     .option('--host <host>', 'Host to bind server to', 'localhost')
     .option('--app', 'Start the project dev server command from form0.config.js')

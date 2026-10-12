@@ -88,6 +88,7 @@ export function showWelcomeBanner() {
  */
 export function showHelp({ serverMode = false } = {}) {
   console.log(colors.header('\n' + t('help.availableCommands') + '\n'));
+  console.log(colors.textSecondary(t('diagnostics.help')));
   if (serverMode) {
     console.log(colors.textSecondary(t('interactive.serverMode.activeHelpNote')));
     console.log();

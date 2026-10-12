@@ -1,0 +1,169 @@
+{
+  "status": 200,
+  "state": {
+    "values": {
+      "input": 4,
+      "root_total": 8,
+      "rows": null,
+      "amount": 2,
+      "row_total": 8,
+      "children": null,
+      "quantity": 1,
+      "child_total": 9
+    },
+    "errors": {},
+    "visible": {
+      "input": true,
+      "root_total": true,
+      "amount": true,
+      "row_total": true,
+      "quantity": true,
+      "child_total": true,
+      "children": true,
+      "rows": true
+    },
+    "required": {
+      "input": false,
+      "root_total": false,
+      "rows": false,
+      "amount": false,
+      "row_total": false,
+      "children": false,
+      "quantity": false,
+      "child_total": false
+    },
+    "read_only": {
+      "input": false,
+      "root_total": true,
+      "rows": false,
+      "amount": false,
+      "row_total": true,
+      "children": false,
+      "quantity": false,
+      "child_total": true
+    },
+    "repeatable": {
+      "rows": [
+        {
+          "id": "row-a",
+          "values": {
+            "amount": 5,
+            "row_total": 20
+          },
+          "repeatable": {
+            "children": [
+              {
+                "id": "child-a",
+                "values": {
+                  "quantity": 2,
+                  "child_total": 22
+                },
+                "repeatable": {},
+                "errors": {},
+                "visible": {
+                  "quantity": true,
+                  "child_total": true
+                },
+                "required": {
+                  "quantity": false,
+                  "child_total": false
+                },
+                "read_only": {
+                  "quantity": false,
+                  "child_total": true
+                }
+              }
+            ]
+          },
+          "errors": {},
+          "visible": {
+            "amount": true,
+            "row_total": true
+          },
+          "required": {
+            "amount": false,
+            "row_total": false
+          },
+          "read_only": {
+            "amount": false,
+            "row_total": true
+          }
+        },
+        {
+          "id": "row-b",
+          "values": {
+            "amount": 0,
+            "row_total": null
+          },
+          "repeatable": {
+            "children": [
+              {
+                "values": {
+                  "quantity": 0,
+                  "child_total": null
+                },
+                "repeatable": {},
+                "id": null,
+                "errors": {},
+                "visible": {
+                  "quantity": true,
+                  "child_total": true
+                },
+                "required": {
+                  "quantity": false,
+                  "child_total": false
+                },
+                "read_only": {
+                  "quantity": false,
+                  "child_total": true
+                }
+              }
+            ]
+          },
+          "errors": {},
+          "visible": {
+            "amount": true,
+            "row_total": true
+          },
+          "required": {
+            "amount": false,
+            "row_total": false
+          },
+          "read_only": {
+            "amount": false,
+            "row_total": true
+          }
+        }
+      ]
+    },
+    "operations": [
+      {
+        "type": "FIELD_OPERATION",
+        "operation": "SETVALUE",
+        "params": {
+          "fieldDataName": "input",
+          "valueToSet": 7
+        }
+      },
+      {
+        "type": "UI_OPERATION",
+        "operation": "ALERT",
+        "params": {
+          "title": "Test",
+          "message": "ok"
+        }
+      }
+    ]
+  },
+  "counts": {
+    "root_total": 5,
+    "row_total": 5,
+    "child_total": 5
+  },
+  "provenance": {
+    "repository": "paqu-io/form0-cli",
+    "head": "a2cd05eef66e8a6e09bffa1ec02d80e879ae8f0b",
+    "core": "0.4.1",
+    "description": "Captured from original request handler before DIAG-CLI overlays in an independent lockfile-backed install."
+  }
+}

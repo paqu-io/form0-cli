@@ -1,6 +1,7 @@
 import { analyzeCalculationExpression, flattenFields } from 'form0-core';
-import { colors } from './theme.js';
-import { t } from './i18n.js';
+import { createTerminalDiagnosticReporter } from './calculation-reporting.js';
+
+const analysisCache = new Map();
 
 /**
  * Run the form0-core calculation analyzer on every CalculatedField in a schema.
@@ -9,6 +10,10 @@ import { t } from './i18n.js';
  * @returns {Array<{ dataName: string, severity: string, code: string, message: string }>}
  */
 export function collectCalculationIssues(schema) {
+  const revision = JSON.stringify(schema?.form || {});
+  if (analysisCache.has(revision)) {
+    return JSON.parse(JSON.stringify(analysisCache.get(revision)));
+  }
   const fields = flattenFields(schema?.form?.elements || []);
   const issues = [];
 
@@ -30,7 +35,9 @@ export function collectCalculationIssues(schema) {
     }
   }
 
-  return issues;
+  analysisCache.set(revision, issues);
+  if (analysisCache.size > 8) analysisCache.delete(analysisCache.keys().next().value);
+  return JSON.parse(JSON.stringify(issues));
 }
 
 /**
@@ -39,14 +46,10 @@ export function collectCalculationIssues(schema) {
  * @param {(line: string) => void} [log]
  * @returns {number} The number of issues printed
  */
-export function printCalculationIssues(schema, log = console.log) {
+export function printCalculationIssues(schema, log = console.error) {
   const issues = collectCalculationIssues(schema);
   if (issues.length === 0) return 0;
 
-  log(colors.warning(t('common.calculationIssues', { count: issues.length })));
-  for (const issue of issues) {
-    const color = issue.severity === 'error' ? colors.error : colors.warning;
-    log(color(`   ${issue.dataName}: ${issue.message} (${issue.code})`));
-  }
+  createTerminalDiagnosticReporter(log).report([], { staticIssues: issues, explicit: true });
   return issues.length;
 }

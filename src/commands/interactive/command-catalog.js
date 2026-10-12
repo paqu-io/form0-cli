@@ -8,6 +8,7 @@ const SERVE_SUBCOMMANDS = [
   '--port',
   '--host',
   '--public-url',
+  '--no-diagnostics',
 ];
 
 const COMMAND_CATALOG = Object.freeze([
@@ -15,14 +16,25 @@ const COMMAND_CATALOG = Object.freeze([
   { name: 'init', aliases: [], server: false },
   { name: 'load', aliases: ['l'], server: false },
   { name: 'preview', aliases: ['p'], server: true, serverHelpKey: 'preview' },
-  { name: 'run', aliases: ['r'], server: false },
-  { name: 'validate', aliases: ['v'], server: true, serverHelpKey: 'validate' },
+  { name: 'run', aliases: ['r'], server: false, completions: ['--values', '--no-diagnostics'] },
+  {
+    name: 'validate',
+    aliases: ['v'],
+    server: true,
+    serverHelpKey: 'validate',
+    completions: ['--no-diagnostics'],
+  },
   { name: 'test', aliases: ['t'], server: false },
   { name: 'status', aliases: ['s'], server: true, serverHelpKey: 'sessionStatus' },
   { name: 'values', aliases: [], server: false },
   { name: 'fields', aliases: ['f'], server: false },
   { name: 'reload', aliases: ['rld'], server: false },
-  { name: 'watch', aliases: ['w'], server: false, completions: ['stop'] },
+  {
+    name: 'watch',
+    aliases: ['w'],
+    server: false,
+    completions: ['stop', '--auto-run', '--auto-validate', '--no-diagnostics'],
+  },
   {
     name: 'serve',
     aliases: [],

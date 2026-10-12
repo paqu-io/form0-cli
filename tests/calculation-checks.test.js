@@ -50,7 +50,7 @@ test('reports nothing for valid calculations', () => {
   );
 });
 
-test('prints a summary line and one line per issue', () => {
+test('prints a severity summary and one diagnostic block per issue', () => {
   const lines = [];
   const count = printCalculationIssues(createSchema('IF(\n  true,\n  "a",\n  "b"\n)'), (line) =>
     lines.push(line)
@@ -58,5 +58,9 @@ test('prints a summary line and one line per issue', () => {
 
   assert.equal(count, 1);
   assert.equal(lines.length, 2);
-  assert.match(lines[1], /result: .*\(noncanonical_multiline_result\)/);
+  assert.match(lines[0], /Calculation diagnostics: 1 warning/);
+  assert.match(
+    lines[1],
+    /Warning in result: .*\n  Code: noncanonical_multiline_result \| Source: analysis/
+  );
 });

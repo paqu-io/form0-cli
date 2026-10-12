@@ -6,8 +6,12 @@ import { ensureChoiceValuesForSchema } from '../utils/ensure-choice-values.js';
 import { filterValidValues } from '../utils/value-validation.js';
 import yaml from 'yaml';
 import { t } from '../utils/i18n.js';
+import {
+  createTerminalDiagnosticReporter,
+  printRunOutcome,
+} from '../utils/calculation-reporting.js';
 
-export async function runCommand(schemaPath, options) {
+export async function runCommand(schemaPath, options = {}) {
   try {
     const data = await fs.readJson(schemaPath);
 
@@ -33,16 +37,31 @@ export async function runCommand(schemaPath, options) {
       initialValues = filterValidValues(initialValues, data);
     }
 
+    const reporter = createTerminalDiagnosticReporter();
+    let completedDiagnostics = [];
     const engine = createFormEngine({
       schema: data,
       initialValues,
+      diagnostics: { console: false },
+      onDiagnostics: (snapshot) => {
+        completedDiagnostics = snapshot;
+      },
     });
 
     engine.eval();
     console.log(colors.header(t('common.engineState') + '\n'));
     console.log(JSON.stringify(engine.getState(), null, 2));
+    const diagnostics = engine.getDiagnostics();
+    reporter.report(completedDiagnostics, {
+      explicit: true,
+      enabled: options.diagnostics !== false,
+    });
+    const success = printRunOutcome(diagnostics);
+    if (!success) process.exitCode = 1;
+    return { state: engine.getState(), diagnostics, success };
   } catch (err) {
     console.error(colors.error(t('common.failedToRunEngine', { message: err.message })));
-    process.exit(1);
+    process.exitCode = 1;
+    return { success: false };
   }
 }
