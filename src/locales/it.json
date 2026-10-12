@@ -9,7 +9,30 @@
     "websocketConnected": "🔗 WebSocket connesso.",
     "websocketConnectionError": "❌ Errore di connessione WebSocket.",
     "websocketDisconnected": "🔌 WebSocket disconnesso.",
-    "websocketError": "❌ Errore WebSocket."
+    "websocketError": "❌ Errore WebSocket.",
+    "diagnostics.heading": "Diagnostica dei calcoli: {summary}",
+    "diagnostics.runtime": "esecuzione",
+    "diagnostics.analysis": "analisi",
+    "diagnostics.warning": "Avviso",
+    "diagnostics.error": "Errore",
+    "diagnostics.suggestion": "Suggerimento",
+    "diagnostics.position": "posizione {index}",
+    "diagnostics.resolved": "Problemi di calcolo precedenti risolti: {count}.",
+    "diagnostics.structureValid": "La struttura dello schema è valida.",
+    "diagnostics.analysisErrors": "Analisi dei calcoli non riuscita: {summary}.",
+    "diagnostics.analysisWarnings": "Analisi dei calcoli completata con {summary}.",
+    "diagnostics.analysisValid": "Analisi dei calcoli riuscita.",
+    "diagnostics.help": "  --no-diagnostics con run/validate/watch/serve nasconde i dettagli dei calcoli; i risultati restano attivi.",
+    "diagnostics.finding": "{severity} in {field}: {message}",
+    "diagnostics.code": "Codice",
+    "diagnostics.source": "Origine",
+    "diagnostics.phase": "Fase",
+    "diagnostics.oneError": "{count} errore",
+    "diagnostics.errors": "{count} errori",
+    "diagnostics.oneWarning": "{count} avviso",
+    "diagnostics.warnings": "{count} avvisi",
+    "diagnostics.and": "e",
+    "diagnostics.runFindings": "Valutazione dei calcoli completata con {summary}."
   },
   "commands": {
     "init": {
@@ -707,5 +730,30 @@
       "plural": "📡 Aggiornamento inviato a {count} client connessi.",
       "singular": "📡 Aggiornamento inviato a {count} client connesso."
     }
+  },
+  "diagnostics": {
+    "heading": "Diagnostica dei calcoli: {summary}",
+    "runtime": "esecuzione",
+    "analysis": "analisi",
+    "warning": "Avviso",
+    "error": "Errore",
+    "suggestion": "Suggerimento",
+    "position": "posizione {index}",
+    "resolved": "Problemi di calcolo precedenti risolti: {count}.",
+    "structureValid": "La struttura dello schema è valida.",
+    "analysisErrors": "Analisi dei calcoli non riuscita: {summary}.",
+    "analysisWarnings": "Analisi dei calcoli completata con {summary}.",
+    "analysisValid": "Analisi dei calcoli riuscita.",
+    "help": "  --no-diagnostics con run/validate/watch/serve nasconde i dettagli dei calcoli; i risultati restano attivi.",
+    "finding": "{severity} in {field}: {message}",
+    "code": "Codice",
+    "source": "Origine",
+    "phase": "Fase",
+    "oneError": "{count} errore",
+    "errors": "{count} errori",
+    "oneWarning": "{count} avviso",
+    "warnings": "{count} avvisi",
+    "and": "e",
+    "runFindings": "Valutazione dei calcoli completata con {summary}."
   }
 }

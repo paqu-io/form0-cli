@@ -480,8 +480,54 @@ function pickStateSlice(stateMap, fieldNames, { omitFalsy = false } = {}) {
   return result;
 }
 
-function evaluateRepeatableInstance({ schema, repInfo, instance, parentValues, engineOptions }) {
+function appendOwnedDiagnostics(snapshot, fieldNames, instancePath, target) {
+  const owned = new Set(fieldNames);
+  for (const diagnostic of snapshot) {
+    if (!owned.has(diagnostic.fieldName)) continue;
+    target.push({
+      ...diagnostic,
+      context: {
+        ...diagnostic.context,
+        instancePath: instancePath.map((part) => ({ ...part })),
+      },
+    });
+  }
+}
+
+function mainFieldNames(metadata) {
+  return [...metadata.fieldOwnership]
+    .filter(([, info]) => info.parentPath.length === 0)
+    .map(([name]) => name);
+}
+
+function createRequestWarnings() {
+  return new WarningSystem({
+    enableConsoleWarnings: false,
+    enableCollection: true,
+    throttleMs: 0,
+  });
+}
+
+function evaluateRepeatableInstance({
+  schema,
+  repInfo,
+  instance,
+  parentValues,
+  engineOptions,
+  parentInstancePath = [],
+  index,
+}) {
   const fieldNames = Array.from(repInfo.fields.keys());
+  const instanceId = instance?.id ?? instance?.record_id ?? null;
+  const instancePath = [
+    ...parentInstancePath,
+    {
+      repeatableKey: repInfo.preferredKey,
+      instanceId,
+      index,
+      identity: instanceId == null ? 'position' : 'id',
+    },
+  ];
 
   // Merge parent values with direct instance values for evaluation
   const mergedValues = {
@@ -494,6 +540,10 @@ function evaluateRepeatableInstance({ schema, repInfo, instance, parentValues, e
     initialValues: mergedValues,
     helpers: engineOptions.helpers,
     security: engineOptions.security,
+    warningSystem: engineOptions.warningSystem,
+    diagnostics: { console: false },
+    onDiagnostics: (snapshot) =>
+      appendOwnedDiagnostics(snapshot, fieldNames, instancePath, engineOptions.diagnostics),
   });
 
   engine.eval();
@@ -518,13 +568,15 @@ function evaluateRepeatableInstance({ schema, repInfo, instance, parentValues, e
       continue;
     }
 
-    const evaluatedChildren = childInstances.map((childInstance) =>
+    const evaluatedChildren = childInstances.map((childInstance, childIndex) =>
       evaluateRepeatableInstance({
         schema,
         repInfo: childRepInfo,
         instance: childInstance,
         parentValues: nextParentValues,
         engineOptions,
+        parentInstancePath: instancePath,
+        index: childIndex,
       })
     );
 
@@ -558,13 +610,14 @@ function evaluateRepeatableState({ schema, baseValues, repeatableInput, metadata
       continue;
     }
 
-    const evaluatedInstances = instances.map((instance) =>
+    const evaluatedInstances = instances.map((instance, index) =>
       evaluateRepeatableInstance({
         schema,
         repInfo,
         instance,
         parentValues: baseValues,
         engineOptions,
+        index,
       })
     );
 
@@ -576,16 +629,9 @@ function evaluateRepeatableState({ schema, baseValues, repeatableInput, metadata
   return result;
 }
 
-export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
+export function createApp(getCurrentSchema, getSchemaSource, projectDir, options = {}) {
   const app = express();
 
-  // Create a shared warning system for the entire server session
-  // Client-side handles deduplication, so server just collects all warnings
-  const sharedWarningSystem = new WarningSystem({
-    enableConsoleWarnings: false, // Disable server console - we want warnings in browser
-    enableCollection: true,
-    throttleMs: 0, // No server-side throttling - client handles deduplication
-  });
   const unsupportedEventWarnings = new Set();
 
   function warnUnsupportedEvents(preparedSchema) {
@@ -646,6 +692,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
           ? getSchemaSource()
           : 'Current Schema',
       buildingPlanMeta,
+      diagnosticsConsole: options.diagnostics !== false,
     };
   }
 
@@ -681,15 +728,20 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
       const { schema } = payload;
 
       // Create engine to get default values
+      const diagnostics = [];
+      const metadata = buildRepeatableMetadata(schema.form?.elements || []);
       const engine = createFormEngine({
         schema: schema,
         initialValues: {}, // Empty to get only default values
+        diagnostics: { console: false },
+        onDiagnostics: (snapshot) =>
+          appendOwnedDiagnostics(snapshot, mainFieldNames(metadata), [], diagnostics),
       });
 
       engine.eval();
       const state = engine.getState();
 
-      res.json({ defaultValues: state.values || {} });
+      res.json({ defaultValues: state.values || {}, diagnostics });
     } catch (err) {
       console.error('Error getting default values:', err);
       res.status(400).json({ error: err.message });
@@ -707,10 +759,13 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
 
       const { values = {}, repeatable = {}, eventType, fieldKey } = req.body;
 
-      // Create engine with shared warning system to enable throttling across requests
+      // Collections are request-scoped; presentation deduplication belongs to the client.
+      const metadata = buildRepeatableMetadata(schema.form?.elements || []);
       const engineOptions = {
         helpers: {},
         security: { mode: 'development' },
+        warningSystem: createRequestWarnings(),
+        diagnostics: [],
       };
 
       const engine = createFormEngine({
@@ -718,15 +773,15 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
         initialValues: values,
         helpers: engineOptions.helpers, // builtins are included by default in createFormEngine
         security: engineOptions.security, // Enable development mode for better warnings
-        warningSystem: sharedWarningSystem, // Use shared instance for throttling
+        warningSystem: engineOptions.warningSystem,
+        diagnostics: { console: false },
+        onDiagnostics: (snapshot) =>
+          appendOwnedDiagnostics(snapshot, mainFieldNames(metadata), [], engineOptions.diagnostics),
       });
-
-      // Note: Shared warning system already has collection enabled and handles throttling
 
       engine.eval();
       const state = engine.getState();
 
-      const metadata = buildRepeatableMetadata(schema.form?.elements || []);
       const evaluatedRepeatable = evaluateRepeatableState({
         schema,
         baseValues: state.values || {},
@@ -766,15 +821,18 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir) {
         });
       }
 
-      // Collect warnings for browser display (from shared warning system)
-      const collectedWarnings = sharedWarningSystem.getCollectedWarnings();
+      // Calculation warnings are already represented by the structured snapshot.
+      const collectedWarnings = engineOptions.warningSystem
+        .getCollectedWarnings()
+        .filter((warning) => warning.context?.type !== 'calculation');
 
       // Return state with operations and warnings (backward compatible - existing clients ignore warnings)
-      res.json({ ...responseState, operations, warnings: collectedWarnings });
-
-      // Clear warnings immediately after sending - the 30-second throttling prevents spam
-      // No need for setTimeout hack since throttling handles duplicate prevention
-      sharedWarningSystem.clearCollectedWarnings();
+      res.json({
+        ...responseState,
+        operations,
+        warnings: collectedWarnings,
+        diagnostics: engineOptions.diagnostics,
+      });
     } catch (err) {
       console.error('Engine evaluation error:', err);
       res.status(400).json({ error: err.message });

@@ -2,8 +2,9 @@
  * Manages form state updates and value preservation
  */
 export class FormStateManager {
-  constructor(formRenderer) {
+  constructor(formRenderer, { diagnostics = null } = {}) {
     this.formRenderer = formRenderer;
+    this.diagnostics = diagnostics;
     this.preservedValues = {}; // Store values to preserve across schema updates
     this.pendingFieldValues = new Map();
     this.pendingFieldCallbacks = new Map();
@@ -1039,6 +1040,7 @@ export class FormStateManager {
    */
   async updateFormState() {
     const intentId = ++this.engineUpdateIntent;
+    const diagnosticIntent = this.diagnostics?.beginEvaluation();
 
     if (this.engineUpdateDepth > 0) {
       this.pendingEngineUpdate = true;
@@ -1063,6 +1065,7 @@ export class FormStateManager {
 
       const state = await response.json();
       if (intentId === this.engineUpdateIntent) {
+        if (response.ok) this.diagnostics?.accept(diagnosticIntent, state);
         this.applyFormState(state);
         this.lastAppliedEngineIntent = intentId;
       }

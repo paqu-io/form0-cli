@@ -7,7 +7,12 @@ import { filterValidValues } from '../utils/value-validation.js';
 import yaml from 'yaml';
 import { colors } from '../utils/theme.js';
 import { t, tn } from '../utils/i18n.js';
-import { printCalculationIssues } from '../utils/calculation-checks.js';
+import { collectCalculationIssues } from '../utils/calculation-checks.js';
+import {
+  createTerminalDiagnosticReporter,
+  printCalculationStatus,
+  printSchemaStructureStatus,
+} from '../utils/calculation-reporting.js';
 
 class Form0Watcher {
   constructor(schemaPath, options = {}) {
@@ -17,6 +22,8 @@ class Form0Watcher {
     this.lastValues = {};
     this.watcher = null;
     this.isWatching = false;
+    this.calculationIssues = [];
+    this.diagnosticReporter = createTerminalDiagnosticReporter();
 
     // Load initial values if provided
     if (options.values) {
@@ -99,8 +106,16 @@ class Form0Watcher {
     ensureChoiceValuesForSchema(data.form.elements || []);
 
     validateSchema(data.form); // Validate on load
-    printCalculationIssues(data);
+    if (JSON.stringify(data) !== JSON.stringify(this.currentSchema))
+      this.diagnosticReporter.reset();
+    this.calculationIssues = collectCalculationIssues(data);
     this.currentSchema = data;
+    if (!this.options.autoRun) {
+      this.diagnosticReporter.report([], {
+        staticIssues: this.calculationIssues,
+        enabled: this.options.diagnostics !== false,
+      });
+    }
   }
 
   startWatching() {
@@ -176,7 +191,8 @@ class Form0Watcher {
   validateCurrentSchema() {
     try {
       validateSchema(this.currentSchema.form);
-      console.log(colors.success(t('commands.watch.validationPassed')));
+      printSchemaStructureStatus();
+      return printCalculationStatus(this.calculationIssues);
     } catch (err) {
       console.log(colors.error(t('commands.watch.validationFailed', { message: err.message })));
     }
@@ -187,10 +203,17 @@ class Form0Watcher {
       const engine = createFormEngine({
         schema: this.currentSchema,
         initialValues: this.lastValues,
+        diagnostics: { console: false },
+        onDiagnostics: (snapshot) =>
+          this.diagnosticReporter.report(snapshot, {
+            staticIssues: this.calculationIssues,
+            enabled: this.options.diagnostics !== false,
+          }),
       });
 
       engine.eval();
       const state = engine.getState();
+      const diagnostics = engine.getDiagnostics();
 
       console.log(colors.info(t('commands.watch.engineExecuted')));
 
@@ -216,6 +239,11 @@ class Form0Watcher {
           console.log(colors.textMuted(t('commands.watch.andMore', { count: moreCount })));
         }
       }
+      return {
+        state,
+        diagnostics,
+        success: !diagnostics.some((item) => item.severity === 'error'),
+      };
     } catch (err) {
       console.log(
         colors.error(t('commands.watch.engineExecutionFailed', { message: err.message }))
@@ -294,6 +322,7 @@ export async function watchCommand(schemaPath, options) {
     autoRun: options.autoRun || options.run,
     autoValidate: options.autoValidate || options.validate,
     values: options.values,
+    diagnostics: options.diagnostics,
   });
 
   await watcher.start();

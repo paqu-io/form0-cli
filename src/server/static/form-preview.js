@@ -2,6 +2,10 @@ import { FormRenderer } from './form-renderer.js';
 import { resolveSupportingImagePath } from './supporting-image-utils.js';
 import { FormStateManager } from './form-state-manager.js';
 import { OperationProcessor } from './operation-processor.js';
+import {
+  createDiagnosticReporter,
+  createPreviewDiagnosticController,
+} from './calculation-diagnostics.js';
 
 // Submit functionality uses server-side API endpoint
 // No need for browser-side imports since we use the real form0-core functions on the server
@@ -406,7 +410,17 @@ function saveSettingsDialog() {
 
 // Initialize modular components
 const formRenderer = new FormRenderer();
-const formStateManager = new FormStateManager(formRenderer);
+const diagnosticReporter = createDiagnosticReporter({
+  translate: t,
+  emit({ text, severity, kind }) {
+    text = '[form0] ' + text;
+    if (severity === 'error') console.error(text);
+    else if (kind === 'diagnostic') console.warn(text);
+    else console.info(text);
+  },
+});
+const previewDiagnostics = createPreviewDiagnosticController(diagnosticReporter);
+const formStateManager = new FormStateManager(formRenderer, { diagnostics: previewDiagnostics });
 formRenderer.setStateManager(formStateManager);
 const operationProcessor = new OperationProcessor(formStateManager);
 
@@ -416,6 +430,7 @@ loadLabelVisibilityPreference();
  * Trigger a form event
  */
 async function triggerFormEvent(eventType, fieldKey = null) {
+  const diagnosticIntent = previewDiagnostics.beginEvaluation();
   try {
     const { values, repeatable } = formStateManager.getCurrentFormState();
 
@@ -431,6 +446,7 @@ async function triggerFormEvent(eventType, fieldKey = null) {
     }
 
     const result = await response.json();
+    previewDiagnostics.accept(diagnosticIntent, result);
 
     // Display warnings in browser console with session-based deduplication
     if (result.warnings && result.warnings.length > 0) {
@@ -495,6 +511,7 @@ function initializeWebSocket() {
   ws.onmessage = async (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'schema-update') {
+      previewDiagnostics.setConsole(data.diagnosticsConsole);
       console.log(t('receivedSchemaUpdate'));
 
       // Check if schema has actually changed to prevent duplicate rendering
@@ -549,6 +566,7 @@ async function loadInitialSchema() {
     const response = await fetch('/api/schema');
     if (response.ok) {
       const data = await response.json();
+      previewDiagnostics.setConsole(data.diagnosticsConsole);
       currentSchema = data.schema;
       schemaSource = data.source || 'Current Schema';
       currentBuildingPlanMeta = data.buildingPlanMeta || [];
@@ -582,6 +600,8 @@ document.addEventListener('DOMContentLoaded', initialize);
 
 async function renderForm() {
   if (!currentSchema) return;
+  previewDiagnostics.invalidate();
+  previewDiagnostics.setInitializing(true);
 
   warnUnsupportedEvents(currentSchema);
 
@@ -606,6 +626,7 @@ async function renderForm() {
 
   // Restore preserved values AFTER form is fully rendered
   formStateManager.restorePreservedValues();
+  previewDiagnostics.setInitializing(false);
 
   // Trigger load-record event BEFORE initial engine evaluation
   triggerFormEvent('load-record');

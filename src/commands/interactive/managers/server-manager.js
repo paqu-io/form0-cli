@@ -108,7 +108,7 @@ export class ServerManager {
 
     try {
       // Parse options
-      const serverOptions = {};
+      const serverOptions = { diagnostics: !args.includes('--no-diagnostics') };
       for (let i = 0; i < args.length; i += 1) {
         if (args[i] === '--port' || args[i] === '-p') {
           serverOptions.port = args[i + 1];

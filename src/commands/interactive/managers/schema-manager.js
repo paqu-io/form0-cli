@@ -9,7 +9,12 @@ import { discoverSchemas, formatSchemaCandidate } from '../../../utils/schema-ut
 import { showSchemaPreview } from '../../../utils/display-utils.js';
 import { t } from '../../../utils/i18n.js';
 import { colors } from '../../../utils/theme.js';
-import { printCalculationIssues } from '../../../utils/calculation-checks.js';
+import { collectCalculationIssues } from '../../../utils/calculation-checks.js';
+import {
+  createTerminalDiagnosticReporter,
+  printCalculationStatus,
+  printSchemaStructureStatus,
+} from '../../../utils/calculation-reporting.js';
 
 /**
  * Manages schema loading, validation, and initialization
@@ -256,14 +261,20 @@ export class SchemaManager {
   /**
    * Read and validate a schema without changing the active session
    */
-  async prepareSchema(schemaPath) {
+  async prepareSchema(schemaPath, options = {}) {
     const data = await fs.readJson(schemaPath);
 
     // Process SingleChoiceField choices before validation
     ensureChoiceValuesForSchema(data.form.elements || []);
 
     validateSchema(data.form);
-    printCalculationIssues(data);
+    if (!options.deferDiagnostics) {
+      createTerminalDiagnosticReporter().report([], {
+        staticIssues: collectCalculationIssues(data),
+        explicit: true,
+        enabled: options.diagnostics !== false,
+      });
+    }
     return data;
   }
 
@@ -279,24 +290,24 @@ export class SchemaManager {
   /**
    * Load a schema from file
    */
-  async loadSchema(schemaPath) {
-    return this.adoptSchema(await this.prepareSchema(schemaPath), schemaPath);
+  async loadSchema(schemaPath, options = {}) {
+    return this.adoptSchema(await this.prepareSchema(schemaPath, options), schemaPath);
   }
 
   /**
    * Reload the current schema
    */
-  async reloadSchema() {
+  async reloadSchema(options = {}) {
     if (!this.currentSchemaPath) {
       throw new Error('No schema path to reload');
     }
-    return await this.loadSchema(this.currentSchemaPath);
+    return await this.loadSchema(this.currentSchemaPath, options);
   }
 
   /**
    * Validate the current schema (always reloads from file first)
    */
-  async validateCurrentSchema() {
+  async validateCurrentSchema(options = {}) {
     if (!this.currentSchemaPath) {
       console.log(colors.error(t('common.noSchemaLoaded')));
       return false;
@@ -304,11 +315,19 @@ export class SchemaManager {
 
     try {
       // Always reload from file before validating to ensure we're validating the current file state
-      await this.reloadSchema();
+      if (options.reload !== false) await this.reloadSchema({ ...options, deferDiagnostics: true });
 
       validateSchema(this.currentSchema.form);
-      console.log(colors.success(t('common.schemaIsValid')));
-      return true;
+      const issues = collectCalculationIssues(this.currentSchema);
+      printSchemaStructureStatus();
+      if (!options.deferDiagnostics) {
+        createTerminalDiagnosticReporter().report([], {
+          staticIssues: issues,
+          explicit: true,
+          enabled: options.diagnostics !== false,
+        });
+      }
+      return printCalculationStatus(issues);
     } catch (err) {
       console.log(colors.error(t('commands.validate.validationFailed', { message: err.message })));
       return false;

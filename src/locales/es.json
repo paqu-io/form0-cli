@@ -9,7 +9,30 @@
     "websocketConnected": "🔗 WebSocket conectado.",
     "websocketConnectionError": "❌ Error de conexión de WebSocket.",
     "websocketDisconnected": "🔌 WebSocket desconectado.",
-    "websocketError": "❌ Error de WebSocket."
+    "websocketError": "❌ Error de WebSocket.",
+    "diagnostics.heading": "Diagnósticos de cálculo: {summary}",
+    "diagnostics.runtime": "ejecución",
+    "diagnostics.analysis": "análisis",
+    "diagnostics.warning": "Advertencia",
+    "diagnostics.error": "Error",
+    "diagnostics.suggestion": "Sugerencia",
+    "diagnostics.position": "posición {index}",
+    "diagnostics.resolved": "Diagnósticos de cálculo anteriores resueltos: {count}.",
+    "diagnostics.structureValid": "La estructura del esquema es válida.",
+    "diagnostics.analysisErrors": "El análisis de cálculos falló: {summary}.",
+    "diagnostics.analysisWarnings": "El análisis de cálculos terminó con {summary}.",
+    "diagnostics.analysisValid": "El análisis de cálculos es correcto.",
+    "diagnostics.help": "  --no-diagnostics en run/validate/watch/serve oculta detalles de cálculo; los resultados siguen activos.",
+    "diagnostics.finding": "{severity} en {field}: {message}",
+    "diagnostics.code": "Código",
+    "diagnostics.source": "Origen",
+    "diagnostics.phase": "Fase",
+    "diagnostics.oneError": "{count} error",
+    "diagnostics.errors": "{count} errores",
+    "diagnostics.oneWarning": "{count} aviso",
+    "diagnostics.warnings": "{count} avisos",
+    "diagnostics.and": "y",
+    "diagnostics.runFindings": "La evaluación de cálculos terminó con {summary}."
   },
   "commands": {
     "init": {
@@ -707,5 +730,30 @@
       "plural": "📡 Actualización enviada a {count} clientes conectados.",
       "singular": "📡 Actualización enviada a {count} cliente conectado."
     }
+  },
+  "diagnostics": {
+    "heading": "Diagnósticos de cálculo: {summary}",
+    "runtime": "ejecución",
+    "analysis": "análisis",
+    "warning": "Advertencia",
+    "error": "Error",
+    "suggestion": "Sugerencia",
+    "position": "posición {index}",
+    "resolved": "Diagnósticos de cálculo anteriores resueltos: {count}.",
+    "structureValid": "La estructura del esquema es válida.",
+    "analysisErrors": "El análisis de cálculos falló: {summary}.",
+    "analysisWarnings": "El análisis de cálculos terminó con {summary}.",
+    "analysisValid": "El análisis de cálculos es correcto.",
+    "help": "  --no-diagnostics en run/validate/watch/serve oculta detalles de cálculo; los resultados siguen activos.",
+    "finding": "{severity} en {field}: {message}",
+    "code": "Código",
+    "source": "Origen",
+    "phase": "Fase",
+    "oneError": "{count} error",
+    "errors": "{count} errores",
+    "oneWarning": "{count} aviso",
+    "warnings": "{count} avisos",
+    "and": "y",
+    "runFindings": "La evaluación de cálculos terminó con {summary}."
   }
 }

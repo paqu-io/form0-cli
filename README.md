@@ -247,6 +247,23 @@ form0 run form.schema.json --values values.yaml
 
 Invalid fields are filtered out with warnings based on the schema.
 
+## Calculation diagnostics
+
+The next CLI release reports structured calculation diagnostics separately from field-validation
+errors. Diagnostic details go to stderr; evaluated state remains on stdout.
+
+- Standalone `validate` exits 1 for structural failures or calculation-analyzer errors.
+- Standalone `run` prints evaluated state and exits 1 if the runtime snapshot contains an error.
+  Errors from intermediate calculation passes remain part of that evaluation.
+- Warnings alone exit 0. Watch, serve, and interactive sessions remain available for recovery.
+- `--no-diagnostics` suppresses calculation diagnostic details for `validate`, `run`, `watch`,
+  and `serve`, including their interactive equivalents. Collection and command outcomes remain active.
+- The built-in preview reports in the browser console, distinguishes nested rows, clears recovered
+  findings, and reports recurrence without repeating identical findings.
+
+These command outcomes do not change `state.errors`, submission validation, or reform draft saving.
+An app launched through `serve --app` retains its own reporting policy.
+
 ## ✅ Requirements
 
 - Node.js 22.19.0+

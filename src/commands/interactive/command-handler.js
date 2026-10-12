@@ -116,7 +116,9 @@ export class CommandHandler {
 
         case 'validate':
         case 'v':
-          await this.schemaManager.validateCurrentSchema();
+          await this.schemaManager.validateCurrentSchema({
+            diagnostics: !args.includes('--no-diagnostics'),
+          });
           break;
 
         case 'test':
