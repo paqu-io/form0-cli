@@ -9,8 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Check formatting**: `npm run format:check` - Check if files are properly formatted
 
 ### Localization
-- **Upload translations**: `npm run localazy:upload` - Upload source strings to Localazy
-- **Download translations**: `npm run localazy:download` - Download translated strings
+- Translations live in `src/locales/{en,es,fr,it}.json` and are edited directly in the repo; keep keys in sync across all four files.
+- Localazy sync (`npm run localazy:upload` / `localazy:download`) is disabled; set `FORM0_LOCALAZY_ENABLED=1` to re-enable it.
 
 ### Testing
 The project uses a custom test runner approach instead of traditional test frameworks:

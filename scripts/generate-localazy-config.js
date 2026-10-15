@@ -1,6 +1,16 @@
 import fs from 'fs';
 import { config } from 'dotenv';
 
+// Localazy sync is disabled: src/locales/*.json are edited in the repo and are the source of
+// truth. A download would overwrite them with stale remote translations.
+if (process.env.FORM0_LOCALAZY_ENABLED !== '1') {
+  console.error(
+    '❌ Localazy sync is disabled. Locale files in src/locales are the source of truth.\n' +
+      '   Set FORM0_LOCALAZY_ENABLED=1 to re-enable it.'
+  );
+  process.exit(1);
+}
+
 // Load environment variables from .env and .env.local
 config({ path: '.env.local' });
 config({ path: '.env' });
