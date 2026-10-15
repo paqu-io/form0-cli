@@ -162,6 +162,14 @@ export class AIManager {
 
   async enter() {
     if (this.active) return;
+    if (process.env.FORM0_AI_DISABLED === '1') {
+      this.write('[AI] AI authoring is disabled in this environment.', 'warning');
+      this.write(
+        'Download your workspace and run form0 locally to use AI. Authenticate with your provider on your own computer.',
+        'muted'
+      );
+      return;
+    }
     const workspace = this.createWorkspace(
       this.schemaManager.getCurrentSchema() || createEmptyFormSchema(),
       this.schemaManager.getCurrentSchemaPath()
