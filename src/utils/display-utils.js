@@ -1,7 +1,10 @@
+import { createRequire } from 'module';
 import path from 'path';
 import { colors } from './theme.js';
 import { t, tn } from './i18n.js';
 import { getServerModeHelpEntries } from '../commands/interactive/command-catalog.js';
+
+const { version } = createRequire(import.meta.url)('../../package.json');
 
 const ROOT_HELP_COMMAND_KEYS = [
   'initCommand',
@@ -65,22 +68,25 @@ export function formatRootHelpCommands(entries) {
   );
 }
 
-/**
- * Display the welcome banner with ASCII art
- */
-export function showWelcomeBanner() {
-  console.log(
-    colors.brandBold(`
+const LOGO = `
   ░·· ··░   ███████╗ ██████╗ ██████╗ ███╗   ███╗ ██████╗   ░·· ··░
   ░·· ··░   ██╔════╝██╔═══██╗██╔══██╗████╗ ████║██╔═████╗  ░·· ··░
   ░·· ··░   █████╗  ██║   ██║██████╔╝██╔████╔██║██║██╔██║  ░·· ··░
   ░·· ··░   ██╔══╝  ██║   ██║██╔══██╗██║╚██╔╝██║████╔╝██║  ░·· ··░
   ░·· ··░   ██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║╚██████╔╝  ░·· ··░
   ░·· ··░   ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝ ╚═════╝   ░·· ··░
-    `)
-  );
+    `;
+const LOGO_WIDTH = Math.max(...LOGO.split('\n').map((line) => line.trimEnd().length));
+
+/**
+ * Display the welcome banner with ASCII art
+ */
+export function showWelcomeBanner() {
+  console.log(colors.brandBold(LOGO));
   console.log(colors.brand(t('help.title')));
-  console.log(colors.brand(t('help.subtitle') + '\n'));
+  console.log(colors.brand(t('help.subtitle')));
+  // Right-aligned like the title lines, which end at the logo's edge.
+  console.log(colors.textMuted(`v${version}`.padStart(LOGO_WIDTH)) + '\n');
 }
 
 /**
