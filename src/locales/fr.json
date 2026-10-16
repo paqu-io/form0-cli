@@ -622,24 +622,15 @@
       "useServeStop": "   Utilisez \"serve stop\" pour arrêter le serveur et revenir au mode interactif."
     },
     "serverMode": {
+      "helpHeader": "📚 Commandes disponibles · serveur de développement en cours d'exécution",
+      "serveUpdateCommand": "    serve update         Envoyer le schéma actuel à l'aperçu",
       "availableCommands": "   Commandes disponibles :",
-      "activeHelpNote": "Le serveur de développement est en cours d'exécution. Ces commandes restent disponibles :",
       "commandBlocked": "⚠️ La commande \"{command}\" n'est pas disponible pendant l'exécution du serveur de développement.",
-      "help": "   • help             - Afficher l'aide",
-      "preview": "   • preview          - Prévisualiser le schéma courant",
-      "load": "   • load             - Charger un schéma dans l’aperçu",
       "serveActionBlocked": "⚠️ \"serve {action}\" n'est pas disponible pendant l'exécution du serveur.",
-      "serveStatus": "   • serve status     - Afficher l'état du serveur",
-      "serveStop": "   • serve stop       - Arrêter le serveur de développement",
-      "sessionStatus": "   • status           - Afficher l'état de la session",
-      "connectorCommands": "   • connector        - Gérer les connecteurs",
-      "serveControls": "    serve stop|status|update|--app  Gérer les serveurs actifs",
       "schemaCommands": "    schema ...                       Gérer ou modifier les schémas",
       "reformCommands": "    reform ...                       Gérer l'authentification et la synchronisation reform",
-      "aiCommand": "    ai                               Passer en mode création avec IA",
       "useHelp": "   Exécutez \"help\" pour afficher les commandes disponibles pendant l'exécution du serveur.",
-      "useServeStop": "   Utilisez \"serve stop\" pour arrêter le serveur ou \"serve status\" pour vérifier l'état.",
-      "validate": "   • validate         - Valider le schéma courant"
+      "useServeStop": "   Utilisez \"serve stop\" pour arrêter le serveur ou \"serve status\" pour vérifier l'état."
     },
     "testFailed": "❌ Le test a échoué : {message}",
     "typeHelp": "Tapez \"help\" pour la liste des commandes ou \"exit\" pour quitter",

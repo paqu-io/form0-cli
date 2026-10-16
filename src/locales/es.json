@@ -622,24 +622,15 @@
       "useServeStop": "   Usa \"serve stop\" para detener el servidor y volver al modo interactivo."
     },
     "serverMode": {
+      "helpHeader": "📚 Comandos disponibles · servidor de desarrollo en ejecución",
+      "serveUpdateCommand": "    serve update         Enviar el esquema actual a la vista previa",
       "availableCommands": "   Comandos disponibles:",
-      "activeHelpNote": "El servidor de desarrollo está en ejecución. Estos comandos siguen disponibles:",
       "commandBlocked": "⚠️ El comando \"{command}\" no está disponible mientras el servidor de desarrollo está en ejecución.",
-      "help": "   • help             - Mostrar ayuda",
-      "preview": "   • preview          - Vista previa del esquema actual",
-      "load": "   • load             - Cargar un esquema en la vista previa",
       "serveActionBlocked": "⚠️ \"serve {action}\" no está disponible mientras el servidor está en ejecución.",
-      "serveStatus": "   • serve status     - Mostrar estado del servidor",
-      "serveStop": "   • serve stop       - Detener el servidor de desarrollo",
-      "sessionStatus": "   • status           - Mostrar estado de la sesión",
-      "connectorCommands": "   • connector        - Gestionar conectores",
-      "serveControls": "    serve stop|status|update|--app  Gestionar los servidores en ejecución",
       "schemaCommands": "    schema ...                       Gestionar o editar esquemas",
       "reformCommands": "    reform ...                       Gestionar autenticación y sincronización de reform",
-      "aiCommand": "    ai                               Entrar en el modo de creación con IA",
       "useHelp": "   Ejecuta \"help\" para ver los comandos disponibles mientras el servidor está en ejecución.",
-      "useServeStop": "   Usa \"serve stop\" para detener el servidor o \"serve status\" para consultar su estado.",
-      "validate": "   • validate         - Validar esquema actual"
+      "useServeStop": "   Usa \"serve stop\" para detener el servidor o \"serve status\" para consultar su estado."
     },
     "testFailed": "❌ La prueba falló: {message}",
     "typeHelp": "Escribe \"help\" para ver los comandos disponibles o \"exit\" para salir",

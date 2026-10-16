@@ -87,17 +87,17 @@ export function showWelcomeBanner() {
  * Display the help text with all available commands
  */
 export function showHelp({ serverMode = false } = {}) {
-  console.log(colors.header('\n' + t('help.availableCommands') + '\n'));
-  console.log(colors.textSecondary(t('diagnostics.help')));
   if (serverMode) {
-    console.log(colors.textSecondary(t('interactive.serverMode.activeHelpNote')));
-    console.log();
-    for (const entry of getServerModeHelpEntries()) {
-      console.log(colors.text(t(`interactive.serverMode.${entry.translationKey}`)));
+    console.log(colors.header('\n' + t('interactive.serverMode.helpHeader') + '\n'));
+    const lines = formatRootHelpCommands(getServerModeHelpEntries().map((key) => t(key)));
+    for (const line of lines) {
+      console.log(colors.text(line));
     }
     console.log();
     return;
   }
+  console.log(colors.header('\n' + t('help.availableCommands') + '\n'));
+  console.log(colors.textSecondary(t('diagnostics.help')));
   const formattedCommands = formatRootHelpCommands(
     ROOT_HELP_COMMAND_KEYS.map((key) => t(`help.${key}`))
   );

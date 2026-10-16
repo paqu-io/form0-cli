@@ -622,24 +622,15 @@
       "useServeStop": "   Usa \"serve stop\" per arrestare il server e tornare alla modalità interattiva."
     },
     "serverMode": {
+      "helpHeader": "📚 Comandi disponibili · server di sviluppo in esecuzione",
+      "serveUpdateCommand": "    serve update         Invia lo schema corrente all'anteprima",
       "availableCommands": "   Comandi disponibili:",
-      "activeHelpNote": "Il server di sviluppo è in esecuzione. Questi comandi restano disponibili:",
       "commandBlocked": "⚠️ Il comando \"{command}\" non è disponibile mentre il server di sviluppo è in esecuzione.",
-      "help": "   • help             - Mostra la guida",
-      "preview": "   • preview          - Mostra l'anteprima dello schema corrente",
-      "load": "   • load             - Carica uno schema nell'anteprima",
       "serveActionBlocked": "⚠️ \"serve {action}\" non è disponibile mentre il server è in esecuzione.",
-      "serveStatus": "   • serve status     - Mostra lo stato del server",
-      "serveStop": "   • serve stop       - Arresta il server di sviluppo",
-      "sessionStatus": "   • status           - Mostra lo stato della sessione",
-      "connectorCommands": "   • connector        - Gestisci i connettori",
-      "serveControls": "    serve stop|status|update|--app  Gestisci i server in esecuzione",
       "schemaCommands": "    schema ...                       Gestisci o modifica gli schemi",
       "reformCommands": "    reform ...                       Gestisci autenticazione e sincronizzazione con reform",
-      "aiCommand": "    ai                               Entra nella modalità di creazione con IA",
       "useHelp": "   Esegui \"help\" per vedere i comandi disponibili mentre il server è in esecuzione.",
-      "useServeStop": "   Usa \"serve stop\" per arrestare il server o \"serve status\" per verificarne lo stato.",
-      "validate": "   • validate         - Valida lo schema corrente"
+      "useServeStop": "   Usa \"serve stop\" per arrestare il server o \"serve status\" per verificarne lo stato."
     },
     "testFailed": "❌ Test non superato: {message}",
     "typeHelp": "Digita \"help\" per l'elenco dei comandi o \"exit\" per uscire",
