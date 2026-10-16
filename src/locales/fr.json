@@ -623,6 +623,7 @@
       "commandBlocked": "⚠️ La commande \"{command}\" n'est pas disponible pendant l'exécution du serveur de développement.",
       "help": "   • help             - Afficher l'aide",
       "preview": "   • preview          - Prévisualiser le schéma courant",
+      "load": "   • load             - Charger un schéma dans l’aperçu",
       "serveActionBlocked": "⚠️ \"serve {action}\" n'est pas disponible pendant l'exécution du serveur.",
       "serveStatus": "   • serve status     - Afficher l'état du serveur",
       "serveStop": "   • serve stop       - Arrêter le serveur de développement",

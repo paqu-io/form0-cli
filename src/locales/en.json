@@ -475,6 +475,7 @@
       "serveStatus": "   • serve status     - Show server status",
       "sessionStatus": "   • status           - Show session status",
       "preview": "   • preview          - Preview current schema",
+      "load": "   • load             - Load a schema into the preview",
       "validate": "   • validate         - Validate current schema",
       "help": "   • help             - Show help",
       "connectorCommands": "   • connector        - Manage connectors",

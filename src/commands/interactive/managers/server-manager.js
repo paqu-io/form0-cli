@@ -520,7 +520,13 @@ export class ServerManager {
     // Update the actual schema path for better display
     const actualSchemaPath = this.schemaManager.getCurrentSchemaPath();
     if (actualSchemaPath) {
+      const switched = actualSchemaPath !== this.devServer.actualSchemaPath;
       this.devServer.setActualSchemaPath(actualSchemaPath);
+      // Saving a schema loaded while serving must sync too, also when the
+      // server started without one.
+      if (switched) {
+        this.startSilentFileWatching();
+      }
     }
 
     // Update the server's current schema

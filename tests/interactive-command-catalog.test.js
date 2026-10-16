@@ -20,6 +20,8 @@ test('interactive command catalog owns parsing, aliases, and server availability
   assert.equal(getServerModeAvailability('serve', ['update']).allowed, true);
   assert.equal(getServerModeAvailability('serve', []).allowed, false);
   assert.equal(getServerModeAvailability('run').allowed, false);
+  // serve --app can start without a schema; load picks one while it runs.
+  assert.equal(getServerModeAvailability('load').allowed, true);
 });
 
 test('interactive completion follows the command catalog', () => {

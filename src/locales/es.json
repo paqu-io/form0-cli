@@ -623,6 +623,7 @@
       "commandBlocked": "⚠️ El comando \"{command}\" no está disponible mientras el servidor de desarrollo está en ejecución.",
       "help": "   • help             - Mostrar ayuda",
       "preview": "   • preview          - Vista previa del esquema actual",
+      "load": "   • load             - Cargar un esquema en la vista previa",
       "serveActionBlocked": "⚠️ \"serve {action}\" no está disponible mientras el servidor está en ejecución.",
       "serveStatus": "   • serve status     - Mostrar estado del servidor",
       "serveStop": "   • serve stop       - Detener el servidor de desarrollo",

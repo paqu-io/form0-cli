@@ -14,7 +14,7 @@ const SERVE_SUBCOMMANDS = [
 const COMMAND_CATALOG = Object.freeze([
   { name: 'help', aliases: ['h'], server: true, serverHelpKey: 'help' },
   { name: 'init', aliases: [], server: false },
-  { name: 'load', aliases: ['l'], server: false },
+  { name: 'load', aliases: ['l'], server: true, serverHelpKey: 'load' },
   { name: 'preview', aliases: ['p'], server: true, serverHelpKey: 'preview' },
   { name: 'run', aliases: ['r'], server: false, completions: ['--values', '--no-diagnostics'] },
   {
