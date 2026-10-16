@@ -17,7 +17,7 @@ import {
 } from '../utils/app-dev-server.js';
 import { collectCalculationIssues } from '../utils/calculation-checks.js';
 import { createTerminalDiagnosticReporter } from '../utils/calculation-reporting.js';
-import { getNetworkUrl, printServeBanner } from '../utils/serve-banners.js';
+import { printServeBanner } from '../utils/serve-banners.js';
 
 const DEFAULT_SCHEMA_PATH = 'form.schema.json';
 
@@ -226,33 +226,6 @@ class Form0Server {
     });
   }
 
-  /**
-   * Full banner, kept for Expo apps until their output is aligned.
-   */
-  showLegacyServerInfo() {
-    console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
-    if (this.schemaPath) {
-      console.log(
-        colors.textSecondary('   📋 ' + t('commands.serve.schemaFile', { path: this.schemaPath }))
-      );
-    } else {
-      console.log(colors.textSecondary('   ' + t('commands.serve.noSchemaAppMode')));
-    }
-    console.log(
-      colors.textSecondary(
-        '   🌐 ' + t('commands.serve.localUrl', { url: `http://${this.host}:${this.port}` })
-      )
-    );
-    const networkUrl = getNetworkUrl(this.port);
-    if (networkUrl) {
-      console.log(
-        colors.textSecondary('   🌐 ' + t('commands.serve.networkUrl', { url: networkUrl }))
-      );
-    }
-    console.log(colors.success('\n' + '✅ ' + t('commands.serve.serverRunning')));
-    console.log(colors.textMuted(t('commands.serve.pressCtrlC')));
-  }
-
   setupExitHandlers() {
     if (this.exitHandler) {
       process.off('SIGINT', this.exitHandler);
@@ -427,15 +400,13 @@ export async function serveCommand(schemaPathArg, options) {
       // With a declared app port, start the app first and the dev server once
       // the app listens, so tools that show the first open port show the app.
       const app = await resolveAppEndpoint(startDir);
-      // Expo keeps the full banner: the device needs the dev server's network URL.
       const useAppBanner = (appUrl = null) => {
-        server.showServerInfo = app?.expo
-          ? async () => server.showLegacyServerInfo()
-          : async () =>
-              printServeBanner('app', server.getStatus(), {
-                appUrl,
-                stopHint: t('commands.serve.pressCtrlCBoth'),
-              });
+        server.showServerInfo = async () =>
+          printServeBanner(app?.expo ? 'expo' : 'app', server.getStatus(), {
+            schemaPath: server.schemaPath,
+            appUrl,
+            stopHint: t('commands.serve.pressCtrlCBoth'),
+          });
       };
       if (app?.port) {
         server.setupExitHandlers();

@@ -21,6 +21,8 @@ export function getNetworkUrl(port) {
  * - 'standard': serve without an app; the form0 preview is the page to open.
  * - 'app': serve --app; the dev server provides the app's API. With appUrl
  *   (the app is listening), point to the app.
+ * - 'expo': serve --app for an Expo app, opened on the phone from Expo's QR
+ *   code. The network URL stays: the device reaches the app's API through it.
  */
 export function printServeBanner(kind, { host, port }, { schemaPath, appUrl, stopHint } = {}) {
   const url = `http://${browserHost(host)}:${port}`;
@@ -28,6 +30,16 @@ export function printServeBanner(kind, { host, port }, { schemaPath, appUrl, sto
     console.log(colors.success(`\n✅ ${t('commands.serve.devServerForApp', { url })}`));
     if (appUrl) {
       console.log(colors.success(t('commands.serve.openApp', { url: appUrl })));
+    }
+  } else if (kind === 'expo') {
+    console.log(colors.success(`\n✅ ${t('commands.serve.devServerForApp', { url })}`));
+    console.log(colors.success(t('commands.serve.openAppWithExpo')));
+    const networkUrl = getNetworkUrl(port);
+    if (networkUrl) {
+      console.log(colors.textSecondary(`   ${t('commands.serve.onNetwork', { url: networkUrl })}`));
+    }
+    if (!schemaPath) {
+      console.log(colors.textSecondary(`   ${t('commands.serve.noSchemaAppMode')}`));
     }
   } else {
     const ready = schemaPath

@@ -2,7 +2,7 @@ import path from 'path';
 import { Form0Server } from '../../serve.js';
 import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
-import { getNetworkUrl, printServeBanner } from '../../../utils/serve-banners.js';
+import { printServeBanner } from '../../../utils/serve-banners.js';
 import {
   resolveAppEndpoint,
   startAppDevServer,
@@ -88,8 +88,8 @@ export class ServerManager {
 
   async startDevAndAppServers(args) {
     const app = await resolveAppEndpoint(this.getAppStartDir());
-    // Expo keeps the full banner: the device needs the dev server's network URL.
-    const banner = app?.expo ? 'legacy' : 'app';
+    const banner = app?.expo ? 'expo' : 'app';
+    // The dev server's banner carries the single stop hint.
     if (!app?.port) {
       await this.startDevServer(args, { allowNoSchema: true, banner });
 
@@ -97,7 +97,7 @@ export class ServerManager {
         await this.startAppServer(args, {
           allowDevServer: true,
           blocking: false,
-          stopHint: banner === 'legacy',
+          stopHint: false,
         });
       }
       return;
@@ -108,7 +108,7 @@ export class ServerManager {
     await this.startAppServer(args, {
       allowDevServer: true,
       blocking: false,
-      stopHint: banner === 'legacy',
+      stopHint: false,
     });
     const child = this.appServerProcess;
     const stopAppOnExit = () => this.stopAppServer();
@@ -131,31 +131,6 @@ export class ServerManager {
     }
   }
 
-  /**
-   * Full banner, kept for Expo apps until their output is aligned.
-   */
-  showLegacyServerInfo() {
-    console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
-    const schemaFile = this.devServer.actualSchemaPath;
-    if (schemaFile) {
-      console.log(colors.info('📋 ' + t('commands.serve.schemaFile', { path: schemaFile })));
-    }
-    console.log(
-      colors.success(
-        '🌐 ' +
-          t('commands.serve.localUrl', {
-            url: `http://${this.devServer.host}:${this.devServer.port}`,
-          })
-      )
-    );
-    const networkUrl = getNetworkUrl(this.devServer.port);
-    if (networkUrl) {
-      console.log(colors.success('🌐 ' + t('commands.serve.networkUrl', { url: networkUrl })));
-    }
-    console.log(colors.textSecondary('\n' + t('interactive.server.interactiveMode')));
-    console.log(colors.textSecondary(t('interactive.server.useServeStop')));
-  }
-
   getAppStartDir() {
     const schemaPath = this.schemaManager.getCurrentSchemaPath();
     return schemaPath ? path.dirname(schemaPath) : process.cwd();
@@ -166,7 +141,7 @@ export class ServerManager {
    */
   /**
    * Start the development server. banner: 'standard' for serve, 'app' for
-   * serve --app (with appUrl once the app listens), 'legacy' for Expo apps.
+   * serve --app (with appUrl once the app listens), 'expo' for Expo apps.
    */
   async startDevServer(args, options = {}) {
     const { allowNoSchema = false, banner = 'standard', appUrl = null } = options;
@@ -218,17 +193,13 @@ export class ServerManager {
 
       // Completely override server info display for interactive mode to control messaging
       this.devServer.showServerInfo = async () => {
-        if (banner === 'legacy') {
-          this.showLegacyServerInfo();
-          return;
-        }
         printServeBanner(banner, this.devServer.getStatus(), {
           schemaPath: this.devServer.actualSchemaPath,
           appUrl,
           stopHint:
-            banner === 'app'
-              ? t('commands.serve.stopBothServers')
-              : t('commands.serve.syncAndServeStop'),
+            banner === 'standard'
+              ? t('commands.serve.syncAndServeStop')
+              : t('commands.serve.stopBothServers'),
         });
       };
 
@@ -240,12 +211,6 @@ export class ServerManager {
 
       // Show server mode prompt
       this.refreshPrompt();
-
-      // A web app's submissions provide the schema: nothing to report.
-      if (allowNoSchema && banner === 'legacy' && !this.schemaManager.getCurrentSchema()) {
-        console.log(colors.textSecondary(t('commands.serve.noSchemaAppMode')));
-        this.readline.prompt();
-      }
     } catch (err) {
       console.log(colors.error(t('common.failedToStart', { message: err.message })));
     }

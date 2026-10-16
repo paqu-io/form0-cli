@@ -89,11 +89,9 @@
       "schemaFileNotFound": "❌ Schema file not found: {path}"
     },
     "serve": {
-      "serverStarted": "form0 Development Server Started",
-      "schemaFile": "Schema: {path}",
       "noSchemaAppMode": "ℹ️  No schema loaded. App submissions should provide the schema to the dev server.",
-      "localUrl": "Local: {url}",
       "openApp": "👉 Open your app: {url}",
+      "openAppWithExpo": "📱 Open your app on your phone: scan Expo's QR code.",
       "devServerForApp": "form0 dev server (API and schema preview): {url}",
       "stopBothServers": "Use \"serve stop\" or Ctrl+C to stop both servers.",
       "pressCtrlCBoth": "Press Ctrl+C to stop both servers.",
@@ -103,9 +101,6 @@
       "onNetwork": "On your network: {url}",
       "syncAndServeStop": "Schema changes sync automatically. Use \"serve stop\" to stop the server.",
       "syncAndCtrlC": "Schema changes sync automatically. Press Ctrl+C to stop the server.",
-      "networkUrl": "Network: {url}",
-      "serverRunning": "Server running...",
-      "pressCtrlC": "Press Ctrl+C to stop the server.",
       "clientConnected": "🔗 Client connected.",
       "clientDisconnected": "🔌 Client disconnected.",
       "schemaChanged": "[{timestamp}] Schema file changed.",

@@ -111,7 +111,7 @@ test('interactive serve --app starts the app before the dev server when its port
   }
 });
 
-test('interactive serve --app keeps the full banner for Expo', async () => {
+test('interactive serve --app uses the Expo banner, which carries the only stop hint', async () => {
   const dir = await project("{ devServer: { type: 'app', provider: 'expo' } }");
   try {
     const order = [];
@@ -128,7 +128,7 @@ test('interactive serve --app keeps the full banner for Expo', async () => {
       order.push(`app (stop hint: ${options.stopHint})`);
     };
     await manager.startDevAndAppServers([]);
-    assert.deepEqual(order, ['dev (legacy banner)', 'app (stop hint: true)']);
+    assert.deepEqual(order, ['dev (expo banner)', 'app (stop hint: false)']);
   } finally {
     await fs.remove(dir);
   }
@@ -176,6 +176,23 @@ test('dev server banners share one shape: status, URL to open, details, one stop
   assert.match(standard.at(-1), /Schema changes sync automatically\. Press Ctrl\+C/);
   // Only the optional network line may sit between the preview URL and the stop hint.
   assert.ok(standard.length === 3 || /On your network: http:\/\//.test(standard[2]));
+
+  const expo = printed(() =>
+    printServeBanner('expo', status, {
+      schemaPath: 'src/forms/demo/schema.json',
+      stopHint: 'Use "serve stop" or Ctrl+C to stop both servers.',
+    })
+  );
+  assert.match(expo[0], /✅ form0 dev server \(API and schema preview\): http:\/\/localhost:3030/);
+  assert.match(expo[1], /📱 Open your app on your phone: scan Expo's QR code\./);
+  assert.match(expo.at(-1), /Use "serve stop" or Ctrl\+C to stop both servers\./);
+  // The device reaches the app's API through the network URL, the only optional detail.
+  assert.ok(expo.length === 3 || /On your network: http:\/\//.test(expo[2]));
+
+  const expoWithoutSchema = printed(() =>
+    printServeBanner('expo', status, { stopHint: 'Press Ctrl+C to stop both servers.' })
+  );
+  assert.match(expoWithoutSchema.at(-2), /No schema loaded/);
 });
 
 // The app records whether the CLI's port opened before it listened, then exits,
