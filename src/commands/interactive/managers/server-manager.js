@@ -3,9 +3,11 @@ import { Form0Server } from '../../serve.js';
 import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
 import {
+  resolveAppPort,
   startAppDevServer,
   stopAppDevServerOnCrash,
   terminateAppDevServer,
+  waitForPort,
 } from '../../../utils/app-dev-server.js';
 
 /**
@@ -84,11 +86,36 @@ export class ServerManager {
   }
 
   async startDevAndAppServers(args) {
-    await this.startDevServer(args, { allowNoSchema: true });
+    const appPort = await resolveAppPort(this.getAppStartDir());
+    if (!appPort) {
+      await this.startDevServer(args, { allowNoSchema: true });
 
-    if (this.devServer && this.devServer.getStatus().running) {
-      await this.startAppServer(args, { allowDevServer: true, blocking: false });
+      if (this.devServer && this.devServer.getStatus().running) {
+        await this.startAppServer(args, { allowDevServer: true, blocking: false });
+      }
+      return;
     }
+
+    // With a declared app port, start the app first and the dev server once the
+    // app listens, so tools that show the first open port show the app.
+    await this.startAppServer(args, { allowDevServer: true, blocking: false });
+    const child = this.appServerProcess;
+    const stopAppOnExit = () => this.stopAppServer();
+    if (child) {
+      process.once('exit', stopAppOnExit);
+      await waitForPort(appPort, { isAlive: () => this.appServerProcess === child });
+    }
+
+    await this.startDevServer(args, { allowNoSchema: true });
+    process.off('exit', stopAppOnExit);
+    if (child && !(this.devServer && this.devServer.getStatus().running)) {
+      this.stopAppServer();
+    }
+  }
+
+  getAppStartDir() {
+    const schemaPath = this.schemaManager.getCurrentSchemaPath();
+    return schemaPath ? path.dirname(schemaPath) : process.cwd();
   }
 
   /**
@@ -218,8 +245,7 @@ export class ServerManager {
       return;
     }
 
-    const schemaPath = this.schemaManager.getCurrentSchemaPath();
-    const startDir = schemaPath ? path.dirname(schemaPath) : process.cwd();
+    const startDir = this.getAppStartDir();
     const appOptions = {};
 
     for (let i = 0; i < args.length; i += 1) {

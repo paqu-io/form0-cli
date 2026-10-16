@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import { createHash } from 'node:crypto';
+import net from 'node:net';
 import path from 'path';
 import { resolveProjectConfig } from './project-config.js';
 import { loadProjectEnv } from './project-env.js';
@@ -374,6 +375,51 @@ async function ensureDependenciesInstalled(projectRoot, command) {
   }
 
   return { performed: true, reason: 'installed' };
+}
+
+/**
+ * Port the app dev server listens on, when form0.config.js declares
+ * devServer.port. Returns null when it is missing, invalid, or unreadable.
+ */
+export async function resolveAppPort(startDir = process.cwd()) {
+  try {
+    const { devServer } = await resolveAppDevServerConfig(startDir);
+    const port = Number(devServer?.port);
+    return Number.isInteger(port) && port > 0 && port < 65_536 ? port : null;
+  } catch {
+    return null;
+  }
+}
+
+function acceptsConnections(port, host) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host });
+    const done = (value) => {
+      socket.destroy();
+      resolve(value);
+    };
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+    socket.setTimeout(1000, () => done(false));
+  });
+}
+
+/**
+ * Resolves true once the port accepts connections, or false after the timeout
+ * or as soon as isAlive() reports that the app process has stopped.
+ */
+export async function waitForPort(
+  port,
+  { host = 'localhost', timeoutMs = 60_000, intervalMs = 250, isAlive = () => true } = {}
+) {
+  const deadline = Date.now() + timeoutMs;
+  while (isAlive() && Date.now() < deadline) {
+    if (await acceptsConnections(port, host)) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return false;
 }
 
 export async function resolveAppDevServerConfig(startDir = process.cwd()) {

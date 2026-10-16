@@ -9,9 +9,11 @@ import { t } from '../utils/i18n.js';
 import { createApp } from '../server/express-server.js';
 import { createWebSocketServer } from '../server/websocket.js';
 import {
+  resolveAppPort,
   startAppDevServer,
   stopAppDevServerOnCrash,
   terminateAppDevServer,
+  waitForPort,
 } from '../utils/app-dev-server.js';
 import { collectCalculationIssues } from '../utils/calculation-checks.js';
 import { createTerminalDiagnosticReporter } from '../utils/calculation-reporting.js';
@@ -424,9 +426,16 @@ export async function serveCommand(schemaPathArg, options) {
     };
 
     try {
-      await server.start();
-
       const startDir = path.resolve(process.cwd(), path.dirname(schemaPath || '.'));
+      // With a declared app port, start the app first and the dev server once
+      // the app listens, so tools that show the first open port show the app.
+      const appPort = await resolveAppPort(startDir);
+      if (appPort) {
+        server.setupExitHandlers();
+      } else {
+        await server.start();
+      }
+
       const { child, command, projectRoot, useProcessGroup, publicUrl } = await startAppDevServer(
         startDir,
         {
@@ -446,6 +455,17 @@ export async function serveCommand(schemaPathArg, options) {
       child.on('error', () => {
         stopAll(1).catch(() => process.exit(1));
       });
+
+      if (appPort) {
+        // Form0Server.start exits the process on failure; do not leave the app behind.
+        const stopAppOnExit = () => terminateAppDevServer(child, { useProcessGroup });
+        process.once('exit', stopAppOnExit);
+        await waitForPort(appPort, {
+          isAlive: () => child.exitCode === null && child.signalCode === null,
+        });
+        await server.start();
+        process.off('exit', stopAppOnExit);
+      }
     } catch (err) {
       console.error(colors.error(`❌ Failed to start app dev server: ${err.message}`));
       await stopAll(1);
