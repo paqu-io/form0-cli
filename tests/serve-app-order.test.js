@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import fs from 'fs-extra';
 import { ServerManager } from '../src/commands/interactive/managers/server-manager.js';
 import { resolveAppEndpoint, waitForPort } from '../src/utils/app-dev-server.js';
+import { printAppServeSummary } from '../src/utils/display-utils.js';
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -82,33 +83,45 @@ test('interactive serve --app starts the app before the dev server when its port
       null,
       null
     );
-    manager.startAppServer = async () => {
-      order.push('app');
+    manager.startAppServer = async (args, options) => {
+      order.push(`app (stop hint: ${options.stopHint})`);
       manager.appServerProcess = { pid: 1 };
       setTimeout(() => app.listen(appPort, 'localhost'), 200);
     };
-    manager.startDevServer = async () => {
-      order.push(`dev (app listening: ${await waitForPort(appPort, { timeoutMs: 1 })})`);
-      manager.devServer = {
-        getStatus: () => ({ running: true, host: 'localhost', port: 3030 }),
-      };
+    manager.startDevServer = async (args, options) => {
+      const listening = await waitForPort(appPort, { timeoutMs: 1 });
+      order.push(`dev (app listening: ${listening}, compact banner for: ${options.appUrl})`);
+      manager.devServer = { getStatus: () => ({ running: true }) };
     };
-    const printed = [];
-    const log = console.log;
-    console.log = (line) => printed.push(String(line));
-    try {
-      await manager.startDevAndAppServers([]);
-    } finally {
-      console.log = log;
-    }
-    assert.deepEqual(order, ['app', 'dev (app listening: true)']);
-    const summary = printed.join('\n');
-    assert.match(summary, new RegExp(`Open your app: http://localhost:${appPort}`));
-    assert.match(summary, /form0 dev server \(API and schema preview\): http:\/\/localhost:3030/);
+    await manager.startDevAndAppServers([]);
+    assert.deepEqual(order, [
+      'app (stop hint: false)',
+      `dev (app listening: true, compact banner for: http://localhost:${appPort})`,
+    ]);
   } finally {
     await new Promise((resolve) => app.close(resolve));
     await fs.remove(dir);
   }
+});
+
+test('the compact banner names the dev server role, the app URL, and how to stop both', () => {
+  const printed = [];
+  const log = console.log;
+  console.log = (line) => printed.push(String(line));
+  try {
+    printAppServeSummary(
+      'http://localhost:5173',
+      { host: '0.0.0.0', port: 3030 },
+      'Press Ctrl+C to stop both servers.'
+    );
+  } finally {
+    console.log = log;
+  }
+  const lines = printed.join('\n').trim().split('\n');
+  assert.equal(lines.length, 3);
+  assert.match(lines[0], /✅ form0 dev server \(API and schema preview\): http:\/\/localhost:3030/);
+  assert.match(lines[1], /👉 Open your app: http:\/\/localhost:5173/);
+  assert.match(lines[2], /Press Ctrl\+C to stop both servers\./);
 });
 
 // The app records whether the CLI's port opened before it listened, then exits,
@@ -154,7 +167,11 @@ async function runServeApp({ declarePort }) {
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
     return {
       ...(await fs.readJson(path.join(dir, 'order.json'))),
-      summary: output.includes(`Open your app: http://localhost:${appPort}`),
+      compactBanner:
+        output.includes(`Open your app: http://localhost:${appPort}`) &&
+        output.includes('Press Ctrl+C to stop both servers.') &&
+        !output.includes('form0 Development Server Started'),
+      fullBanner: output.includes('form0 Development Server Started'),
     };
   } finally {
     await fs.remove(dir);
@@ -165,7 +182,8 @@ test('serve --app opens the app port before the dev server when devServer.port i
   assert.deepEqual(await runServeApp({ declarePort: true }), {
     cliOpenBeforeApp: false,
     cliOpened: true,
-    summary: true,
+    compactBanner: true,
+    fullBanner: false,
   });
 });
 
@@ -173,6 +191,7 @@ test('serve --app keeps starting the dev server first without a declared port', 
   assert.deepEqual(await runServeApp({ declarePort: false }), {
     cliOpenBeforeApp: true,
     cliOpened: true,
-    summary: false,
+    compactBanner: false,
+    fullBanner: true,
   });
 });

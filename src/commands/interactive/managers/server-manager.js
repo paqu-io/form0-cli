@@ -99,7 +99,7 @@ export class ServerManager {
 
     // With a declared app port, start the app first and the dev server once the
     // app listens, so tools that show the first open port show the app.
-    await this.startAppServer(args, { allowDevServer: true, blocking: false });
+    await this.startAppServer(args, { allowDevServer: true, blocking: false, stopHint: false });
     const child = this.appServerProcess;
     const stopAppOnExit = () => this.stopAppServer();
     let appListening = false;
@@ -110,13 +110,13 @@ export class ServerManager {
       });
     }
 
-    await this.startDevServer(args, { allowNoSchema: true });
+    await this.startDevServer(args, {
+      allowNoSchema: true,
+      appUrl: appListening ? app.url : null,
+    });
     process.off('exit', stopAppOnExit);
-    const devServerRunning = this.devServer && this.devServer.getStatus().running;
-    if (child && !devServerRunning) {
+    if (child && !(this.devServer && this.devServer.getStatus().running)) {
       this.stopAppServer();
-    } else if (appListening && app.url && devServerRunning) {
-      printAppServeSummary(app.url, this.devServer.getStatus());
     }
   }
 
@@ -129,7 +129,8 @@ export class ServerManager {
    * Start the development server
    */
   async startDevServer(args, options = {}) {
-    const { allowNoSchema = false } = options;
+    // appUrl: the app started by serve --app is listening; show the compact banner.
+    const { allowNoSchema = false, appUrl = null } = options;
     if (!this.schemaManager.getCurrentSchema() && !allowNoSchema) {
       console.log(colors.error(t('common.noSchemaLoaded')));
       return;
@@ -178,6 +179,14 @@ export class ServerManager {
 
       // Completely override server info display for interactive mode to control messaging
       this.devServer.showServerInfo = async () => {
+        if (appUrl) {
+          printAppServeSummary(
+            appUrl,
+            this.devServer.getStatus(),
+            t('commands.serve.stopBothServers')
+          );
+          return;
+        }
         console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
         const schemaFile = this.devServer.actualSchemaPath;
         if (schemaFile) {
@@ -227,7 +236,8 @@ export class ServerManager {
       // Show server mode prompt
       this.refreshPrompt();
 
-      if (allowNoSchema && !this.schemaManager.getCurrentSchema()) {
+      // With an app, its submissions provide the schema: nothing to report.
+      if (allowNoSchema && !appUrl && !this.schemaManager.getCurrentSchema()) {
         console.log(colors.textSecondary(t('commands.serve.noSchemaAppMode')));
         this.readline.prompt();
       }
@@ -240,7 +250,7 @@ export class ServerManager {
    * Start the app dev server defined in form0.config.js
    */
   async startAppServer(args, options = {}) {
-    const { allowDevServer = false, blocking = true } = options;
+    const { allowDevServer = false, blocking = true, stopHint = true } = options;
 
     if (this.isAppServerRunning()) {
       console.log(colors.warning('⚠️ App dev server is already running.'));
@@ -288,7 +298,7 @@ export class ServerManager {
       }
       if (blocking) {
         console.log(colors.textSecondary('   Press Ctrl+C to stop the app dev server.\n'));
-      } else {
+      } else if (stopHint) {
         console.log(colors.textSecondary('   Use "serve stop" or Ctrl+C to stop the servers.\n'));
       }
 

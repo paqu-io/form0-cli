@@ -92,6 +92,8 @@
       "localUrl": "Local : {url}",
       "openApp": "👉 Ouvrez votre application : {url}",
       "devServerForApp": "Serveur de développement form0 (API et aperçu du schéma) : {url}",
+      "stopBothServers": "Utilisez \"serve stop\" ou Ctrl+C pour arrêter les deux serveurs.",
+      "pressCtrlCBoth": "Appuyez sur Ctrl+C pour arrêter les deux serveurs.",
       "networkUrl": "Réseau : {url}",
       "noWebSocketServer": "⚠️ Aucun serveur WebSocket disponible pour la diffusion.",
       "pressCtrlC": "Appuyez sur Ctrl+C pour arrêter le serveur.",

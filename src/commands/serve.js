@@ -464,11 +464,12 @@ export async function serveCommand(schemaPathArg, options) {
         const appListening = await waitForPort(app.port, {
           isAlive: () => child.exitCode === null && child.signalCode === null,
         });
+        if (appListening && app.url) {
+          server.showServerInfo = async () =>
+            printAppServeSummary(app.url, server.getStatus(), t('commands.serve.pressCtrlCBoth'));
+        }
         await server.start();
         process.off('exit', stopAppOnExit);
-        if (appListening && app.url) {
-          printAppServeSummary(app.url, server.getStatus());
-        }
       }
     } catch (err) {
       console.error(colors.error(`❌ Failed to start app dev server: ${err.message}`));

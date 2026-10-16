@@ -95,6 +95,8 @@
       "localUrl": "Local: {url}",
       "openApp": "👉 Open your app: {url}",
       "devServerForApp": "form0 dev server (API and schema preview): {url}",
+      "stopBothServers": "Use \"serve stop\" or Ctrl+C to stop both servers.",
+      "pressCtrlCBoth": "Press Ctrl+C to stop both servers.",
       "networkUrl": "Network: {url}",
       "serverRunning": "Server running...",
       "pressCtrlC": "Press Ctrl+C to stop the server.",

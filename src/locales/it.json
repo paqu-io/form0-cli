@@ -92,6 +92,8 @@
       "localUrl": "Locale: {url}",
       "openApp": "👉 Apri la tua app: {url}",
       "devServerForApp": "Server di sviluppo form0 (API e anteprima dello schema): {url}",
+      "stopBothServers": "Usa \"serve stop\" o Ctrl+C per arrestare entrambi i server.",
+      "pressCtrlCBoth": "Premi Ctrl+C per arrestare entrambi i server.",
       "networkUrl": "Rete: {url}",
       "noWebSocketServer": "⚠️ Nessun server WebSocket disponibile per inviare gli aggiornamenti.",
       "pressCtrlC": "Premi Ctrl+C per arrestare il server.",
