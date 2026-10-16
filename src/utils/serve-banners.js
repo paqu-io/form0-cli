@@ -23,23 +23,30 @@ export function getNetworkUrl(port) {
  *   (the app is listening), point to the app.
  * - 'expo': serve --app for an Expo app, opened on the phone from Expo's QR
  *   code. The network URL stays: the device reaches the app's API through it.
+ * App banners without a schema add noSchemaHint: how to show one in the
+ * preview, which depends on whether the CLI is interactive.
  */
-export function printServeBanner(kind, { host, port }, { schemaPath, appUrl, stopHint } = {}) {
+export function printServeBanner(
+  kind,
+  { host, port },
+  { schemaPath, appUrl, stopHint, noSchemaHint } = {}
+) {
   const url = `http://${browserHost(host)}:${port}`;
-  if (kind === 'app') {
+  if (kind === 'app' || kind === 'expo') {
     console.log(colors.success(`\n✅ ${t('commands.serve.devServerForApp', { url })}`));
-    if (appUrl) {
+    if (kind === 'expo') {
+      console.log(colors.success(t('commands.serve.openAppWithExpo')));
+      const networkUrl = getNetworkUrl(port);
+      if (networkUrl) {
+        console.log(
+          colors.textSecondary(`   ${t('commands.serve.onNetwork', { url: networkUrl })}`)
+        );
+      }
+    } else if (appUrl) {
       console.log(colors.success(t('commands.serve.openApp', { url: appUrl })));
     }
-  } else if (kind === 'expo') {
-    console.log(colors.success(`\n✅ ${t('commands.serve.devServerForApp', { url })}`));
-    console.log(colors.success(t('commands.serve.openAppWithExpo')));
-    const networkUrl = getNetworkUrl(port);
-    if (networkUrl) {
-      console.log(colors.textSecondary(`   ${t('commands.serve.onNetwork', { url: networkUrl })}`));
-    }
-    if (!schemaPath) {
-      console.log(colors.textSecondary(`   ${t('commands.serve.noSchemaAppMode')}`));
+    if (!schemaPath && noSchemaHint) {
+      console.log(colors.textSecondary(`   ${noSchemaHint}`));
     }
   } else {
     const ready = schemaPath

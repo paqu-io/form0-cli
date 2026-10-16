@@ -45,6 +45,8 @@ test('serve --app starts without form.schema.json in an app project', async () =
     assert.doesNotMatch(output, /ENOENT/);
     // The app provides the schema, so the banner describes the dev server's role.
     assert.match(output, /form0 dev server \(API and schema preview\)/);
+    // One-shot serve has no prompt for load: a schema path is the way.
+    assert.match(output, /No schema loaded for the preview: pass a schema path/);
     assert.match(output, /App dev server started/);
   } finally {
     await fs.remove(projectDir);

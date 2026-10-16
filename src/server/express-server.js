@@ -706,7 +706,10 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
   app.get('/api/schema', (req, res) => {
     const payload = getPreparedSchemaPayload();
     if (!payload) {
-      return res.status(404).json({ error: 'No schema loaded' });
+      // The preview's empty state points to `load` when the CLI is interactive.
+      return res
+        .status(404)
+        .json({ error: 'No schema loaded', interactive: options.interactive === true });
     }
     res.json(payload);
   });

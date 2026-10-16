@@ -76,6 +76,9 @@ async function loadTranslations() {
       translations = {
         failedToLoadSchema: '❌ Failed to load schema',
         errorLoadingSchema: '❌ Error loading schema',
+        noSchemaLoaded: 'No schema loaded',
+        noSchemaRunLoad: 'Run "load" at the form0 prompt. The preview updates automatically.',
+        noSchemaPassPath: 'Start "form0 serve" with a schema path to preview a form.',
         connectedWatching: '✅ Connected - watching for changes',
         disconnectedFromServer: '❌ Disconnected from server',
         websocketConnectionError: '❌ WebSocket connection error',
@@ -92,6 +95,9 @@ async function loadTranslations() {
     translations = {
       failedToLoadSchema: '❌ Failed to load schema',
       errorLoadingSchema: '❌ Error loading schema',
+      noSchemaLoaded: 'No schema loaded',
+      noSchemaRunLoad: 'Run "load" at the form0 prompt. The preview updates automatically.',
+      noSchemaPassPath: 'Start "form0 serve" with a schema path to preview a form.',
       connectedWatching: '✅ Connected - watching for changes',
       disconnectedFromServer: '❌ Disconnected from server',
       websocketConnectionError: '❌ WebSocket connection error',
@@ -560,6 +566,20 @@ function initializeWebSocket() {
   };
 }
 
+// Without a schema, explain how to load one. The next schema update renders
+// the form in its place.
+function showNoSchema(interactive) {
+  const notice = document.createElement('div');
+  notice.className = 'preview-empty-state';
+  const title = document.createElement('h2');
+  title.textContent = t('noSchemaLoaded');
+  const hint = document.createElement('p');
+  hint.textContent = t(interactive ? 'noSchemaRunLoad' : 'noSchemaPassPath');
+  notice.append(title, hint);
+  document.getElementById('form-container').replaceChildren(notice);
+  document.getElementById('schema-path').textContent = '—';
+}
+
 // Load initial schema on page load
 async function loadInitialSchema() {
   try {
@@ -571,6 +591,9 @@ async function loadInitialSchema() {
       schemaSource = data.source || 'Current Schema';
       currentBuildingPlanMeta = data.buildingPlanMeta || [];
       await renderForm();
+    } else if (response.status === 404) {
+      const { interactive } = await response.json().catch(() => ({}));
+      showNoSchema(interactive === true);
     } else {
       document.getElementById('status').textContent = t('failedToLoadSchema');
       console.error('Failed to load schema:', response.statusText);

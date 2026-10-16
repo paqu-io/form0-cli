@@ -7,6 +7,7 @@ import test from 'node:test';
 
 import { FileWatcher } from '../src/commands/interactive/file-watcher.js';
 import { ServerManager } from '../src/commands/interactive/managers/server-manager.js';
+import { Form0Server } from '../src/commands/serve.js';
 
 test('a schema loaded while serving is pushed and watched, also after a schema-less start', () => {
   let current = null;
@@ -75,5 +76,19 @@ test('the server-mode watcher moves to a newly loaded schema and keeps its optio
   } finally {
     await watcher.watcher.close();
     await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('without a schema, the preview learns whether load is available', async () => {
+  for (const interactive of [true, false]) {
+    const server = new Form0Server(null, { port: 0, ...(interactive ? { interactive } : {}) });
+    await server.start();
+    try {
+      const response = await fetch(`http://localhost:${server.port}/api/schema`);
+      assert.equal(response.status, 404);
+      assert.deepEqual(await response.json(), { error: 'No schema loaded', interactive });
+    } finally {
+      await server.stop();
+    }
   }
 });

@@ -189,10 +189,18 @@ test('dev server banners share one shape: status, URL to open, details, one stop
   // The device reaches the app's API through the network URL, the only optional detail.
   assert.ok(expo.length === 3 || /On your network: http:\/\//.test(expo[2]));
 
-  const expoWithoutSchema = printed(() =>
-    printServeBanner('expo', status, { stopHint: 'Press Ctrl+C to stop both servers.' })
-  );
-  assert.match(expoWithoutSchema.at(-2), /No schema loaded/);
+  // Without a schema, both app banners say how to show one in the preview.
+  const noSchemaHint = 'ℹ️  No schema loaded for the preview: run "load" to choose one.';
+  for (const kind of ['app', 'expo']) {
+    const withoutSchema = printed(() =>
+      printServeBanner(kind, status, { stopHint: 'Press Ctrl+C.', noSchemaHint })
+    );
+    assert.match(withoutSchema.at(-2), /No schema loaded for the preview: run "load"/);
+    const withSchema = printed(() =>
+      printServeBanner(kind, status, { schemaPath: 'a.json', stopHint: 'x', noSchemaHint })
+    );
+    assert.ok(!withSchema.some((line) => line.includes('No schema loaded')));
+  }
 });
 
 // The app records whether the CLI's port opened before it listened, then exits,

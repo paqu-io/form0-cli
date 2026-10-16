@@ -89,7 +89,8 @@
       "schemaFileNotFound": "❌ Schema file not found: {path}"
     },
     "serve": {
-      "noSchemaAppMode": "ℹ️  No schema loaded. App submissions should provide the schema to the dev server.",
+      "noSchemaUseLoad": "ℹ️  No schema loaded for the preview: run \"load\" to choose one.",
+      "noSchemaUsePath": "ℹ️  No schema loaded for the preview: pass a schema path to show one.",
       "openApp": "👉 Open your app: {url}",
       "openAppWithExpo": "📱 Open your app on your phone: scan Expo's QR code.",
       "devServerForApp": "form0 dev server (API and schema preview): {url}",
@@ -679,6 +680,9 @@
   "client": {
     "failedToLoadSchema": "❌ Failed to load schema.",
     "errorLoadingSchema": "❌ Error loading schema.",
+    "noSchemaLoaded": "No schema loaded",
+    "noSchemaRunLoad": "Run \"load\" at the form0 prompt. The preview updates automatically.",
+    "noSchemaPassPath": "Start \"form0 serve\" with a schema path to preview a form.",
     "connectedWatching": "✅ Connected - watching for changes.",
     "disconnectedFromServer": "❌ Disconnected from server.",
     "websocketConnectionError": "❌ WebSocket connection error.",

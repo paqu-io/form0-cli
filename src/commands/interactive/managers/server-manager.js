@@ -157,7 +157,8 @@ export class ServerManager {
 
     try {
       // Parse options
-      const serverOptions = { diagnostics: !args.includes('--no-diagnostics') };
+      // interactive: an empty preview can point to `load`.
+      const serverOptions = { diagnostics: !args.includes('--no-diagnostics'), interactive: true };
       for (let i = 0; i < args.length; i += 1) {
         if (args[i] === '--port' || args[i] === '-p') {
           serverOptions.port = args[i + 1];
@@ -196,6 +197,7 @@ export class ServerManager {
         printServeBanner(banner, this.devServer.getStatus(), {
           schemaPath: this.devServer.actualSchemaPath,
           appUrl,
+          noSchemaHint: t('commands.serve.noSchemaUseLoad'),
           stopHint:
             banner === 'standard'
               ? t('commands.serve.syncAndServeStop')

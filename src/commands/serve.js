@@ -405,6 +405,7 @@ export async function serveCommand(schemaPathArg, options) {
           printServeBanner(app?.expo ? 'expo' : 'app', server.getStatus(), {
             schemaPath: server.schemaPath,
             appUrl,
+            noSchemaHint: t('commands.serve.noSchemaUsePath'),
             stopHint: t('commands.serve.pressCtrlCBoth'),
           });
       };
