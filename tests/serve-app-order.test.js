@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import fs from 'fs-extra';
 import { ServerManager } from '../src/commands/interactive/managers/server-manager.js';
 import { resolveAppEndpoint, waitForPort } from '../src/utils/app-dev-server.js';
-import { printAppServeSummary } from '../src/utils/display-utils.js';
+import { printServeBanner } from '../src/utils/serve-banners.js';
+import { schemaWithCalculation } from './fixtures/diagnostics-schema.mjs';
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -30,16 +31,20 @@ async function project(config) {
 }
 
 test('resolveAppEndpoint reads a valid devServer.port and ignores anything else', async () => {
+  const none = { port: null, url: null, expo: false };
   const cases = [
     [
       "{ devServer: { command: 'npm run dev', port: 5173 } }",
-      { port: 5173, url: 'http://localhost:5173' },
+      { port: 5173, url: 'http://localhost:5173', expo: false },
     ],
     // Expo apps are opened from a device, so there is no browser URL to show.
-    ["{ devServer: { type: 'app', provider: 'expo', port: 8081 } }", { port: 8081, url: null }],
-    ["{ devServer: { command: 'npm run dev' } }", null],
-    ["{ devServer: { command: 'npm run dev', port: 'abc' } }", null],
-    ["{ devServer: { command: 'npm run dev', port: 70000 } }", null],
+    [
+      "{ devServer: { type: 'app', provider: 'expo', port: 8081 } }",
+      { port: 8081, url: null, expo: true },
+    ],
+    ["{ devServer: { command: 'npm run dev' } }", none],
+    ["{ devServer: { command: 'npm run dev', port: 'abc' } }", none],
+    ["{ devServer: { command: 'npm run dev', port: 70000 } }", none],
   ];
   for (const [config, expected] of cases) {
     const dir = await project(config);
@@ -51,7 +56,7 @@ test('resolveAppEndpoint reads a valid devServer.port and ignores anything else'
   }
   const empty = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-app-order-'));
   try {
-    assert.equal(await resolveAppEndpoint(empty), null);
+    assert.deepEqual(await resolveAppEndpoint(empty), none);
   } finally {
     await fs.remove(empty);
   }
@@ -90,13 +95,15 @@ test('interactive serve --app starts the app before the dev server when its port
     };
     manager.startDevServer = async (args, options) => {
       const listening = await waitForPort(appPort, { timeoutMs: 1 });
-      order.push(`dev (app listening: ${listening}, compact banner for: ${options.appUrl})`);
+      order.push(
+        `dev (app listening: ${listening}, ${options.banner} banner for: ${options.appUrl})`
+      );
       manager.devServer = { getStatus: () => ({ running: true }) };
     };
     await manager.startDevAndAppServers([]);
     assert.deepEqual(order, [
       'app (stop hint: false)',
-      `dev (app listening: true, compact banner for: http://localhost:${appPort})`,
+      `dev (app listening: true, app banner for: http://localhost:${appPort})`,
     ]);
   } finally {
     await new Promise((resolve) => app.close(resolve));
@@ -104,24 +111,71 @@ test('interactive serve --app starts the app before the dev server when its port
   }
 });
 
-test('the compact banner names the dev server role, the app URL, and how to stop both', () => {
-  const printed = [];
-  const log = console.log;
-  console.log = (line) => printed.push(String(line));
+test('interactive serve --app keeps the full banner for Expo', async () => {
+  const dir = await project("{ devServer: { type: 'app', provider: 'expo' } }");
   try {
-    printAppServeSummary(
-      'http://localhost:5173',
-      { host: '0.0.0.0', port: 3030 },
-      'Press Ctrl+C to stop both servers.'
+    const order = [];
+    const manager = new ServerManager(
+      { getCurrentSchemaPath: () => path.join(dir, 'form.schema.json') },
+      null,
+      null
     );
+    manager.startDevServer = async (args, options) => {
+      order.push(`dev (${options.banner} banner)`);
+      manager.devServer = { getStatus: () => ({ running: true }) };
+    };
+    manager.startAppServer = async (args, options) => {
+      order.push(`app (stop hint: ${options.stopHint})`);
+    };
+    await manager.startDevAndAppServers([]);
+    assert.deepEqual(order, ['dev (legacy banner)', 'app (stop hint: true)']);
+  } finally {
+    await fs.remove(dir);
+  }
+});
+
+function printed(callback) {
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(String(line));
+  try {
+    callback();
   } finally {
     console.log = log;
   }
-  const lines = printed.join('\n').trim().split('\n');
-  assert.equal(lines.length, 3);
-  assert.match(lines[0], /✅ form0 dev server \(API and schema preview\): http:\/\/localhost:3030/);
-  assert.match(lines[1], /👉 Open your app: http:\/\/localhost:5173/);
-  assert.match(lines[2], /Press Ctrl\+C to stop both servers\./);
+  return lines.join('\n').trim().split('\n');
+}
+
+test('dev server banners share one shape: status, URL to open, details, one stop hint', () => {
+  const status = { host: '0.0.0.0', port: 3030 };
+  const app = printed(() =>
+    printServeBanner('app', status, {
+      appUrl: 'http://localhost:5173',
+      stopHint: 'Press Ctrl+C to stop both servers.',
+    })
+  );
+  assert.equal(app.length, 3);
+  assert.match(app[0], /✅ form0 dev server \(API and schema preview\): http:\/\/localhost:3030/);
+  assert.match(app[1], /👉 Open your app: http:\/\/localhost:5173/);
+  assert.match(app[2], /Press Ctrl\+C to stop both servers\./);
+
+  // Without a known app URL, there is no app line to point to.
+  const unknownApp = printed(() =>
+    printServeBanner('app', status, { stopHint: 'Press Ctrl+C to stop both servers.' })
+  );
+  assert.equal(unknownApp.length, 2);
+
+  const standard = printed(() =>
+    printServeBanner('standard', status, {
+      schemaPath: 'form.schema.json',
+      stopHint: 'Schema changes sync automatically. Press Ctrl+C to stop the server.',
+    })
+  );
+  assert.match(standard[0], /✅ form0 dev server ready · schema: form\.schema\.json/);
+  assert.match(standard[1], /👉 Open the preview: http:\/\/localhost:3030/);
+  assert.match(standard.at(-1), /Schema changes sync automatically\. Press Ctrl\+C/);
+  // Only the optional network line may sit between the preview URL and the stop hint.
+  assert.ok(standard.length === 3 || /On your network: http:\/\//.test(standard[2]));
 });
 
 // The app records whether the CLI's port opened before it listened, then exits,
@@ -171,6 +225,7 @@ async function runServeApp({ declarePort }) {
         output.includes(`Open your app: http://localhost:${appPort}`) &&
         output.includes('Press Ctrl+C to stop both servers.') &&
         !output.includes('form0 Development Server Started'),
+      appBanner: output.includes('form0 dev server (API and schema preview)'),
       fullBanner: output.includes('form0 Development Server Started'),
     };
   } finally {
@@ -183,6 +238,7 @@ test('serve --app opens the app port before the dev server when devServer.port i
     cliOpenBeforeApp: false,
     cliOpened: true,
     compactBanner: true,
+    appBanner: true,
     fullBanner: false,
   });
 });
@@ -192,6 +248,38 @@ test('serve --app keeps starting the dev server first without a declared port', 
     cliOpenBeforeApp: true,
     cliOpened: true,
     compactBanner: false,
-    fullBanner: true,
+    appBanner: true,
+    fullBanner: false,
   });
+});
+
+test('serve without an app points to the form0 preview', async () => {
+  const port = await freePort();
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-serve-banner-'));
+  await fs.writeJson(path.join(dir, 'form.schema.json'), schemaWithCalculation('1 + 1'));
+  const child = spawn(process.execPath, [executable, 'serve', '--port', `${port}`], {
+    cwd: dir,
+    env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' },
+  });
+  let output = '';
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`No banner:\n${output}`)), 20000);
+      const collect = (chunk) => {
+        output += chunk;
+        if (output.includes('Press Ctrl+C to stop the server.')) {
+          clearTimeout(timer);
+          resolve();
+        }
+      };
+      child.stdout.on('data', collect);
+      child.stderr.on('data', collect);
+    });
+    assert.match(output, /✅ form0 dev server ready · schema: form\.schema\.json/);
+    assert.match(output, new RegExp(`👉 Open the preview: http://localhost:${port}`));
+    assert.doesNotMatch(output, /form0 Development Server Started/);
+  } finally {
+    child.kill('SIGTERM');
+    await fs.remove(dir);
+  }
 });

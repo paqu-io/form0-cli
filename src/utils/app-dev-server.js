@@ -378,19 +378,21 @@ async function ensureDependenciesInstalled(projectRoot, command) {
 }
 
 /**
- * Where the app dev server listens, when form0.config.js declares
- * devServer.port: { port, url }. url is null for Expo, which is opened from a
- * device rather than a browser. Returns null when the port is missing,
- * invalid, or the config cannot be read.
+ * How serve --app reaches the app: { port, url, expo }. port is null unless
+ * form0.config.js declares a valid devServer.port; url is null for Expo, which
+ * is opened from a device rather than a browser. Null if the config cannot be
+ * read.
  */
 export async function resolveAppEndpoint(startDir = process.cwd()) {
   try {
     const { devServer, isStructuredExpo } = await resolveAppDevServerConfig(startDir);
-    const port = Number(devServer?.port);
-    if (!Number.isInteger(port) || port <= 0 || port >= 65_536) {
-      return null;
-    }
-    return { port, url: isStructuredExpo ? null : `http://localhost:${port}` };
+    const declared = Number(devServer?.port);
+    const port = Number.isInteger(declared) && declared > 0 && declared < 65_536 ? declared : null;
+    return {
+      port,
+      url: port && !isStructuredExpo ? `http://localhost:${port}` : null,
+      expo: isStructuredExpo,
+    };
   } catch {
     return null;
   }

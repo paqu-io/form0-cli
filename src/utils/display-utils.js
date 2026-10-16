@@ -3,18 +3,6 @@ import { colors } from './theme.js';
 import { t, tn } from './i18n.js';
 import { getServerModeHelpEntries } from '../commands/interactive/command-catalog.js';
 
-/**
- * Compact form0 dev server banner for serve --app once the app is listening:
- * the dev server's role, then the app URL to open, then how to stop both.
- */
-export function printAppServeSummary(appUrl, { host, port }, stopHint) {
-  const devHost = ['0.0.0.0', '::'].includes(host) ? 'localhost' : host;
-  const devServerUrl = `http://${devHost}:${port}`;
-  console.log(colors.success(`\n✅ ${t('commands.serve.devServerForApp', { url: devServerUrl })}`));
-  console.log(colors.success(t('commands.serve.openApp', { url: appUrl })));
-  console.log(colors.textSecondary(`   ${stopHint}`));
-}
-
 const ROOT_HELP_COMMAND_KEYS = [
   'initCommand',
   'loadCommand',

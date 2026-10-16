@@ -17,7 +17,7 @@ import {
 } from '../utils/app-dev-server.js';
 import { collectCalculationIssues } from '../utils/calculation-checks.js';
 import { createTerminalDiagnosticReporter } from '../utils/calculation-reporting.js';
-import { printAppServeSummary } from '../utils/display-utils.js';
+import { getNetworkUrl, printServeBanner } from '../utils/serve-banners.js';
 
 const DEFAULT_SCHEMA_PATH = 'form.schema.json';
 
@@ -220,6 +220,16 @@ class Form0Server {
   }
 
   async showServerInfo() {
+    printServeBanner('standard', this.getStatus(), {
+      schemaPath: this.schemaPath,
+      stopHint: t('commands.serve.syncAndCtrlC'),
+    });
+  }
+
+  /**
+   * Full banner, kept for Expo apps until their output is aligned.
+   */
+  showLegacyServerInfo() {
     console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
     if (this.schemaPath) {
       console.log(
@@ -233,26 +243,12 @@ class Form0Server {
         '   🌐 ' + t('commands.serve.localUrl', { url: `http://${this.host}:${this.port}` })
       )
     );
-
-    // Try to get network IP
-    try {
-      const os = await import('os');
-      const interfaces = os.networkInterfaces();
-      const networkIp = Object.values(interfaces)
-        .flat()
-        .find((iface) => iface.family === 'IPv4' && !iface.internal)?.address;
-
-      if (networkIp) {
-        console.log(
-          colors.textSecondary(
-            '   🌐 ' + t('commands.serve.networkUrl', { url: `http://${networkIp}:${this.port}` })
-          )
-        );
-      }
-    } catch (err) {
-      // Ignore network IP detection errors
+    const networkUrl = getNetworkUrl(this.port);
+    if (networkUrl) {
+      console.log(
+        colors.textSecondary('   🌐 ' + t('commands.serve.networkUrl', { url: networkUrl }))
+      );
     }
-
     console.log(colors.success('\n' + '✅ ' + t('commands.serve.serverRunning')));
     console.log(colors.textMuted(t('commands.serve.pressCtrlC')));
   }
@@ -431,9 +427,20 @@ export async function serveCommand(schemaPathArg, options) {
       // With a declared app port, start the app first and the dev server once
       // the app listens, so tools that show the first open port show the app.
       const app = await resolveAppEndpoint(startDir);
-      if (app) {
+      // Expo keeps the full banner: the device needs the dev server's network URL.
+      const useAppBanner = (appUrl = null) => {
+        server.showServerInfo = app?.expo
+          ? async () => server.showLegacyServerInfo()
+          : async () =>
+              printServeBanner('app', server.getStatus(), {
+                appUrl,
+                stopHint: t('commands.serve.pressCtrlCBoth'),
+              });
+      };
+      if (app?.port) {
         server.setupExitHandlers();
       } else {
+        useAppBanner();
         await server.start();
       }
 
@@ -457,17 +464,14 @@ export async function serveCommand(schemaPathArg, options) {
         stopAll(1).catch(() => process.exit(1));
       });
 
-      if (app) {
+      if (app?.port) {
         // Form0Server.start exits the process on failure; do not leave the app behind.
         const stopAppOnExit = () => terminateAppDevServer(child, { useProcessGroup });
         process.once('exit', stopAppOnExit);
         const appListening = await waitForPort(app.port, {
           isAlive: () => child.exitCode === null && child.signalCode === null,
         });
-        if (appListening && app.url) {
-          server.showServerInfo = async () =>
-            printAppServeSummary(app.url, server.getStatus(), t('commands.serve.pressCtrlCBoth'));
-        }
+        useAppBanner(appListening ? app.url : null);
         await server.start();
         process.off('exit', stopAppOnExit);
       }
