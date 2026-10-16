@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import fs from 'fs-extra';
 import { ServerManager } from '../src/commands/interactive/managers/server-manager.js';
-import { resolveAppPort, waitForPort } from '../src/utils/app-dev-server.js';
+import { resolveAppEndpoint, waitForPort } from '../src/utils/app-dev-server.js';
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -28,9 +28,14 @@ async function project(config) {
   return dir;
 }
 
-test('resolveAppPort reads a valid devServer.port and ignores anything else', async () => {
+test('resolveAppEndpoint reads a valid devServer.port and ignores anything else', async () => {
   const cases = [
-    ["{ devServer: { command: 'npm run dev', port: 5173 } }", 5173],
+    [
+      "{ devServer: { command: 'npm run dev', port: 5173 } }",
+      { port: 5173, url: 'http://localhost:5173' },
+    ],
+    // Expo apps are opened from a device, so there is no browser URL to show.
+    ["{ devServer: { type: 'app', provider: 'expo', port: 8081 } }", { port: 8081, url: null }],
     ["{ devServer: { command: 'npm run dev' } }", null],
     ["{ devServer: { command: 'npm run dev', port: 'abc' } }", null],
     ["{ devServer: { command: 'npm run dev', port: 70000 } }", null],
@@ -38,14 +43,14 @@ test('resolveAppPort reads a valid devServer.port and ignores anything else', as
   for (const [config, expected] of cases) {
     const dir = await project(config);
     try {
-      assert.equal(await resolveAppPort(dir), expected, config);
+      assert.deepEqual(await resolveAppEndpoint(dir), expected, config);
     } finally {
       await fs.remove(dir);
     }
   }
   const empty = await fs.mkdtemp(path.join(os.tmpdir(), 'form0-app-order-'));
   try {
-    assert.equal(await resolveAppPort(empty), null);
+    assert.equal(await resolveAppEndpoint(empty), null);
   } finally {
     await fs.remove(empty);
   }
@@ -84,10 +89,22 @@ test('interactive serve --app starts the app before the dev server when its port
     };
     manager.startDevServer = async () => {
       order.push(`dev (app listening: ${await waitForPort(appPort, { timeoutMs: 1 })})`);
-      manager.devServer = { getStatus: () => ({ running: true }) };
+      manager.devServer = {
+        getStatus: () => ({ running: true, host: 'localhost', port: 3030 }),
+      };
     };
-    await manager.startDevAndAppServers([]);
+    const printed = [];
+    const log = console.log;
+    console.log = (line) => printed.push(String(line));
+    try {
+      await manager.startDevAndAppServers([]);
+    } finally {
+      console.log = log;
+    }
     assert.deepEqual(order, ['app', 'dev (app listening: true)']);
+    const summary = printed.join('\n');
+    assert.match(summary, new RegExp(`Open your app: http://localhost:${appPort}`));
+    assert.match(summary, /form0 dev server \(API and schema preview\): http:\/\/localhost:3030/);
   } finally {
     await new Promise((resolve) => app.close(resolve));
     await fs.remove(dir);
@@ -113,6 +130,7 @@ for (let n = 0; n < 100 && !cliOpened; n++) {
   cliOpened = await open(cliPort);
 }
 fs.writeFileSync('order.json', JSON.stringify({ cliOpenBeforeApp, cliOpened }));
+await new Promise((resolve) => setTimeout(resolve, 500));
 server.close();
 `;
 
@@ -123,12 +141,21 @@ async function runServeApp({ declarePort }) {
   );
   await fs.writeFile(path.join(dir, 'app.mjs'), APP);
   try {
-    await execFileAsync(process.execPath, [executable, 'serve', '--app', '--port', `${cliPort}`], {
-      cwd: dir,
-      encoding: 'utf8',
-      timeout: 30000,
-    }).catch((error) => error);
-    return await fs.readJson(path.join(dir, 'order.json'));
+    const result = await execFileAsync(
+      process.execPath,
+      [executable, 'serve', '--app', '--port', `${cliPort}`],
+      {
+        cwd: dir,
+        encoding: 'utf8',
+        timeout: 30000,
+        env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' },
+      }
+    ).catch((error) => error);
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+    return {
+      ...(await fs.readJson(path.join(dir, 'order.json'))),
+      summary: output.includes(`Open your app: http://localhost:${appPort}`),
+    };
   } finally {
     await fs.remove(dir);
   }
@@ -138,6 +165,7 @@ test('serve --app opens the app port before the dev server when devServer.port i
   assert.deepEqual(await runServeApp({ declarePort: true }), {
     cliOpenBeforeApp: false,
     cliOpened: true,
+    summary: true,
   });
 });
 
@@ -145,5 +173,6 @@ test('serve --app keeps starting the dev server first without a declared port', 
   assert.deepEqual(await runServeApp({ declarePort: false }), {
     cliOpenBeforeApp: true,
     cliOpened: true,
+    summary: false,
   });
 });

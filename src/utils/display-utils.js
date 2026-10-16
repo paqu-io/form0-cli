@@ -3,6 +3,20 @@ import { colors } from './theme.js';
 import { t, tn } from './i18n.js';
 import { getServerModeHelpEntries } from '../commands/interactive/command-catalog.js';
 
+/**
+ * After serve --app starts both servers, point to the app rather than the
+ * form0 dev server, whose banner is printed last.
+ */
+export function printAppServeSummary(appUrl, { host, port }) {
+  const devHost = ['0.0.0.0', '::'].includes(host) ? 'localhost' : host;
+  console.log(colors.success(`\n${t('commands.serve.openApp', { url: appUrl })}`));
+  console.log(
+    colors.textSecondary(
+      `   ${t('commands.serve.devServerForApp', { url: `http://${devHost}:${port}` })}`
+    )
+  );
+}
+
 const ROOT_HELP_COMMAND_KEYS = [
   'initCommand',
   'loadCommand',

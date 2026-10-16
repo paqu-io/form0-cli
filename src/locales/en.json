@@ -93,6 +93,8 @@
       "schemaFile": "Schema: {path}",
       "noSchemaAppMode": "ℹ️  No schema loaded. App submissions should provide the schema to the dev server.",
       "localUrl": "Local: {url}",
+      "openApp": "👉 Open your app: {url}",
+      "devServerForApp": "form0 dev server (API and schema preview): {url}",
       "networkUrl": "Network: {url}",
       "serverRunning": "Server running...",
       "pressCtrlC": "Press Ctrl+C to stop the server.",

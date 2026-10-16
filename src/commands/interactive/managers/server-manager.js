@@ -2,8 +2,9 @@ import path from 'path';
 import { Form0Server } from '../../serve.js';
 import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
+import { printAppServeSummary } from '../../../utils/display-utils.js';
 import {
-  resolveAppPort,
+  resolveAppEndpoint,
   startAppDevServer,
   stopAppDevServerOnCrash,
   terminateAppDevServer,
@@ -86,8 +87,8 @@ export class ServerManager {
   }
 
   async startDevAndAppServers(args) {
-    const appPort = await resolveAppPort(this.getAppStartDir());
-    if (!appPort) {
+    const app = await resolveAppEndpoint(this.getAppStartDir());
+    if (!app) {
       await this.startDevServer(args, { allowNoSchema: true });
 
       if (this.devServer && this.devServer.getStatus().running) {
@@ -101,15 +102,21 @@ export class ServerManager {
     await this.startAppServer(args, { allowDevServer: true, blocking: false });
     const child = this.appServerProcess;
     const stopAppOnExit = () => this.stopAppServer();
+    let appListening = false;
     if (child) {
       process.once('exit', stopAppOnExit);
-      await waitForPort(appPort, { isAlive: () => this.appServerProcess === child });
+      appListening = await waitForPort(app.port, {
+        isAlive: () => this.appServerProcess === child,
+      });
     }
 
     await this.startDevServer(args, { allowNoSchema: true });
     process.off('exit', stopAppOnExit);
-    if (child && !(this.devServer && this.devServer.getStatus().running)) {
+    const devServerRunning = this.devServer && this.devServer.getStatus().running;
+    if (child && !devServerRunning) {
       this.stopAppServer();
+    } else if (appListening && app.url && devServerRunning) {
+      printAppServeSummary(app.url, this.devServer.getStatus());
     }
   }
 

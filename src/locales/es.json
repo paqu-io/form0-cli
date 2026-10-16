@@ -90,6 +90,8 @@
       "fileChanged": "📝 Archivo modificado: {path}",
       "fileWatcherReady": "👀 Observador de archivos listo.",
       "localUrl": "Local: {url}",
+      "openApp": "👉 Abre tu app: {url}",
+      "devServerForApp": "Servidor de desarrollo de form0 (API y vista previa del esquema): {url}",
       "networkUrl": "Red: {url}",
       "noWebSocketServer": "⚠️ No hay ningún servidor WebSocket disponible para enviar actualizaciones.",
       "pressCtrlC": "Presiona Ctrl+C para detener el servidor.",
