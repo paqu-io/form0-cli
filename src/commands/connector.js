@@ -12,6 +12,11 @@ import {
 } from '../utils/project-config.js';
 import { resolveProjectEnv, upsertProjectEnv, removeProjectEnvKeys } from '../utils/project-env.js';
 import { getConnectorEnvKeys, getPostgreSQLStorageDefaults } from '../utils/connector-settings.js';
+import {
+  CONNECTORS_DISABLED_MESSAGE,
+  CONNECTORS_LOCAL_HINT,
+  connectorsDisabled,
+} from '../utils/connector-policy.js';
 import readline from 'readline';
 
 /**
@@ -908,6 +913,12 @@ async function listConnectors() {
  * Main connector command handler
  */
 export async function connectorCommand(action, connectorName) {
+  if (connectorsDisabled()) {
+    console.log(`⚠️  ${CONNECTORS_DISABLED_MESSAGE}`);
+    console.log(CONNECTORS_LOCAL_HINT);
+    return;
+  }
+
   switch (action) {
     case 'install':
       if (!connectorName) {
