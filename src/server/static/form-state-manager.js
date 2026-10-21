@@ -5,6 +5,8 @@ export class FormStateManager {
   constructor(formRenderer, { diagnostics = null } = {}) {
     this.formRenderer = formRenderer;
     this.diagnostics = diagnostics;
+    this.managedUpdate = null;
+    this.customValidation = [];
     this.preservedValues = {}; // Store values to preserve across schema updates
     this.pendingFieldValues = new Map();
     this.pendingFieldCallbacks = new Map();
@@ -594,7 +596,10 @@ export class FormStateManager {
       const instanceContainer = this.formRenderer.getRepeatableInstanceContainer(contextPath);
       if (instanceContainer) {
         const instanceId = instanceContainer.getAttribute('data-instance-id');
-        current.id = instanceId || current.id || null;
+        const activeId =
+          this.formRenderer.getActiveInstance?.(contextPath)?.id ??
+          this.formRenderer.getActiveInstance?.(contextPath)?.record_id;
+        current.id = activeId ?? (instanceId || current.id || null);
 
         const activeInstance =
           typeof this.formRenderer.getActiveInstance === 'function'
@@ -910,7 +915,7 @@ export class FormStateManager {
     }
   }
 
-  setStandardFieldValue(field, container, value) {
+  setStandardFieldValue(field, container, value, force = false) {
     const input = container.querySelector('[data-field-value="true"], input, textarea, select');
     if (!input) return;
 
@@ -924,6 +929,7 @@ export class FormStateManager {
     }
 
     if (
+      force ||
       isReadOnly ||
       input.value === '' ||
       input.value === null ||
@@ -934,7 +940,7 @@ export class FormStateManager {
     }
   }
 
-  updateFieldValue(field, container, value) {
+  updateFieldValue(field, container, value, force = false) {
     if (value === undefined) return;
 
     switch (field.type) {
@@ -959,7 +965,7 @@ export class FormStateManager {
         break;
       }
       default:
-        this.setStandardFieldValue(field, container, value);
+        this.setStandardFieldValue(field, container, value, force);
         break;
     }
   }
@@ -1039,6 +1045,7 @@ export class FormStateManager {
    * Update form engine and get new state
    */
   async updateFormState() {
+    if (this.managedUpdate) return this.managedUpdate(this.getCurrentFormState());
     const intentId = ++this.engineUpdateIntent;
     const diagnosticIntent = this.diagnostics?.beginEvaluation();
 
@@ -2169,10 +2176,16 @@ export class FormStateManager {
       return fieldDiv && !fieldDiv.classList.contains('hidden');
     });
 
+    const custom = this.customValidation.map((finding) => ({
+      kind: 'custom',
+      message: finding.message,
+      instancePath: finding.instancePath || [],
+    }));
     return {
       requiredFieldErrors: visibleRequiredFieldErrors,
-      generalErrors,
-      hasErrors: visibleRequiredFieldErrors.length > 0 || generalErrors.length > 0,
+      generalErrors: [...generalErrors, ...custom],
+      hasErrors:
+        visibleRequiredFieldErrors.length > 0 || generalErrors.length > 0 || custom.length > 0,
     };
   }
 }

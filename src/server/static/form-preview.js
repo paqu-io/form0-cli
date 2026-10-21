@@ -2,6 +2,8 @@ import { FormRenderer } from './form-renderer.js';
 import { resolveSupportingImagePath } from './supporting-image-utils.js';
 import { FormStateManager } from './form-state-manager.js';
 import { OperationProcessor } from './operation-processor.js';
+import { createPreviewEventClient } from './preview-event-client.js';
+import { createPreviewEventUI } from './preview-event-ui.js';
 import {
   createDiagnosticReporter,
   createPreviewDiagnosticController,
@@ -34,9 +36,7 @@ function warnUnsupportedEvents(schema) {
   if (!schemaUsesEvent(schema, 'edit-record')) {
     return;
   }
-  console.warn(
-    "[form0-cli] The 'edit-record' event is not supported in form0-cli; its handlers will be skipped."
-  );
+  console.warn(t('previewEvents.legacyEdit'));
   shownWarnings.add(UNSUPPORTED_EVENT_WARNING_KEY);
 }
 
@@ -117,6 +117,8 @@ let schemaSource = 'Current Schema'; // Will be updated by server
 let currentStatusValue = null; // Selected status for metadata panel (not part of engine state)
 let createdAtTimestamp = null; // Simple client-side timestamps for preview
 let currentBuildingPlanMeta = [];
+let renderGeneration = 0;
+let managedSubmitting = false;
 
 const FIELD_KEY_MODE_STORAGE_KEY = 'form0-cli-field-key-mode';
 const LABEL_VISIBILITY_STORAGE_KEY = 'form0-cli-label-visibility';
@@ -243,6 +245,7 @@ function ensureSettingsDialog() {
 
   body.appendChild(keyModeLabel);
   body.appendChild(settingsKeyModeSelect);
+  body.appendChild(previewEvents.settings());
 
   const labelGroup = document.createElement('div');
   labelGroup.className = 'settings-group';
@@ -343,6 +346,7 @@ function ensureSettingsDialog() {
 }
 
 function openSettingsDialog() {
+  previewEvents.resetSettings();
   ensureSettingsDialog();
   if (!settingsDialog) return;
   pendingFieldKeyMode = currentFieldKeyMode;
@@ -397,6 +401,7 @@ function handleSettingsKeyDown(event) {
 }
 
 function saveSettingsDialog() {
+  const restartEvents = previewEvents.saveSettings();
   currentFieldKeyMode = pendingFieldKeyMode;
   persistFieldKeyModePreference(currentFieldKeyMode);
 
@@ -412,6 +417,10 @@ function saveSettingsDialog() {
   }
 
   closeSettingsDialog();
+  if (restartEvents) {
+    formStateManager.preserveCurrentValues();
+    renderForm();
+  }
 }
 
 // Initialize modular components
@@ -429,6 +438,82 @@ const previewDiagnostics = createPreviewDiagnosticController(diagnosticReporter)
 const formStateManager = new FormStateManager(formRenderer, { diagnostics: previewDiagnostics });
 formRenderer.setStateManager(formStateManager);
 const operationProcessor = new OperationProcessor(formStateManager);
+const previewEventClient = createPreviewEventClient({
+  accept: (result, request) => previewEvents.accept(result, request),
+  present: (operations) => operationProcessor.processPresentations(operations),
+  getRecordOptions: () => ({
+    fieldKeyMode: currentFieldKeyMode,
+    created_at_client: createdAtTimestamp,
+  }),
+});
+const previewEvents = createPreviewEventUI({
+  client: previewEventClient,
+  renderer: formRenderer,
+  stateManager: formStateManager,
+  translate: t,
+  onWarnings: reportPreviewWarnings,
+  onPrepared(timestamps) {
+    createdAtTimestamp = timestamps.created_at_client;
+    lastSubmissionTimestamp = timestamps.updated_at_client;
+    const created = document.getElementById('record-metadata-created-at');
+    const updated = document.getElementById('record-metadata-updated-at');
+    if (created) created.value = createdAtTimestamp;
+    if (updated) updated.value = lastSubmissionTimestamp;
+  },
+  showError: showGlobalError,
+  clearError: hideGlobalError,
+  diagnostics: previewDiagnostics,
+  onReopen: () => renderForm(),
+  onStatus(values) {
+    const name = currentSchema?.form?.status_field?.data_name;
+    if (name && Object.hasOwn(values, name)) {
+      currentStatusValue = values[name];
+      const select = document.getElementById('record-metadata-status');
+      if (select) select.value = currentStatusValue ?? '';
+      updateHeaderStatusPill();
+    }
+  },
+});
+function reportPreviewWarnings(warnings) {
+  // Display warnings in browser console with session-based deduplication
+  if (warnings && warnings.length > 0) {
+    warnings.forEach((warning) => {
+      // Create a unique key for this warning (more stable than server-side approach)
+      const warningKey = `${warning.message}:${warning.context?.fieldName || ''}`;
+
+      // Only show each unique warning once per browser session
+      if (!shownWarnings.has(warningKey)) {
+        console.warn(`[form0] ${warning.message}`);
+        if (warning.context) {
+          const contextInfo = formatExecutionContext(warning.context);
+          console.warn(`[form0] Context: ${contextInfo}`);
+        }
+        if (warning.suggestion) {
+          console.info(`[form0] Suggestion: ${warning.suggestion}`);
+        }
+        if (warning.fieldContext) {
+          console.info('[form0] Field context:', warning.fieldContext);
+        }
+
+        // Mark this warning as shown for this session
+        shownWarnings.add(warningKey);
+      }
+    });
+  }
+}
+
+function contextualPath(target) {
+  const container = target?.closest?.('[data-repeatable-context]');
+  return container
+    ? formRenderer.parseContextKey(container.getAttribute('data-repeatable-context'))
+    : [];
+}
+function managedFieldChange(target, fieldName) {
+  const snapshot = formStateManager.getCurrentFormState();
+  const statusName = currentSchema?.form?.status_field?.data_name;
+  if (statusName) snapshot.values[statusName] = currentStatusValue;
+  return previewEvents.update(snapshot, fieldName, contextualPath(target));
+}
 
 loadLabelVisibilityPreference();
 
@@ -436,6 +521,9 @@ loadLabelVisibilityPreference();
  * Trigger a form event
  */
 async function triggerFormEvent(eventType, fieldKey = null) {
+  const epoch = renderGeneration;
+  if (previewEvents.enabled)
+    return previewEvents.controller?.dispatch({ type: eventType, fieldKey });
   const diagnosticIntent = previewDiagnostics.beginEvaluation();
   try {
     const { values, repeatable } = formStateManager.getCurrentFormState();
@@ -452,33 +540,10 @@ async function triggerFormEvent(eventType, fieldKey = null) {
     }
 
     const result = await response.json();
+    if (epoch !== renderGeneration) return;
     previewDiagnostics.accept(diagnosticIntent, result);
 
-    // Display warnings in browser console with session-based deduplication
-    if (result.warnings && result.warnings.length > 0) {
-      result.warnings.forEach((warning) => {
-        // Create a unique key for this warning (more stable than server-side approach)
-        const warningKey = `${warning.message}:${warning.context?.fieldName || ''}`;
-
-        // Only show each unique warning once per browser session
-        if (!shownWarnings.has(warningKey)) {
-          console.warn(`[form0] ${warning.message}`);
-          if (warning.context) {
-            const contextInfo = formatExecutionContext(warning.context);
-            console.warn(`[form0] Context: ${contextInfo}`);
-          }
-          if (warning.suggestion) {
-            console.info(`[form0] Suggestion: ${warning.suggestion}`);
-          }
-          if (warning.fieldContext) {
-            console.info('[form0] Field context:', warning.fieldContext);
-          }
-
-          // Mark this warning as shown for this session
-          shownWarnings.add(warningKey);
-        }
-      });
-    }
+    reportPreviewWarnings(result.warnings);
 
     // Apply state updates (non-blocking - if this fails, continue anyway)
     try {
@@ -623,13 +688,23 @@ document.addEventListener('DOMContentLoaded', initialize);
 
 async function renderForm() {
   if (!currentSchema) return;
+  const epoch = ++renderGeneration;
+  const previous = previewEventClient.getCommittedState();
+  previewEvents.dispose();
+  formStateManager.engineUpdateIntent++;
+  formStateManager.pendingEngineUpdate = false;
+  if (previewEvents.enabled) formStateManager.managedUpdate = async () => {};
   previewDiagnostics.invalidate();
   previewDiagnostics.setInitializing(true);
 
-  warnUnsupportedEvents(currentSchema);
+  if (!previewEvents.enabled) warnUnsupportedEvents(currentSchema);
 
   // Set schema in renderer and render form
-  formRenderer.setSchema(currentSchema, { buildingPlanMeta: currentBuildingPlanMeta });
+  formRenderer.setManagedPreview(previewEvents.rendererHooks);
+  formRenderer.setSchema(currentSchema, {
+    buildingPlanMeta: currentBuildingPlanMeta,
+    repeatableState: previous?.repeatable || {},
+  });
   formRenderer.renderForm();
 
   // Update schema path in header with schema source
@@ -645,11 +720,23 @@ async function renderForm() {
   renderRecordHeaderAndMetadata();
 
   // Initialize form with default values from schema
-  await initializeDefaultValues();
+  await initializeDefaultValues(epoch);
+  if (epoch !== renderGeneration) return;
 
   // Restore preserved values AFTER form is fully rendered
   formStateManager.restorePreservedValues();
+  if (previous) formStateManager.applyFormState(previous);
   previewDiagnostics.setInitializing(false);
+  if (previewEvents.enabled) {
+    const effective = formStateManager.getCurrentFormState();
+    const statusName = currentSchema?.form?.status_field?.data_name;
+    if (statusName) effective.values[statusName] = currentStatusValue;
+    await previewEvents.start(effective, {
+      fieldKeyMode: currentFieldKeyMode,
+      created_at_client: createdAtTimestamp,
+    });
+    return;
+  }
 
   // Trigger load-record event BEFORE initial engine evaluation
   triggerFormEvent('load-record');
@@ -869,6 +956,8 @@ function renderRecordHeaderAndMetadata() {
   statusSelect.addEventListener('change', () => {
     currentStatusValue = statusSelect.value || '';
     updateHeaderStatusPill();
+    if (previewEvents.enabled)
+      managedFieldChange(statusSelect, currentSchema?.form?.status_field?.data_name);
   });
 
   // Initial header update
@@ -893,13 +982,14 @@ function updateHeaderStatusPill() {
 /**
  * Initialize form fields with default values from schema
  */
-async function initializeDefaultValues() {
+async function initializeDefaultValues(epoch = renderGeneration) {
   if (!currentSchema || !currentSchema.form || !currentSchema.form.elements) return;
 
   try {
     const response = await fetch('/api/default-values');
     if (response.ok) {
       const data = await response.json();
+      if (epoch !== renderGeneration) return;
       const defaultValues = data.defaultValues || {};
 
       // Apply default values to form inputs (suppress logging during initialization)
@@ -967,6 +1057,22 @@ function addFormEventListeners() {
 
   const form = document.getElementById('main-form');
   if (form) {
+    if (!form._previewInteractionHandler) {
+      form._previewInteractionHandler = (event) => {
+        if (!previewEvents.enabled) return;
+        const field = event.target.closest?.('[data-name]');
+        if (!field) return;
+        const name = field.getAttribute('data-name');
+        const definition = formRenderer.findFieldByDataName(name);
+        const type =
+          event.type === 'focusin' ? 'focus' : event.type === 'focusout' ? 'blur' : 'click';
+        if (type === 'click' && definition?.type !== 'HyperlinkField') return;
+        if (type !== 'click' && !['TextField', 'NumericField'].includes(definition?.type)) return;
+        previewEvents.interaction(type, name, contextualPath(event.target));
+      };
+      for (const type of ['focusin', 'focusout', 'click'])
+        form.addEventListener(type, form._previewInteractionHandler, true);
+    }
     if (formInputHandler) {
       form.removeEventListener('input', formInputHandler, true);
     }
@@ -983,6 +1089,10 @@ function addFormEventListeners() {
         return;
       }
       markInstanceUpdatedFromTarget(target);
+      if (previewEvents.enabled) {
+        managedFieldChange(target, fieldName);
+        return;
+      }
       formStateManager.updateFormState();
       triggerFormEvent('change', fieldName);
     };
@@ -1000,6 +1110,11 @@ function addFormEventListeners() {
         return;
       }
       markInstanceUpdatedFromTarget(target);
+      if (previewEvents.enabled) {
+        if (['select-one', 'file', 'date', 'time'].includes(target.type))
+          managedFieldChange(target, target.getAttribute('name'));
+        return;
+      }
       formStateManager.updateFormState();
     };
     form.addEventListener('change', formChangeHandler, true);
@@ -1008,8 +1123,12 @@ function addFormEventListeners() {
   // Create handlers and keep track of them
   const singleChoiceHandler = (event) => {
     markInstanceUpdatedFromTarget(event.target);
-    formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'single');
+    if (previewEvents.enabled) {
+      if (fieldName) managedFieldChange(event.target, fieldName);
+      return;
+    }
+    formStateManager.updateFormState();
     if (fieldName) {
       triggerFormEvent('change', fieldName);
     }
@@ -1017,8 +1136,12 @@ function addFormEventListeners() {
 
   const multiChoiceHandler = (event) => {
     markInstanceUpdatedFromTarget(event.target);
-    formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'multi');
+    if (previewEvents.enabled) {
+      if (fieldName) managedFieldChange(event.target, fieldName);
+      return;
+    }
+    formStateManager.updateFormState();
     if (fieldName) {
       triggerFormEvent('change', fieldName);
     }
@@ -1026,8 +1149,12 @@ function addFormEventListeners() {
 
   const booleanFieldHandler = (event) => {
     markInstanceUpdatedFromTarget(event.target);
-    formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'boolean');
+    if (previewEvents.enabled) {
+      if (fieldName) managedFieldChange(event.target, fieldName);
+      return;
+    }
+    formStateManager.updateFormState();
     if (fieldName) {
       triggerFormEvent('change', fieldName);
     }
@@ -1035,8 +1162,12 @@ function addFormEventListeners() {
 
   const photoFieldHandler = (event) => {
     markInstanceUpdatedFromTarget(event.target);
-    formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'photo');
+    if (previewEvents.enabled) {
+      if (fieldName) managedFieldChange(event.target, fieldName);
+      return;
+    }
+    formStateManager.updateFormState();
     if (fieldName) {
       triggerFormEvent('change', fieldName);
     }
@@ -1044,8 +1175,12 @@ function addFormEventListeners() {
 
   const videoFieldHandler = (event) => {
     markInstanceUpdatedFromTarget(event.target);
-    formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'video');
+    if (previewEvents.enabled) {
+      if (fieldName) managedFieldChange(event.target, fieldName);
+      return;
+    }
+    formStateManager.updateFormState();
     if (fieldName) {
       triggerFormEvent('change', fieldName);
     }
@@ -1053,14 +1188,19 @@ function addFormEventListeners() {
 
   const signatureFieldHandler = (event) => {
     markInstanceUpdatedFromTarget(event.target);
-    formStateManager.updateFormState();
     const fieldName = extractFieldNameFromChoiceEvent(event, 'signature');
+    if (previewEvents.enabled) {
+      if (fieldName) managedFieldChange(event.target, fieldName);
+      return;
+    }
+    formStateManager.updateFormState();
     if (fieldName) {
       triggerFormEvent('change', fieldName);
     }
   };
 
   const repeatableChangeHandler = (event) => {
+    if (previewEvents.enabled) return;
     const detail = event.detail || {};
 
     // Focus first interactive field when a new instance is added
@@ -1133,6 +1273,55 @@ function addFormEventListeners() {
   };
 }
 
+/** Connectors only receive the accepted final snapshot, after all managed operations finish. */
+async function handleManagedSubmit() {
+  if (managedSubmitting) return;
+  managedSubmitting = true;
+  const controller = previewEvents.controller;
+  const button = document.getElementById('submit-btn');
+  if (button) button.disabled = true;
+  hideGlobalError();
+  try {
+    const result = await controller.prepareSave({ intent: 'submit' });
+    if (controller !== previewEvents.controller) return;
+    if (!result.eligible) {
+      showGlobalError(
+        result.issues?.length
+          ? result.issues.map((issue) => issue.message).join('\n')
+          : previewEvents.formatSummary(result.validationSummary || {})
+      );
+      return;
+    }
+    console.info(
+      '[form0] ' +
+        t('previewEvents.recordPrepared') +
+        '\n' +
+        JSON.stringify(result.payload, null, 2)
+    );
+    const response = await fetch('/api/submit-record', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ record: result.payload }),
+    });
+    const submission = await response.json();
+    if (controller !== previewEvents.controller) return;
+    if (!response.ok || !submission.success)
+      throw new Error(submission.error || submission.message || t('previewEvents.submitFailed'));
+    const timestamps = result.meta?.timestamps;
+    if (timestamps) {
+      createdAtTimestamp = timestamps.created_at_client;
+      lastSubmissionTimestamp = timestamps.updated_at_client;
+    }
+    showGlobalSuccess(t('previewEvents.submitted'));
+  } catch (error) {
+    showGlobalError(error.message);
+  } finally {
+    managedSubmitting = false;
+    if (button && controller === previewEvents.controller)
+      button.disabled = previewEvents.configuration.readonly;
+  }
+}
+
 /**
  * Extract field name from choice field custom events
  */
@@ -1170,6 +1359,7 @@ function addSubmitButtonEventListener() {
  * Handle form submission
  */
 async function handleFormSubmit() {
+  if (previewEvents.enabled) return handleManagedSubmit();
   console.log('🚀 [RECORD SUBMIT] Starting record submission...');
 
   const submitBtn = document.getElementById('submit-btn');

@@ -1,4 +1,5 @@
 import express from 'express';
+import { createPreviewSessionManager } from './preview-events/editor.js';
 import path from 'path';
 import {
   createFormEngine,
@@ -11,7 +12,7 @@ import {
   expandBuildingPlanSchema,
 } from 'form0-core';
 import { fileURLToPath } from 'url';
-import { getLocale, t, getRawTranslation } from '../utils/i18n.js';
+import { getLocale, t, getRawTranslation, setLocale } from '../utils/i18n.js';
 import { v7 as uuidv7 } from 'uuid';
 import { connectorManager } from '../utils/connector-manager.js';
 
@@ -629,6 +630,46 @@ function evaluateRepeatableState({ schema, baseValues, repeatableInput, metadata
   return result;
 }
 
+export function serializePreviewRecord(schema, state, options = {}, preserveRowIds = false) {
+  if (options.version !== undefined && !recordVersion.isValid(options.version)) {
+    throw new Error('Invalid record version. Must be a positive integer (e.g., 1, 2, 3)');
+  }
+  if (schema.form?.version !== undefined && !formVersion.isValid(schema.form.version)) {
+    throw new Error(
+      'Invalid form version format. Use simple format (e.g., "1", "2-dev1704123456") or semantic (e.g., "1.1.1", "1.2.0-dev1704123456")'
+    );
+  }
+  // Flatten form elements to get field mappings
+  const flattenedFields = flattenFields(schema.form?.elements || []);
+
+  // Generate UUIDs for records and media fields
+  const enhancedState = generateUUIDs(state, flattenedFields);
+  const recordOptions = generateRecordIds(schema.form?.elements || [], options);
+
+  // Create structured record using the real form0-core function
+  // Pass both flattened fields (for key mapping) and original elements (for nesting)
+  const structuredRecord = createStructuredRecord(enhancedState, flattenedFields, {
+    ...recordOptions,
+    originalElements: schema.form?.elements || [],
+    // Pass top-level fields for record transformer title/status computation
+    title_field: schema.form?.title_field || null,
+    status_field: schema.form?.status_field || null,
+    // If client provided @status in options, merge it here so transformer picks it up
+    '@status': options['@status'] || undefined,
+  });
+  preserveStructuredMediaMetadata(
+    structuredRecord,
+    enhancedState,
+    schema.form?.elements || [],
+    options.fieldKeyMode
+  );
+
+  // Ensure each repeatable instance receives a fresh UUID so connector inserts remain unique
+  if (!preserveRowIds) regenerateRepeatableRecordIds(structuredRecord);
+
+  return structuredRecord;
+}
+
 export function createApp(getCurrentSchema, getSchemaSource, projectDir, options = {}) {
   const app = express();
 
@@ -647,7 +688,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
     }
     unsupportedEventWarnings.add('edit-record');
     console.warn(
-      "[form0-cli] The 'edit-record' event is not supported in form0-cli; handlers will be skipped in preview."
+      '[form0-cli] Legacy preview skips edit-record handlers. Portable preview events in Form Settings support them.'
     );
   }
 
@@ -717,6 +758,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
   // API endpoint to get current locale and translations
   app.get('/api/locale', (req, res) => {
     const locale = getLocale();
+    if (!getRawTranslation('client')) setLocale(locale);
     const clientTranslations = getRawTranslation('client') || {};
     res.json({ locale, translations: clientTranslations });
   });
@@ -752,6 +794,52 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
   });
 
   // API endpoint to run engine with values
+  const previewSessions = createPreviewSessionManager({
+    getSchema: () => getPreparedSchemaPayload()?.schema,
+    serializeRecord: (schema, state, recordOptions) =>
+      serializePreviewRecord(schema, state, recordOptions, true),
+    evaluateRepeatable(schema, baseValues, repeatableInput) {
+      const engineOptions = {
+        helpers: {},
+        security: { mode: 'development' },
+        warningSystem: createRequestWarnings(),
+        diagnostics: [],
+      };
+      const repeatable = evaluateRepeatableState({
+        schema,
+        baseValues,
+        repeatableInput,
+        metadata: buildRepeatableMetadata(schema.form?.elements || []),
+        engineOptions,
+      });
+      return {
+        repeatable,
+        diagnostics: engineOptions.diagnostics,
+        warnings: engineOptions.warningSystem
+          .getCollectedWarnings()
+          .filter((w) => w.context?.type !== 'calculation'),
+      };
+    },
+  });
+  app.post('/api/preview-session', express.json(), async (req, res) => {
+    try {
+      res.json(await previewSessions.create(req.body));
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  app.post('/api/preview-events', express.json(), async (req, res) => {
+    try {
+      res.json(await previewSessions.command(req.body));
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  app.post('/api/preview-dispose', express.json(), (req, res) => {
+    previewSessions.dispose(req.body?.sessionId);
+    res.json({ status: 'disposed' });
+  });
+
   app.post('/api/engine', express.json(), (req, res) => {
     try {
       const payload = getPreparedSchemaPayload();
@@ -868,52 +956,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
         return res.status(400).json({ error: 'Form state is required' });
       }
 
-      // Validate version if provided in options
-      if (options.version !== undefined) {
-        if (!recordVersion.isValid(options.version)) {
-          return res.status(400).json({
-            error: 'Invalid record version. Must be a positive integer (e.g., 1, 2, 3)',
-          });
-        }
-      }
-
-      // Validate form version if present in schema
-      if (schema.form?.version !== undefined) {
-        if (!formVersion.isValid(schema.form.version)) {
-          return res.status(400).json({
-            error:
-              'Invalid form version format. Use simple format (e.g., "1", "2-dev1704123456") or semantic (e.g., "1.1.1", "1.2.0-dev1704123456")',
-          });
-        }
-      }
-
-      // Flatten form elements to get field mappings
-      const flattenedFields = flattenFields(schema.form?.elements || []);
-
-      // Generate UUIDs for records and media fields
-      const enhancedState = generateUUIDs(state, flattenedFields);
-      const recordOptions = generateRecordIds(schema.form?.elements || [], options);
-
-      // Create structured record using the real form0-core function
-      // Pass both flattened fields (for key mapping) and original elements (for nesting)
-      const structuredRecord = createStructuredRecord(enhancedState, flattenedFields, {
-        ...recordOptions,
-        originalElements: schema.form?.elements || [],
-        // Pass top-level fields for record transformer title/status computation
-        title_field: schema.form?.title_field || null,
-        status_field: schema.form?.status_field || null,
-        // If client provided @status in options, merge it here so transformer picks it up
-        '@status': options['@status'] || undefined,
-      });
-      preserveStructuredMediaMetadata(
-        structuredRecord,
-        enhancedState,
-        schema.form?.elements || [],
-        options.fieldKeyMode
-      );
-
-      // Ensure each repeatable instance receives a fresh UUID so connector inserts remain unique
-      regenerateRepeatableRecordIds(structuredRecord);
+      const structuredRecord = serializePreviewRecord(schema, state, options);
 
       res.json({ record: structuredRecord });
     } catch (err) {

@@ -6,22 +6,24 @@ export class OperationProcessor {
   constructor(formStateManager) {
     this.formStateManager = formStateManager;
     this.handlers = new Map();
-    this.registerDefaultHandlers();
+    this.ready = this.registerDefaultHandlers();
   }
 
   /**
    * Register default operation handlers
    */
-  registerDefaultHandlers() {
-    // Import and register field operation handlers
-    import('./operation-handlers/field-operations.js').then((module) => {
-      this.registerHandlers('FIELD_OPERATION', module.fieldOperationHandlers);
-    });
-
-    // Import and register UI operation handlers
-    import('./operation-handlers/ui-operations.js').then((module) => {
-      this.registerHandlers('UI_OPERATION', module.uiOperationHandlers);
-    });
+  async registerDefaultHandlers() {
+    const [field, ui] = await Promise.all([
+      import('./operation-handlers/field-operations.js'),
+      import('./operation-handlers/ui-operations.js'),
+    ]);
+    for (const [type, defaults] of [
+      ['FIELD_OPERATION', field.fieldOperationHandlers],
+      ['UI_OPERATION', ui.uiOperationHandlers],
+    ]) {
+      for (const [name, handler] of Object.entries(defaults))
+        if (!this.handlers.get(type)?.has(name)) this.registerHandler(type, name, handler);
+    }
   }
 
   /**
@@ -49,6 +51,7 @@ export class OperationProcessor {
     if (!operations || operations.length === 0) {
       return;
     }
+    await this.ready;
 
     const canBatchEngine =
       this.formStateManager &&
@@ -71,6 +74,17 @@ export class OperationProcessor {
       if (canBatchEngine) {
         this.formStateManager.resumeEngineUpdates();
       }
+    }
+  }
+
+  /** Managed values are already applied by the scoped server engine. Present each UI op once. */
+  async processPresentations(operations = []) {
+    await this.ready;
+    for (const operation of operations) {
+      const handler = this.handlers.get(operation.type)?.get(operation.operation);
+      if (!handler || operation.type !== 'UI_OPERATION')
+        throw new Error('Unsupported preview presentation: ' + operation.operation);
+      await handler(operation.params, this.formStateManager);
     }
   }
 
