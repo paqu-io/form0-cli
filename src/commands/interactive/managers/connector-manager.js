@@ -12,6 +12,11 @@ import {
   resolveProjectConfig,
 } from '../../../utils/project-config.js';
 import { removeProjectEnvKeys } from '../../../utils/project-env.js';
+import {
+  CONNECTORS_DISABLED_MESSAGE,
+  CONNECTORS_LOCAL_HINT,
+  connectorsDisabled,
+} from '../../../utils/connector-policy.js';
 
 function askQuestion(rl, question) {
   return new Promise((resolve, reject) => {
@@ -77,6 +82,12 @@ export class ConnectorManager {
    */
   async handleCommand(args) {
     const [subcommand, ...subArgs] = args;
+
+    if (connectorsDisabled()) {
+      console.log(colors.warning(CONNECTORS_DISABLED_MESSAGE));
+      console.log(colors.textMuted(CONNECTORS_LOCAL_HINT));
+      return;
+    }
 
     if (!subcommand) {
       this.showConnectorHelp();

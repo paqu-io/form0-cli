@@ -170,6 +170,10 @@ export function createDiagnosticReporter({ emit = () => {}, translate = (key) =>
       };
     },
     getDiagnostics: () => clone(snapshot),
+    forget(predicate) {
+      snapshot = snapshot.filter((finding) => !predicate(finding));
+      previous = new Map([...previous].filter(([, entry]) => !predicate(entry.diagnostic)));
+    },
     reset({ keepSnapshot = false } = {}) {
       previous = new Map();
       if (!keepSnapshot) snapshot = [];
@@ -185,6 +189,24 @@ export function createPreviewDiagnosticController(reporter) {
   let initializing = false;
   return {
     beginEvaluation: () => ({ generation, intent: ++intent }),
+    retireScopes(scopes) {
+      reporter.forget?.((finding) =>
+        scopes.some((scope) => {
+          const path = finding.context?.instancePath || [];
+          return (
+            scope.instancePath.length <= path.length &&
+            scope.instancePath.every(
+              (part, index) =>
+                part.repeatableKey === path[index]?.repeatableKey &&
+                part.identity === path[index]?.identity &&
+                (part.identity === 'id'
+                  ? part.instanceId === path[index]?.instanceId
+                  : part.index === path[index]?.index)
+            )
+          );
+        })
+      );
+    },
     accept(token, response) {
       if (!token || token.generation !== generation || token.intent !== intent) return false;
       reporter.report(response.diagnostics || [], { enabled: enabled && !initializing });

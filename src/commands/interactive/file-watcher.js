@@ -141,7 +141,13 @@ export class FileWatcher {
    * Start watching in server mode (silently, without Ctrl+C messages)
    */
   startWatchingInServerMode(schemaPath) {
-    this.watchOptions = { autoValidate: false, autoRun: false };
+    // Following a newly loaded schema replaces the watcher and keeps its options.
+    if (this.watcher) {
+      this.watcher.close();
+    }
+    if (!this.isWatching) {
+      this.watchOptions = { autoValidate: false, autoRun: false };
+    }
 
     this.watcher = chokidar.watch(schemaPath, WATCHER_CONFIG);
 

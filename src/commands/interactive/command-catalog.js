@@ -12,20 +12,20 @@ const SERVE_SUBCOMMANDS = [
 ];
 
 const COMMAND_CATALOG = Object.freeze([
-  { name: 'help', aliases: ['h'], server: true, serverHelpKey: 'help' },
+  { name: 'help', aliases: ['h'], server: true, serverHelpKeys: ['help.helpCommand'] },
   { name: 'init', aliases: [], server: false },
-  { name: 'load', aliases: ['l'], server: false },
-  { name: 'preview', aliases: ['p'], server: true, serverHelpKey: 'preview' },
+  { name: 'load', aliases: ['l'], server: true, serverHelpKeys: ['help.loadCommand'] },
+  { name: 'preview', aliases: ['p'], server: true, serverHelpKeys: ['help.previewCommand'] },
   { name: 'run', aliases: ['r'], server: false, completions: ['--values', '--no-diagnostics'] },
   {
     name: 'validate',
     aliases: ['v'],
     server: true,
-    serverHelpKey: 'validate',
+    serverHelpKeys: ['help.validateCommand'],
     completions: ['--no-diagnostics'],
   },
   { name: 'test', aliases: ['t'], server: false },
-  { name: 'status', aliases: ['s'], server: true, serverHelpKey: 'sessionStatus' },
+  { name: 'status', aliases: ['s'], server: true, serverHelpKeys: ['help.statusCommand'] },
   { name: 'values', aliases: [], server: false },
   { name: 'fields', aliases: ['f'], server: false },
   { name: 'reload', aliases: ['rld'], server: false },
@@ -43,7 +43,11 @@ const COMMAND_CATALOG = Object.freeze([
       if (['stop', 'status', 'update', 'app', '--app'].includes(action)) return true;
       return action === 'start' && (args.includes('--app') || args.includes('app'));
     },
-    serverHelpKey: 'serveControls',
+    serverHelpKeys: [
+      'help.serveStopCommand',
+      'help.serveStatusCommand',
+      'interactive.serverMode.serveUpdateCommand',
+    ],
     completions: SERVE_SUBCOMMANDS,
   },
   { name: 'clear', aliases: ['cls'], server: false },
@@ -53,7 +57,7 @@ const COMMAND_CATALOG = Object.freeze([
     name: 'connector',
     aliases: ['conn', 'c'],
     server: true,
-    serverHelpKey: 'connectorCommands',
+    serverHelpKeys: ['help.connectorCommand'],
     completions: [
       'help',
       'list',
@@ -72,15 +76,15 @@ const COMMAND_CATALOG = Object.freeze([
     name: 'schema',
     aliases: [],
     server: true,
-    serverHelpKey: 'schemaCommands',
+    serverHelpKeys: ['interactive.serverMode.schemaCommands'],
     completions: ['import', 'export', 'convert', 'edit', 'keys', 'new', 'delete'],
   },
-  { name: 'ai', aliases: [], server: true, serverHelpKey: 'aiCommand' },
+  { name: 'ai', aliases: [], server: true, serverHelpKeys: ['help.aiCommand'] },
   {
     name: 'reform',
     aliases: [],
     server: true,
-    serverHelpKey: 'reformCommands',
+    serverHelpKeys: ['interactive.serverMode.reformCommands'],
     completions: [
       'login',
       'logout',
@@ -144,11 +148,16 @@ export function getServerModeAvailability(command, args = []) {
       };
 }
 
+/**
+ * Translation keys of the help lines for commands available while the dev
+ * server runs, mostly the main help's own lines. Help comes last, as there.
+ */
 export function getServerModeHelpEntries() {
-  return COMMAND_CATALOG.filter((command) => command.serverHelpKey).map((command) => ({
-    command: command.name,
-    translationKey: command.serverHelpKey,
-  }));
+  const commands = COMMAND_CATALOG.filter((command) => command.serverHelpKeys);
+  return [
+    ...commands.filter((command) => command.name !== 'help'),
+    ...commands.filter((command) => command.name === 'help'),
+  ].flatMap((command) => command.serverHelpKeys);
 }
 
 export { COMMAND_CATALOG };

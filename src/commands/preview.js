@@ -55,7 +55,9 @@ export async function previewCommand(file) {
     const form = data.form;
 
     console.log(
-      chalk.blue.bold(t('commands.preview.formTitle', { name: form?.name || t('preview.unnamed') }))
+      chalk.blue.bold(
+        t('commands.preview.formTitle', { name: form?.name || t('commands.preview.unnamed') })
+      )
     );
     if (form?.description) {
       console.log(chalk.gray(`   ${form.description}`));

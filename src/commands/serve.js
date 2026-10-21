@@ -9,12 +9,15 @@ import { t } from '../utils/i18n.js';
 import { createApp } from '../server/express-server.js';
 import { createWebSocketServer } from '../server/websocket.js';
 import {
+  resolveAppEndpoint,
   startAppDevServer,
   stopAppDevServerOnCrash,
   terminateAppDevServer,
+  waitForPort,
 } from '../utils/app-dev-server.js';
 import { collectCalculationIssues } from '../utils/calculation-checks.js';
 import { createTerminalDiagnosticReporter } from '../utils/calculation-reporting.js';
+import { printServeBanner } from '../utils/serve-banners.js';
 
 const DEFAULT_SCHEMA_PATH = 'form.schema.json';
 
@@ -217,41 +220,10 @@ class Form0Server {
   }
 
   async showServerInfo() {
-    console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
-    if (this.schemaPath) {
-      console.log(
-        colors.textSecondary('   📋 ' + t('commands.serve.schemaFile', { path: this.schemaPath }))
-      );
-    } else {
-      console.log(colors.textSecondary('   ' + t('commands.serve.noSchemaAppMode')));
-    }
-    console.log(
-      colors.textSecondary(
-        '   🌐 ' + t('commands.serve.localUrl', { url: `http://${this.host}:${this.port}` })
-      )
-    );
-
-    // Try to get network IP
-    try {
-      const os = await import('os');
-      const interfaces = os.networkInterfaces();
-      const networkIp = Object.values(interfaces)
-        .flat()
-        .find((iface) => iface.family === 'IPv4' && !iface.internal)?.address;
-
-      if (networkIp) {
-        console.log(
-          colors.textSecondary(
-            '   🌐 ' + t('commands.serve.networkUrl', { url: `http://${networkIp}:${this.port}` })
-          )
-        );
-      }
-    } catch (err) {
-      // Ignore network IP detection errors
-    }
-
-    console.log(colors.success('\n' + '✅ ' + t('commands.serve.serverRunning')));
-    console.log(colors.textMuted(t('commands.serve.pressCtrlC')));
+    printServeBanner('standard', this.getStatus(), {
+      schemaPath: this.schemaPath,
+      stopHint: t('commands.serve.syncAndCtrlC'),
+    });
   }
 
   setupExitHandlers() {
@@ -424,9 +396,26 @@ export async function serveCommand(schemaPathArg, options) {
     };
 
     try {
-      await server.start();
-
       const startDir = path.resolve(process.cwd(), path.dirname(schemaPath || '.'));
+      // With a declared app port, start the app first and the dev server once
+      // the app listens, so tools that show the first open port show the app.
+      const app = await resolveAppEndpoint(startDir);
+      const useAppBanner = (appUrl = null) => {
+        server.showServerInfo = async () =>
+          printServeBanner(app?.expo ? 'expo' : 'app', server.getStatus(), {
+            schemaPath: server.schemaPath,
+            appUrl,
+            noSchemaHint: t('commands.serve.noSchemaUsePath'),
+            stopHint: t('commands.serve.pressCtrlCBoth'),
+          });
+      };
+      if (app?.port) {
+        server.setupExitHandlers();
+      } else {
+        useAppBanner();
+        await server.start();
+      }
+
       const { child, command, projectRoot, useProcessGroup, publicUrl } = await startAppDevServer(
         startDir,
         {
@@ -446,6 +435,18 @@ export async function serveCommand(schemaPathArg, options) {
       child.on('error', () => {
         stopAll(1).catch(() => process.exit(1));
       });
+
+      if (app?.port) {
+        // Form0Server.start exits the process on failure; do not leave the app behind.
+        const stopAppOnExit = () => terminateAppDevServer(child, { useProcessGroup });
+        process.once('exit', stopAppOnExit);
+        const appListening = await waitForPort(app.port, {
+          isAlive: () => child.exitCode === null && child.signalCode === null,
+        });
+        useAppBanner(appListening ? app.url : null);
+        await server.start();
+        process.off('exit', stopAppOnExit);
+      }
     } catch (err) {
       console.error(colors.error(`❌ Failed to start app dev server: ${err.message}`));
       await stopAll(1);

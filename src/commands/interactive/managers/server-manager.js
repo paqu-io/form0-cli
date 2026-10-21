@@ -2,10 +2,13 @@ import path from 'path';
 import { Form0Server } from '../../serve.js';
 import { colors } from '../../../utils/theme.js';
 import { t } from '../../../utils/i18n.js';
+import { printServeBanner } from '../../../utils/serve-banners.js';
 import {
+  resolveAppEndpoint,
   startAppDevServer,
   stopAppDevServerOnCrash,
   terminateAppDevServer,
+  waitForPort,
 } from '../../../utils/app-dev-server.js';
 
 /**
@@ -84,18 +87,64 @@ export class ServerManager {
   }
 
   async startDevAndAppServers(args) {
-    await this.startDevServer(args, { allowNoSchema: true });
+    const app = await resolveAppEndpoint(this.getAppStartDir());
+    const banner = app?.expo ? 'expo' : 'app';
+    // The dev server's banner carries the single stop hint.
+    if (!app?.port) {
+      await this.startDevServer(args, { allowNoSchema: true, banner });
 
-    if (this.devServer && this.devServer.getStatus().running) {
-      await this.startAppServer(args, { allowDevServer: true, blocking: false });
+      if (this.devServer && this.devServer.getStatus().running) {
+        await this.startAppServer(args, {
+          allowDevServer: true,
+          blocking: false,
+          stopHint: false,
+        });
+      }
+      return;
     }
+
+    // With a declared app port, start the app first and the dev server once the
+    // app listens, so tools that show the first open port show the app.
+    await this.startAppServer(args, {
+      allowDevServer: true,
+      blocking: false,
+      stopHint: false,
+    });
+    const child = this.appServerProcess;
+    const stopAppOnExit = () => this.stopAppServer();
+    let appListening = false;
+    if (child) {
+      process.once('exit', stopAppOnExit);
+      appListening = await waitForPort(app.port, {
+        isAlive: () => this.appServerProcess === child,
+      });
+    }
+
+    await this.startDevServer(args, {
+      allowNoSchema: true,
+      banner,
+      appUrl: appListening ? app.url : null,
+    });
+    process.off('exit', stopAppOnExit);
+    if (child && !(this.devServer && this.devServer.getStatus().running)) {
+      this.stopAppServer();
+    }
+  }
+
+  getAppStartDir() {
+    const schemaPath = this.schemaManager.getCurrentSchemaPath();
+    return schemaPath ? path.dirname(schemaPath) : process.cwd();
   }
 
   /**
    * Start the development server
    */
+  /**
+   * Start the development server. banner: 'standard' for serve, 'app' for
+   * serve --app (with appUrl once the app listens), 'expo' for Expo apps.
+   */
   async startDevServer(args, options = {}) {
-    const { allowNoSchema = false } = options;
+    const { allowNoSchema = false, banner = 'standard', appUrl = null } = options;
     if (!this.schemaManager.getCurrentSchema() && !allowNoSchema) {
       console.log(colors.error(t('common.noSchemaLoaded')));
       return;
@@ -108,7 +157,8 @@ export class ServerManager {
 
     try {
       // Parse options
-      const serverOptions = { diagnostics: !args.includes('--no-diagnostics') };
+      // interactive: an empty preview can point to `load`.
+      const serverOptions = { diagnostics: !args.includes('--no-diagnostics'), interactive: true };
       for (let i = 0; i < args.length; i += 1) {
         if (args[i] === '--port' || args[i] === '-p') {
           serverOptions.port = args[i + 1];
@@ -144,44 +194,15 @@ export class ServerManager {
 
       // Completely override server info display for interactive mode to control messaging
       this.devServer.showServerInfo = async () => {
-        console.log(colors.header('\n🚀 ' + t('commands.serve.serverStarted')));
-        const schemaFile = this.devServer.actualSchemaPath;
-        if (schemaFile) {
-          console.log(colors.info('📋 ' + t('commands.serve.schemaFile', { path: schemaFile })));
-        }
-        console.log(
-          colors.success(
-            '🌐 ' +
-              t('commands.serve.localUrl', {
-                url: `http://${this.devServer.host}:${this.devServer.port}`,
-              })
-          )
-        );
-
-        // Try to get network IP
-        try {
-          const os = await import('os');
-          const interfaces = os.networkInterfaces();
-          const networkIp = Object.values(interfaces)
-            .flat()
-            .find((iface) => iface.family === 'IPv4' && !iface.internal)?.address;
-
-          if (networkIp) {
-            console.log(
-              colors.success(
-                '🌐 ' +
-                  t('commands.serve.networkUrl', {
-                    url: `http://${networkIp}:${this.devServer.port}`,
-                  })
-              )
-            );
-          }
-        } catch (err) {
-          // Ignore network IP detection errors
-        }
-
-        console.log(colors.textSecondary('\n' + t('interactive.server.interactiveMode')));
-        console.log(colors.textSecondary(t('interactive.server.useServeStop')));
+        printServeBanner(banner, this.devServer.getStatus(), {
+          schemaPath: this.devServer.actualSchemaPath,
+          appUrl,
+          noSchemaHint: t('commands.serve.noSchemaUseLoad'),
+          stopHint:
+            banner === 'standard'
+              ? t('commands.serve.syncAndServeStop')
+              : t('commands.serve.stopBothServers'),
+        });
       };
 
       await this.devServer.start();
@@ -192,11 +213,6 @@ export class ServerManager {
 
       // Show server mode prompt
       this.refreshPrompt();
-
-      if (allowNoSchema && !this.schemaManager.getCurrentSchema()) {
-        console.log(colors.textSecondary(t('commands.serve.noSchemaAppMode')));
-        this.readline.prompt();
-      }
     } catch (err) {
       console.log(colors.error(t('common.failedToStart', { message: err.message })));
     }
@@ -206,7 +222,7 @@ export class ServerManager {
    * Start the app dev server defined in form0.config.js
    */
   async startAppServer(args, options = {}) {
-    const { allowDevServer = false, blocking = true } = options;
+    const { allowDevServer = false, blocking = true, stopHint = true } = options;
 
     if (this.isAppServerRunning()) {
       console.log(colors.warning('⚠️ App dev server is already running.'));
@@ -218,8 +234,7 @@ export class ServerManager {
       return;
     }
 
-    const schemaPath = this.schemaManager.getCurrentSchemaPath();
-    const startDir = schemaPath ? path.dirname(schemaPath) : process.cwd();
+    const startDir = this.getAppStartDir();
     const appOptions = {};
 
     for (let i = 0; i < args.length; i += 1) {
@@ -255,7 +270,7 @@ export class ServerManager {
       }
       if (blocking) {
         console.log(colors.textSecondary('   Press Ctrl+C to stop the app dev server.\n'));
-      } else {
+      } else if (stopHint) {
         console.log(colors.textSecondary('   Use "serve stop" or Ctrl+C to stop the servers.\n'));
       }
 
@@ -507,7 +522,13 @@ export class ServerManager {
     // Update the actual schema path for better display
     const actualSchemaPath = this.schemaManager.getCurrentSchemaPath();
     if (actualSchemaPath) {
+      const switched = actualSchemaPath !== this.devServer.actualSchemaPath;
       this.devServer.setActualSchemaPath(actualSchemaPath);
+      // Saving a schema loaded while serving must sync too, also when the
+      // server started without one.
+      if (switched) {
+        this.startSilentFileWatching();
+      }
     }
 
     // Update the server's current schema

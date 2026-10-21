@@ -51,6 +51,7 @@ function createMediaIds(existing = {}) {
 export class FormRenderer {
   constructor() {
     this.currentSchema = null;
+    this.managedPreview = null;
     this.fieldInstanceRegistry = new Map();
     this.initialRepeatableState = {};
     this.activeRepeatableState = {};
@@ -76,6 +77,51 @@ export class FormRenderer {
       typeof this.formStateManager.clearPendingFieldValues === 'function'
     ) {
       this.formStateManager.clearPendingFieldValues();
+    }
+  }
+
+  setManagedPreview(hooks) {
+    this.managedPreview = hooks;
+  }
+
+  applyManagedRepeatableState(repeatable) {
+    const shape = (value) =>
+      Object.fromEntries(
+        Object.entries(value || {}).map(([key, rows]) => [
+          key,
+          (rows || []).map((row) => ({
+            id: row.id ?? row.record_id ?? null,
+            children: shape(row.repeatable),
+          })),
+        ])
+      );
+    const incoming = this.cloneRepeatableState(repeatable);
+    const normalize = (elements, container) => {
+      for (const field of elements || []) {
+        if (field.type === 'RepeatableSection') {
+          const rows = (container[this.getPreferredKey(field)] ||= []);
+          for (const row of rows) normalize(field.elements, (row.repeatable ||= {}));
+        } else if (field.type === 'Section' || field.type === 'BuildingPlanSection')
+          normalize(field.elements, container);
+      }
+    };
+    normalize(this.currentSchema?.form?.elements, incoming);
+    const changed =
+      JSON.stringify(shape(this.activeRepeatableState)) !== JSON.stringify(shape(incoming));
+    this.activeRepeatableState = incoming;
+    if (changed) {
+      const roots = [...this.repeatableSectionRegistry.values()].filter(
+        (entry) => !entry.contextPath?.length
+      );
+      for (const entry of roots) {
+        const section = entry.section || entry.elementSchema;
+        if (section)
+          this.rebuildRepeatableSection(
+            section,
+            [],
+            this.activeRepeatableState[this.getPreferredKey(section)] || []
+          );
+      }
     }
   }
 
@@ -667,7 +713,7 @@ export class FormRenderer {
         return;
       }
 
-      target.id = snapshotInstance.id || snapshotInstance.record_id || target.id || null;
+      target.id = snapshotInstance.id ?? snapshotInstance.record_id ?? target.id ?? null;
       target.values = snapshotInstance.values
         ? JSON.parse(JSON.stringify(snapshotInstance.values))
         : target.values || {};
@@ -869,9 +915,12 @@ export class FormRenderer {
     addButton.className = 'repeatable-add-button';
     const sectionLabel = section.label || section.data_name || 'item';
     addButton.textContent = `Add ${sectionLabel}`;
-    addButton.addEventListener('click', () => {
-      this.addRepeatableInstance(section, contextPath);
-    });
+    if (this.managedPreview)
+      addButton.onclick = () => this.managedPreview.add(section, contextPath);
+    else
+      addButton.addEventListener('click', () => this.addRepeatableInstance(section, contextPath));
+    addButton._previewSection = section;
+    addButton._previewContextPath = [...contextPath];
     actionsContainer.appendChild(addButton);
 
     container.appendChild(sectionDiv);
@@ -894,7 +943,10 @@ export class FormRenderer {
     instanceDiv.setAttribute('data-repeatable-context', contextKey);
     instanceDiv.setAttribute('data-repeatable-key', preferredKey);
     instanceDiv.setAttribute('data-repeatable-index', String(index));
-    instanceDiv.setAttribute('data-instance-id', instanceState?.id || '');
+    instanceDiv.setAttribute(
+      'data-instance-id',
+      instanceState?.id ?? instanceState?.record_id ?? ''
+    );
 
     const createdAtClient =
       instanceState?.created_at_client ||
@@ -938,10 +990,23 @@ export class FormRenderer {
     removeButton.className = 'repeatable-instance-remove';
     removeButton.textContent = 'Remove';
     removeButton.disabled = !canRemove;
-    removeButton.addEventListener('click', () => {
-      this.removeRepeatableInstance(section, parentContextPath, index);
-    });
+    if (this.managedPreview)
+      removeButton.onclick = () => this.managedPreview.remove(section, parentContextPath, index);
+    else
+      removeButton.addEventListener('click', () =>
+        this.removeRepeatableInstance(section, parentContextPath, index)
+      );
     headerActions.appendChild(removeButton);
+    if (this.managedPreview) {
+      for (const action of ['edit', 'save', 'cancel']) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.previewRowAction = action;
+        button.textContent = this.managedPreview.translate('previewEvents.' + action);
+        button.onclick = () => this.managedPreview[action](instancePath);
+        headerActions.appendChild(button);
+      }
+    }
 
     instanceDiv.appendChild(headerRow);
 
@@ -1215,7 +1280,7 @@ export class FormRenderer {
       while (stateArray.length > instances.length) stateArray.pop();
 
       instances.forEach((instance, index) => {
-        stateArray[index].id = instance.id || null;
+        stateArray[index].id = instance.id ?? instance.record_id ?? null;
       });
 
       const lengthsDiffer = previousLength !== instances.length;
@@ -1227,7 +1292,10 @@ export class FormRenderer {
         const childPath = [...contextPath, { key, index }];
         const instanceContainer = this.getRepeatableInstanceContainer(childPath);
         if (instanceContainer) {
-          instanceContainer.setAttribute('data-instance-id', instance.id || '');
+          instanceContainer.setAttribute(
+            'data-instance-id',
+            instance.id ?? instance.record_id ?? ''
+          );
           if (instance.created_at_client) {
             instanceContainer.setAttribute('data-created-at-client', instance.created_at_client);
           }

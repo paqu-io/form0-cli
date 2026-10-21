@@ -264,6 +264,50 @@ errors. Diagnostic details go to stderr; evaluated state remains on stdout.
 These command outcomes do not change `state.errors`, submission validation, or reform draft saving.
 An app launched through `serve --app` retains its own reporting policy.
 
+## Portable events in browser preview (next release)
+
+Requires `form0-core` 0.5.1 or later within the supported 0.5.x range (installed with the CLI).
+
+In the built-in browser preview, open **Form Settings**, enable **Portable preview events**, and
+select **New record** or **Existing record** explicitly. The option is off by default. Opening
+read-only runs load only; changing these settings starts a new editor session with accepted values.
+A schema reload retires the previous session rather than pretending the editor was closed.
+
+The enabled preview evaluates effective values, runs `load-record`, then the selected `new-record`
+or `edit-record`. User field changes and enabled status changes run contextual events after queued
+updates settle; defaults, calculations and `SETVALUE()` do not create additional change events.
+Optional focus/blur apply to text and numeric controls; click applies to supported hyperlinks.
+
+Submit runs built-in and synchronous `INVALID(message)` validation, then `save-record` once, and
+validates again only if pre-save values changed. Connectors receive that final prepared record.
+Custom findings are scope-level summary messages, separate from intrinsic `state.errors` and
+calculation diagnostics. Calculation errors alone add no save blocker. **Prepare draft** returns
+an invalid-capable raw snapshot and validation summary in the console; it does not submit to a
+connector or persist a draft. No `saved-*` schema event is added.
+
+Inline rows have **Edit**, **Save row** and **Cancel row** controls in this mode. Opening uses
+repeatable lifecycle hooks; row Save validates and runs its pre-save hook before accepting local
+values. Ancestor/main reads are allowed, while `SETVALUE()` writes only inside that row. Cancel
+restores accepted data, including staged nested edits. Collapsing a row is presentation only.
+Accepted row membership changes notify the owner; failures in that later notification are reported
+without undoing acceptance. Closed-row evaluation keeps preview's existing recursive policy; this
+adds no binding submission-freshness or aggregation policy.
+
+The generation-bound developer controller is `window.form0PreviewEvents` while an editor is active:
+
+```js
+const prepared = await window.form0PreviewEvents.prepareSave({ intent: 'submit' });
+const checked = await window.form0PreviewEvents.dispatch({ type: 'validate-record' });
+```
+
+These promises finish accepted operations/presentation and return findings/issues. Preparation
+never submits or closes. Row requests supply the complete `instancePath` and observed `scopeId`
+from the preview response/row's `data-preview-scope-id`; positional paths require that scope ID.
+The controller accepts JSON metadata, rejects executable/native-file payloads, and becomes obsolete
+on reload or closure. Existing IDs are used for attribution. Cancel/Close dispatch notifications
+before retirement; abrupt tab disposal does not manufacture schema close hooks. Reopen starts a
+new session. These settings apply to the built-in preview; `serve --app` retains app-owned behavior.
+
 ## ✅ Requirements
 
 - Node.js 22.19.0+

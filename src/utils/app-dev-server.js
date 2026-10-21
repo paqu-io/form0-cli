@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import { createHash } from 'node:crypto';
+import net from 'node:net';
 import path from 'path';
 import { resolveProjectConfig } from './project-config.js';
 import { loadProjectEnv } from './project-env.js';
@@ -374,6 +375,58 @@ async function ensureDependenciesInstalled(projectRoot, command) {
   }
 
   return { performed: true, reason: 'installed' };
+}
+
+/**
+ * How serve --app reaches the app: { port, url, expo }. port is null unless
+ * form0.config.js declares a valid devServer.port; url is null for Expo, which
+ * is opened from a device rather than a browser. Null if the config cannot be
+ * read.
+ */
+export async function resolveAppEndpoint(startDir = process.cwd()) {
+  try {
+    const { devServer, isStructuredExpo } = await resolveAppDevServerConfig(startDir);
+    const declared = Number(devServer?.port);
+    const port = Number.isInteger(declared) && declared > 0 && declared < 65_536 ? declared : null;
+    return {
+      port,
+      url: port && !isStructuredExpo ? `http://localhost:${port}` : null,
+      expo: isStructuredExpo,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function acceptsConnections(port, host) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host });
+    const done = (value) => {
+      socket.destroy();
+      resolve(value);
+    };
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+    socket.setTimeout(1000, () => done(false));
+  });
+}
+
+/**
+ * Resolves true once the port accepts connections, or false after the timeout
+ * or as soon as isAlive() reports that the app process has stopped.
+ */
+export async function waitForPort(
+  port,
+  { host = 'localhost', timeoutMs = 60_000, intervalMs = 250, isAlive = () => true } = {}
+) {
+  const deadline = Date.now() + timeoutMs;
+  while (isAlive() && Date.now() < deadline) {
+    if (await acceptsConnections(port, host)) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return false;
 }
 
 export async function resolveAppDevServerConfig(startDir = process.cwd()) {
