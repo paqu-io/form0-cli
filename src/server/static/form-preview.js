@@ -1,3 +1,4 @@
+import { reviewSubmission } from './submission-review.js';
 import { FormRenderer } from './form-renderer.js';
 import { resolveSupportingImagePath } from './supporting-image-utils.js';
 import { FormStateManager } from './form-state-manager.js';
@@ -1282,7 +1283,16 @@ async function handleManagedSubmit() {
   if (button) button.disabled = true;
   hideGlobalError();
   try {
-    const result = await controller.prepareSave({ intent: 'submit' });
+    let result = await controller.prepareSave({ intent: 'submit' });
+    while (result.status === 'requires_decision') {
+      const action = await reviewSubmission(controller, result, currentSchema, t);
+      if (controller !== previewEvents.controller) return;
+      result = await controller.prepareSave({
+        intent: 'submit',
+        decision: { reviewId: result.reviewId, action },
+      });
+    }
+    if (result.status === 'cancelled') return;
     if (controller !== previewEvents.controller) return;
     if (!result.eligible) {
       showGlobalError(
@@ -1301,12 +1311,24 @@ async function handleManagedSubmit() {
     const response = await fetch('/api/submit-record', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ record: result.payload }),
+      body: JSON.stringify({
+        record: result.payload,
+        sessionId: controller.getSessionId(),
+        preparationId: result.preparationId,
+      }),
     });
     const submission = await response.json();
     if (controller !== previewEvents.controller) return;
     if (!response.ok || !submission.success)
       throw new Error(submission.error || submission.message || t('previewEvents.submitFailed'));
+    if (submission.freshness)
+      await previewEvents.accept({ persistedFreshness: submission.freshness });
+    if (!submission.freshness) {
+      const acknowledged = await controller.acknowledgeSave({
+        preparationId: result.preparationId,
+      });
+      if (acknowledged.issues?.length) throw new Error(acknowledged.issues[0].message);
+    }
     const timestamps = result.meta?.timestamps;
     if (timestamps) {
       createdAtTimestamp = timestamps.created_at_client;

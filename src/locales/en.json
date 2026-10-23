@@ -726,7 +726,17 @@
     "previewEvents.recordPrepared": "Record prepared",
     "previewEvents.submitFailed": "Submission failed",
     "previewEvents.submitted": "Form submitted successfully.",
-    "previewEvents.legacyEdit": "[form0-cli] Legacy preview skips edit-record handlers. Enable portable preview events in Form Settings to run them."
+    "previewEvents.legacyEdit": "[form0-cli] Legacy preview skips edit-record handlers. Enable portable preview events in Form Settings to run them.",
+    "freshness.review": "Review child calculations",
+    "freshness.description": "Updating these calculated values changes child records.",
+    "freshness.refresh": "Update all",
+    "freshness.retain": "Keep existing values",
+    "freshness.cancel": "Cancel",
+    "freshness.previous": "Previous",
+    "freshness.next": "Next",
+    "freshness.pending": "Some saved child calculations still need updating.",
+    "freshness.validationCount": "Validation findings: {count}",
+    "freshness.record": "Record"
   },
   "common": {
     "failedToLoadValues": "❌ Failed to load initial values: {message}",

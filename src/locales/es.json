@@ -57,7 +57,17 @@
     "previewEvents.recordPrepared": "Registro preparado",
     "previewEvents.submitFailed": "Error al enviar",
     "previewEvents.submitted": "Formulario enviado correctamente.",
-    "previewEvents.legacyEdit": "[form0-cli] La vista previa heredada omite edit-record. Activa los eventos portátiles en Ajustes del formulario."
+    "previewEvents.legacyEdit": "[form0-cli] La vista previa heredada omite edit-record. Activa los eventos portátiles en Ajustes del formulario.",
+    "freshness.review": "Revisar cálculos de registros secundarios",
+    "freshness.description": "Actualizar estos valores calculados cambia los registros secundarios.",
+    "freshness.refresh": "Actualizar todos",
+    "freshness.retain": "Conservar valores actuales",
+    "freshness.cancel": "Cancelar",
+    "freshness.previous": "Anterior",
+    "freshness.next": "Siguiente",
+    "freshness.pending": "Algunos cálculos guardados de registros secundarios todavía necesitan actualizarse.",
+    "freshness.validationCount": "Resultados de validación: {count}",
+    "freshness.record": "Registro"
   },
   "commands": {
     "init": {

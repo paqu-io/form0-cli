@@ -1,8 +1,11 @@
+import { hasRecordCollections } from './preview-events/record-coordinator.js';
+import { validatePreviewStorageOptions } from './preview-events/storage.js';
 import express from 'express';
 import { createPreviewSessionManager } from './preview-events/editor.js';
 import path from 'path';
 import {
   createFormEngine,
+  createRecordEvaluator,
   createStructuredRecord,
   flattenFields,
   WarningSystem,
@@ -367,7 +370,7 @@ function generateRecordIds(originalElements, existingOptions) {
   const options = { ...existingOptions };
 
   // Generate main record ID
-  if (!options.mainRecordId) {
+  if (!options.mainRecordId && options.mainRecordId !== 0) {
     options.mainRecordId = uuidv7();
   }
 
@@ -671,7 +674,9 @@ export function serializePreviewRecord(schema, state, options = {}, preserveRowI
 }
 
 export function createApp(getCurrentSchema, getSchemaSource, projectDir, options = {}) {
+  validatePreviewStorageOptions(options);
   const app = express();
+  const previewJson = () => express.json({ limit: options.previewRequestLimit || '16mb' });
 
   const unsupportedEventWarnings = new Set();
 
@@ -764,7 +769,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
   });
 
   // API endpoint to get default values from schema
-  app.get('/api/default-values', (req, res) => {
+  app.get('/api/default-values', async (req, res) => {
     try {
       const payload = getPreparedSchemaPayload();
       if (!payload) {
@@ -772,21 +777,13 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
       }
       const { schema } = payload;
 
-      // Create engine to get default values
-      const diagnostics = [];
-      const metadata = buildRepeatableMetadata(schema.form?.elements || []);
-      const engine = createFormEngine({
-        schema: schema,
-        initialValues: {}, // Empty to get only default values
+      const result = await createRecordEvaluator({
+        schema,
         diagnostics: { console: false },
-        onDiagnostics: (snapshot) =>
-          appendOwnedDiagnostics(snapshot, mainFieldNames(metadata), [], diagnostics),
-      });
-
-      engine.eval();
-      const state = engine.getState();
-
-      res.json({ defaultValues: state.values || {}, diagnostics });
+      }).evaluateScope({ values: {}, repeatable: {} }, { instancePath: [] });
+      if (result.status !== 'evaluated')
+        throw new Error(result.issues[0]?.message || 'Evaluation failed.');
+      res.json({ defaultValues: result.state.values || {}, diagnostics: result.diagnostics });
     } catch (err) {
       console.error('Error getting default values:', err);
       res.status(400).json({ error: err.message });
@@ -796,6 +793,9 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
   // API endpoint to run engine with values
   const previewSessions = createPreviewSessionManager({
     getSchema: () => getPreparedSchemaPayload()?.schema,
+    submissionOptions: options.submissionOptions,
+    storageAdapter: options.storageAdapter,
+    evaluationOptions: options.engineOptions,
     serializeRecord: (schema, state, recordOptions) =>
       serializePreviewRecord(schema, state, recordOptions, true),
     evaluateRepeatable(schema, baseValues, repeatableInput) {
@@ -821,26 +821,36 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
       };
     },
   });
-  app.post('/api/preview-session', express.json(), async (req, res) => {
+  app.post('/api/preview-session', previewJson(), async (req, res) => {
     try {
       res.json(await previewSessions.create(req.body));
     } catch (error) {
       res.status(400).json({ error: error.message });
     }
   });
-  app.post('/api/preview-events', express.json(), async (req, res) => {
+  app.post('/api/preview-events', previewJson(), async (req, res) => {
     try {
       res.json(await previewSessions.command(req.body));
     } catch (error) {
       res.status(400).json({ error: error.message });
     }
   });
-  app.post('/api/preview-dispose', express.json(), (req, res) => {
+  app.post('/api/preview-cancel', previewJson(), (req, res) =>
+    res.json(previewSessions.cancel(req.body))
+  );
+  app.post('/api/preview-persist', previewJson(), async (req, res) => {
+    try {
+      res.json(await previewSessions.persist(req.body));
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  app.post('/api/preview-dispose', previewJson(), (req, res) => {
     previewSessions.dispose(req.body?.sessionId);
     res.json({ status: 'disposed' });
   });
 
-  app.post('/api/engine', express.json(), (req, res) => {
+  app.post('/api/engine', previewJson(), async (req, res) => {
     try {
       const payload = getPreparedSchemaPayload();
       if (!payload) {
@@ -849,6 +859,29 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
       const { schema } = payload;
 
       const { values = {}, repeatable = {}, eventType, fieldKey } = req.body;
+      if (hasRecordCollections(schema)) {
+        const result = await createRecordEvaluator({
+          schema,
+          ...options.engineOptions,
+          diagnostics: { console: false },
+        }).evaluate({ values, repeatable }, { mode: 'accepted' });
+        if (result.status !== 'evaluated')
+          throw new Error(result.issues[0]?.message || 'Record evaluation failed.');
+        const events = eventType
+          ? createFormEngine({
+              schema,
+              initialValues: result.snapshot.values,
+              ...options.engineOptions,
+              diagnostics: { console: false },
+            })
+          : null;
+        return res.json({
+          ...result.snapshot,
+          operations: events?.trigger(eventType, fieldKey) || [],
+          warnings: [],
+          diagnostics: result.diagnostics,
+        });
+      }
 
       // Collections are request-scoped; presentation deduplication belongs to the client.
       const metadata = buildRepeatableMetadata(schema.form?.elements || []);
@@ -931,7 +964,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
   });
 
   // API endpoint to create structured record
-  app.post('/api/create-record', express.json(), (req, res) => {
+  app.post('/api/create-record', previewJson(), (req, res) => {
     try {
       const schemaOverride = req.body?.schema;
       if (
@@ -966,8 +999,12 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
   });
 
   // API endpoint to submit record to connectors
-  app.post('/api/submit-record', express.json(), async (req, res) => {
+  app.post('/api/submit-record', previewJson(), async (req, res) => {
     try {
+      if (options.storageAdapter) {
+        const result = await previewSessions.persist(req.body);
+        return res.json({ ...result, success: !result.issues?.length });
+      }
       const { record } = req.body;
 
       if (!record) {
@@ -1020,7 +1057,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
       });
 
       res.json({
-        success: hasSuccessfulConnector || connectorResults.length === 0,
+        success: !hasFailedConnector,
         message: overallMessage,
         connectorResults: connectorResults,
         record: record,

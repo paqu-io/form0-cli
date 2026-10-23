@@ -101,7 +101,7 @@ test('custom validation repeats, clears on editable change, blocks submit and pe
       const blocked = await command({ action: 'prepare', intent: 'submit' });
       assert.equal(blocked.eligible, false);
       assert.equal(blocked.payload, null);
-      assert.equal(blocked.validationSummary.generalErrors[0].message, 'Reach four.');
+      assert.equal(blocked.validationSummary.orderedIssues[0].message, 'Reach four.');
       assert.deepEqual(blocked.state.errors, {});
       assert.equal(blocked.state.values.trace, '');
     }
@@ -139,8 +139,11 @@ test('row removal rejects readonly sessions and ambiguous IDs without changing a
           affectedPath: rowPath(rows[0].id),
         });
         assert.equal(result.issues[0]?.code, expected);
-        assert.deepEqual(result.committedState.repeatable, started.committedState.repeatable);
-        assert.equal(result.committedState.repeatable.rows.length, rows.length);
+        assert.deepEqual(
+          (result.committedState || result.state).repeatable,
+          (started.committedState || started.state).repeatable
+        );
+        assert.equal((result.committedState || result.state).repeatable.rows.length, rows.length);
       },
       { lifecycle: true, recordKind: 'existing', readonly },
       { values: rootValues, repeatable: { rows } }
@@ -247,8 +250,8 @@ test('nested rows read ancestors/main, write locally, retain ID zero, and cancel
       assert.equal(Object.hasOwn(prepared.payload, 'read_only'), false);
       assert.equal(prepared.payload.values.quantity, 10);
       const root = await command({ action: 'prepare', intent: 'submit' });
-      assert.equal(root.payload.form_values.rows[0].form_values.amount, 2);
-      assert.equal(root.payload.form_values.rows[0].form_values.children[0].id, 0);
+      assert.equal(root.payload, null);
+      assert.equal(root.issues[0].code, 'pending_editor');
       await command({
         action: 'cancel',
         scopeId: rowScope.scopeId,

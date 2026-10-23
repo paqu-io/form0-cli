@@ -57,7 +57,17 @@
     "previewEvents.recordPrepared": "Record preparato",
     "previewEvents.submitFailed": "Invio non riuscito",
     "previewEvents.submitted": "Modulo inviato correttamente.",
-    "previewEvents.legacyEdit": "[form0-cli] L’anteprima precedente ignora edit-record. Abilita gli eventi portabili nelle impostazioni del modulo."
+    "previewEvents.legacyEdit": "[form0-cli] L’anteprima precedente ignora edit-record. Abilita gli eventi portabili nelle impostazioni del modulo.",
+    "freshness.review": "Rivedi i calcoli dei record figli",
+    "freshness.description": "Aggiornare questi valori calcolati modifica i record figli.",
+    "freshness.refresh": "Aggiorna tutti",
+    "freshness.retain": "Mantieni i valori attuali",
+    "freshness.cancel": "Annulla",
+    "freshness.previous": "Precedente",
+    "freshness.next": "Successivo",
+    "freshness.pending": "Alcuni calcoli salvati dei figli devono ancora essere aggiornati.",
+    "freshness.validationCount": "Esiti di validazione: {count}",
+    "freshness.record": "Record"
   },
   "commands": {
     "init": {

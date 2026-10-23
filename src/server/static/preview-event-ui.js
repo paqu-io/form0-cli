@@ -1,3 +1,8 @@
+import {
+  cancelSubmissionReview,
+  clearValidationFindings,
+  renderValidationFindings,
+} from './submission-review.js';
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const samePath = (a, b) =>
   a.length === b.length &&
@@ -64,8 +69,76 @@ export function createPreviewEventUI({
     if (result?.validationSummary?.hasErrors) showError(formatSummary(result.validationSummary));
     return result;
   };
+  async function navigateFinding(issue) {
+    const path = issue.instancePath || [];
+    for (let depth = 1; depth <= path.length; depth++) {
+      const targetPath = path.slice(0, depth);
+      if (client.getScopes().some((scope) => samePath(scope.instancePath, targetPath))) continue;
+      const parentScope = client
+        .getScopes()
+        .find((scope) => samePath(scope.instancePath, path.slice(0, depth - 1)));
+      if (!parentScope) return;
+      const result = await client.request({
+        action: 'open-row',
+        instancePath: targetPath,
+        parentScopeId: parentScope.scopeId,
+      });
+      if (result.issues?.length) {
+        report(result);
+        return;
+      }
+    }
+    let record = client.getState();
+    const context = [];
+    for (const part of path) {
+      const rows = record?.repeatable?.[part.repeatableKey] || [];
+      const index =
+        part.identity === 'id'
+          ? rows.findIndex((row) => (row.id ?? row.record_id) === part.instanceId)
+          : part.index;
+      if (index < 0) return;
+      context.push({ key: part.repeatableKey, index });
+      record = rows[index];
+    }
+    const target = [...renderer.getFieldInstanceRegistry().values()].find(
+      (entry) =>
+        (!issue.fieldName || entry.field.data_name === issue.fieldName) &&
+        JSON.stringify(entry.contextPath) === JSON.stringify(context)
+    );
+    let container = issue.fieldName
+      ? target?.container
+      : !path.length
+        ? document.querySelector('#form-container, #form-content, form') ||
+          document.getElementById('submit-container')?.parentElement
+        : null;
+    if (!container && path.length)
+      container = [...document.querySelectorAll('[data-repeatable-context]')].find(
+        (node) =>
+          JSON.stringify(renderer.parseContextKey(node.getAttribute('data-repeatable-context'))) ===
+          JSON.stringify(context)
+      );
+    if (!container) return;
+    for (let ancestor = container.parentElement; ancestor; ancestor = ancestor.parentElement)
+      if (ancestor.tagName === 'DETAILS') ancestor.open = true;
+    container.scrollIntoView?.({ block: 'center' });
+    const input = issue.fieldName
+      ? container.querySelector('input, textarea, select, button')
+      : null;
+    if (input) input.focus();
+    else {
+      container.tabIndex = -1;
+      container.focus();
+    }
+  }
   function formatSummary(summary) {
-    return [...(summary.requiredFieldErrors || []), ...(summary.generalErrors || [])]
+    if (summary.orderedIssues?.length > 50)
+      return translate('freshness.validationCount', { count: summary.orderedIssues.length });
+    return (
+      summary.orderedIssues || [
+        ...(summary.requiredFieldErrors || []),
+        ...(summary.generalErrors || []),
+      ]
+    )
       .map((issue) => {
         const path = (issue.instancePath || [])
           .map(
@@ -247,7 +320,7 @@ export function createPreviewEventUI({
   }
   return {
     get rendererHooks() {
-      return configuration.lifecycle ? hooks : null;
+      return hooks;
     },
     get configuration() {
       return copy(configuration);
@@ -256,7 +329,7 @@ export function createPreviewEventUI({
       return controller;
     },
     get enabled() {
-      return configuration.lifecycle;
+      return true;
     },
     formatSummary,
     settings() {
@@ -316,13 +389,11 @@ export function createPreviewEventUI({
       return previous !== JSON.stringify(configuration);
     },
     async start(state, recordOptions) {
+      cancelSubmissionReview();
+      clearValidationFindings();
       const epoch = ++sessionGeneration;
-      renderer.setManagedPreview(configuration.lifecycle ? hooks : null);
+      renderer.setManagedPreview(hooks);
       intent++;
-      if (!configuration.lifecycle) {
-        this.dispose();
-        return;
-      }
       const started = await client.start(configuration, state, recordOptions);
       if (epoch !== sessionGeneration || !started.controller) return started.result || started;
       controller = started.controller || null;
@@ -386,6 +457,8 @@ export function createPreviewEventUI({
       return report(started.result || started);
     },
     dispose() {
+      cancelSubmissionReview();
+      clearValidationFindings();
       sessionGeneration++;
       client.dispose();
       controller = null;
@@ -398,6 +471,7 @@ export function createPreviewEventUI({
       }
     },
     async update(snapshot, fieldKey = null, contextPath = []) {
+      clearValidationFindings();
       stateManager.customValidation = [];
       clearError();
       const uiIntent = ++intent;
@@ -425,6 +499,21 @@ export function createPreviewEventUI({
         controller = null;
         globalThis.form0PreviewEvents = null;
       }
+      let pending = document.getElementById('preview-pending-freshness');
+      if (!pending) {
+        pending = document.createElement('p');
+        pending.id = 'preview-pending-freshness';
+        pending.setAttribute('role', 'status');
+        document.getElementById('submit-container')?.prepend(pending);
+      }
+      if (Object.hasOwn(result, 'persistedFreshness'))
+        pending.textContent =
+          result.persistedFreshness?.status === 'pending' ? translate('freshness.pending') : '';
+      if (result.validationSummary)
+        renderValidationFindings(result.validationSummary, {
+          translate,
+          onSelect: navigateFinding,
+        });
       onWarnings(result.warnings || []);
       if (result.retiredScopes?.length) diagnostics?.retireScopes?.(result.retiredScopes);
       if (result.state) {

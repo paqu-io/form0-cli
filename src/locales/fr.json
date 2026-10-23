@@ -57,7 +57,17 @@
     "previewEvents.recordPrepared": "Enregistrement préparé",
     "previewEvents.submitFailed": "Échec de l’envoi",
     "previewEvents.submitted": "Formulaire envoyé avec succès.",
-    "previewEvents.legacyEdit": "[form0-cli] L’aperçu historique ignore edit-record. Activez les événements portables dans les paramètres du formulaire."
+    "previewEvents.legacyEdit": "[form0-cli] L’aperçu historique ignore edit-record. Activez les événements portables dans les paramètres du formulaire.",
+    "freshness.review": "Vérifier les calculs des enregistrements enfants",
+    "freshness.description": "La mise à jour de ces valeurs calculées modifie les enregistrements enfants.",
+    "freshness.refresh": "Tout actualiser",
+    "freshness.retain": "Conserver les valeurs actuelles",
+    "freshness.cancel": "Annuler",
+    "freshness.previous": "Précédent",
+    "freshness.next": "Suivant",
+    "freshness.pending": "Certains calculs enfants enregistrés doivent encore être actualisés.",
+    "freshness.validationCount": "Résultats de validation : {count}",
+    "freshness.record": "Enregistrement"
   },
   "commands": {
     "init": {

@@ -44,6 +44,7 @@ export function createPreviewEventClient({
     current = null,
     tail = Promise.resolve();
   const saves = new Set();
+  let preparationSequence = 0;
   let lastCommittedState = null;
   const scopes = () => current?.scopes || [];
   const target = (request) =>
@@ -146,6 +147,8 @@ export function createPreviewEventClient({
         session.scopes = result.scopes || session.scopes;
         if (result.state) session.state = clone(result.state);
         if (result.committedState) session.committedState = clone(result.committedState);
+        else if (result.state && result.scopes?.every((scope) => !scope.instancePath.length))
+          session.committedState = clone(result.state);
         await accept(clone(result), captured);
         if (epoch !== generation || current !== session)
           return failure('stale_generation', 'Preview state target has ended.');
@@ -162,6 +165,20 @@ export function createPreviewEventClient({
   }
   function controller(epoch) {
     return Object.freeze({
+      getSaveChanges(request = {}) {
+        return enqueue(epoch, { ...request, action: 'changes' });
+      },
+      acknowledgeSave(request = {}) {
+        return enqueue(epoch, { ...request, action: 'acknowledge' });
+      },
+      async persistSave({ preparationId }) {
+        if (epoch !== generation || !current)
+          return failure('stale_generation', 'This preview has ended.');
+        return send('/api/submit-record', { sessionId: current.sessionId, preparationId });
+      },
+      getSessionId() {
+        return current?.sessionId;
+      },
       dispatch(request = {}) {
         if (!request || typeof request !== 'object' || Array.isArray(request))
           return Promise.resolve(failure('invalid_request', 'A request object is required.'));
@@ -170,6 +187,24 @@ export function createPreviewEventClient({
       prepareSave(request = {}) {
         if (!request || typeof request !== 'object' || Array.isArray(request))
           return Promise.resolve(failure('invalid_request', 'A request object is required.'));
+        const { signal, ...portable } = request;
+        if (
+          signal &&
+          (typeof signal.aborted !== 'boolean' || typeof signal.addEventListener !== 'function')
+        )
+          return Promise.resolve(failure('invalid_request', 'signal must be an AbortSignal.'));
+        if (signal?.aborted)
+          return Promise.resolve({
+            status: 'cancelled',
+            eligible: false,
+            payload: null,
+            issues: [],
+          });
+        const requestId = `preview-prepare-${++preparationSequence}`;
+        const sessionId = current?.sessionId;
+        const cancel = () => {
+          void send('/api/preview-cancel', { sessionId, requestId }).catch(() => {});
+        };
         const chosen = target(request);
         const key = chosen?.scopeId || 'root';
         if (saves.has(key))
@@ -184,11 +219,16 @@ export function createPreviewEventClient({
           saves.delete(key);
           return Promise.resolve(failure('invalid_request', error.message));
         }
+        signal?.addEventListener('abort', cancel, { once: true });
         return enqueue(epoch, {
-          ...request,
+          ...portable,
+          requestId,
           recordOptions: recordOptions ?? request.recordOptions,
           action: 'prepare',
-        }).finally(() => saves.delete(key));
+        }).finally(() => {
+          saves.delete(key);
+          signal?.removeEventListener('abort', cancel);
+        });
       },
     });
   }
