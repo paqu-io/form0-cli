@@ -1118,6 +1118,8 @@ function addFormEventListeners() {
       if (target.closest('[class*="choice-field"]')) {
         return;
       }
+      // File pickers publish their value through the field-specific media notification.
+      if (previewEvents.enabled && target.type === 'file' && !target.getAttribute('name')) return;
       markInstanceUpdatedFromTarget(target);
       if (previewEvents.enabled) {
         if (['select-one', 'file', 'date', 'time'].includes(target.type))

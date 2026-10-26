@@ -964,6 +964,12 @@ export class FormStateManager {
         if (hiddenInput) {
           hiddenInput.value = typeof value === 'string' ? value : JSON.stringify(value ?? null);
         }
+        if (value == null || (Array.isArray(value) && value.length === 0))
+          container
+            .querySelector(
+              '.signature-field-container, .photo-field-container, .video-field-container'
+            )
+            ?._resetPreview?.();
         break;
       }
       default:

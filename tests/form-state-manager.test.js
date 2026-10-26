@@ -132,3 +132,20 @@ test('managed MultiChoiceField updates isolate instances and restore or clear ch
   );
   assert.deepEqual(JSON.parse(second.input.value).choices, []);
 });
+
+test('media clears reset only the targeted preview without replaying control events', () => {
+  const manager = new FormStateManager({});
+  for (const type of ['PhotoField', 'VideoField', 'SignatureField']) {
+    let resets = 0;
+    const input = { value: '' };
+    const control = { _resetPreview: () => resets++ };
+    const container = {
+      querySelector: (selector) => (selector.includes('data-field-value') ? input : control),
+    };
+    const populated = type === 'SignatureField' ? { data: 'drawn' } : [{ media_id: 'keep' }];
+    manager.updateFieldValue({ type }, container, populated, true);
+    assert.equal(resets, 0);
+    manager.updateFieldValue({ type }, container, type === 'SignatureField' ? null : [], true);
+    assert.equal(resets, 1);
+  }
+});
