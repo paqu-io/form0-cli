@@ -1,3 +1,5 @@
+import { normalizeChoiceOperationValue } from './choice-operation-values.js';
+
 /**
  * Manages form state updates and value preservation
  */
@@ -1091,7 +1093,7 @@ export class FormStateManager {
   /**
    * Apply form state changes to the DOM
    */
-  applyFormState(state) {
+  applyFormState(state, { conditionsOnly = false } = {}) {
     // Apply visibility
     Object.entries(state.visible || {}).forEach(([fieldName, isVisible]) => {
       const element = document.querySelector(`[data-name="${fieldName}"]`);
@@ -1162,6 +1164,8 @@ export class FormStateManager {
         }
       }
     });
+
+    if (conditionsOnly) return;
 
     // Apply calculated values and other computed values
     Object.entries(state.values || {}).forEach(([fieldName, value]) => {
@@ -1853,15 +1857,7 @@ export class FormStateManager {
     }
 
     // Convert string value to proper SingleChoiceField format
-    let choiceValue;
-    if (typeof valueToSet === 'string') {
-      choiceValue = {
-        choice: [{ value: valueToSet, label: valueToSet }],
-        other: [],
-      };
-    } else {
-      choiceValue = valueToSet;
-    }
+    const choiceValue = normalizeChoiceOperationValue('SingleChoiceField', valueToSet);
 
     // Set updating flag to prevent event conflicts
     if (container._setUpdating) container._setUpdating(true);
@@ -1930,15 +1926,7 @@ export class FormStateManager {
     }
 
     // Convert array of strings to proper MultiChoiceField format
-    let choiceValue;
-    if (Array.isArray(valueToSet)) {
-      choiceValue = {
-        choices: valueToSet.map((value) => ({ value, label: value })),
-        other: [],
-      };
-    } else {
-      choiceValue = valueToSet;
-    }
+    const choiceValue = normalizeChoiceOperationValue('MultiChoiceField', valueToSet);
 
     // Apply DOM updates synchronously first
     this.applySyncMultiChoiceDOM(container, hiddenInput, choiceValue);
@@ -2047,14 +2035,7 @@ export class FormStateManager {
     }
 
     // Convert string value to proper BooleanField format
-    let booleanValue;
-    if (typeof valueToSet === 'string') {
-      booleanValue = {
-        choice: [{ value: valueToSet, label: valueToSet }],
-      };
-    } else {
-      booleanValue = valueToSet;
-    }
+    const booleanValue = normalizeChoiceOperationValue('BooleanField', valueToSet);
 
     // Set updating flag to prevent event conflicts
     if (container._setUpdating) container._setUpdating(true);

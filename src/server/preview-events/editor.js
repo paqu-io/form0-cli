@@ -11,6 +11,7 @@ import {
 import { restorePreviewRecord } from './storage.js';
 import { createChangeLabels } from './submission-presentation.js';
 import { createRecordCoordinator, applyRecordState } from './record-coordinator.js';
+import { normalizeChoiceOperationValue } from '../static/choice-operation-values.js';
 
 const maps = ['values', 'errors', 'visible', 'required', 'read_only'];
 function savedRows(repeatable) {
@@ -120,7 +121,15 @@ export function createPreviewEditor({
   function state(entry) {
     const current = entry.engine.getState();
     return clone({
-      ...Object.fromEntries(maps.map((key) => [key, pick(current[key], entry.names)])),
+      ...Object.fromEntries(
+        maps.map((key) => [
+          key,
+          pick(
+            current[key],
+            key === 'values' || key === 'errors' ? entry.names : entry.conditionNames
+          ),
+        ])
+      ),
       repeatable: clone(entry.row.repeatable || {}),
     });
   }
@@ -207,10 +216,20 @@ export function createPreviewEditor({
     };
   }
   function makeEntry(path, names, fieldKey, row, kind) {
+    // Containers own conditions in their containing record; nested rows have separate maps.
+    const conditionNames = new Set(names);
+    const visit = (elements) => {
+      for (const field of elements || []) {
+        conditionNames.add(field.data_name);
+        if (field.type === 'Section' || field.type === 'BuildingPlanSection') visit(field.elements);
+      }
+    };
+    visit(path.length ? definition(path)?.field.elements : schema.form?.elements);
     const entry = {
       scopeId: randomUUID(),
       path: clone(path),
       names,
+      conditionNames: [...conditionNames],
       fieldKey,
       row: clone(row),
       kind,
@@ -298,7 +317,10 @@ export function createPreviewEditor({
           if (operation.operation === 'SETVALUE') {
             const { fieldDataName, valueToSet } = operation.params;
             if (!names.includes(fieldDataName)) throw new Error('Operation targets another scope.');
-            entry.engine.getState().values[fieldDataName] = clone(valueToSet);
+            const field = metadata.fieldOwnership.get(fieldDataName)?.field;
+            entry.engine.getState().values[fieldDataName] = clone(
+              normalizeChoiceOperationValue(field?.type, valueToSet)
+            );
             changed = true;
           } else if (operation.operation === 'ALERT') presentations.push(clone(operation));
           else throw new Error('Unsupported preview operation: ' + operation.operation);

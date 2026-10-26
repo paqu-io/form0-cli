@@ -518,14 +518,27 @@ export function createPreviewEventUI({
       if (result.retiredScopes?.length) diagnostics?.retireScopes?.(result.retiredScopes);
       if (result.state) {
         renderer.applyManagedRepeatableState(result.state.repeatable || {});
-        stateManager.applyFormState(result.state);
-        // Managed responses are authoritative accepted updates, including pre-save SETVALUE.
+        stateManager.applyFormState(result.state, { conditionsOnly: true });
+        // Synchronize each actual field instance once, before validating its displayed value.
+        // An unchanged value must not erase transient UI such as selecting Other before typing.
         for (const { field, contextPath, container } of renderer
           .getFieldInstanceRegistry()
           .values()) {
           const node = stateManager.getNodeState(result.state, contextPath);
-          if (Object.hasOwn(node?.values || {}, field.data_name))
-            stateManager.updateFieldValue(field, container, node.values[field.data_name], true);
+          const value = node?.values?.[field.data_name];
+          stateManager.updateFieldVisibility(container, node?.visible?.[field.data_name]);
+          if (
+            Object.hasOwn(node?.values || {}, field.data_name) &&
+            JSON.stringify(stateManager.readFieldValue(field, container)) !== JSON.stringify(value)
+          )
+            stateManager.updateFieldValue(field, container, value, true);
+          stateManager.updateFieldValidation(
+            field,
+            container,
+            value,
+            node?.required?.[field.data_name],
+            node?.errors?.[field.data_name]
+          );
         }
         stateManager.customValidation = copy(result.customValidation || []);
         onStatus(result.state.values);

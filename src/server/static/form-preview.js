@@ -1249,7 +1249,7 @@ function addFormEventListeners() {
 
   // Hook into engine state application to refresh header/metadata title
   const originalApply = formStateManager.applyFormState.bind(formStateManager);
-  formStateManager.applyFormState = function (state) {
+  formStateManager.applyFormState = function (state, options) {
     try {
       // Update live title
       const title = computeLiveTitle(state.values || {});
@@ -1270,7 +1270,7 @@ function addFormEventListeners() {
     } catch (e) {
       console.warn('Failed updating metadata preview:', e);
     }
-    return originalApply(state);
+    return originalApply(state, options);
   };
 }
 
