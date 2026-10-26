@@ -145,6 +145,69 @@ for (const security of [undefined, { mode: 'safe' }])
       }
     });
 
+for (const [name, identityOptions] of [
+  ['generated record identity', {}],
+  ['main record identity zero', { recordOptions: { mainRecordId: 0 } }],
+  [
+    'explicit record identity precedence',
+    { recordIdentity: 'chosen', recordOptions: { mainRecordId: 'unused' } },
+  ],
+])
+  test(`CLI uses one identity to create, persist and reopen: ${name}`, async () => {
+    const records = new Map();
+    const manager = createPreviewSessionManager({
+      getSchema: () => schema,
+      serializeRecord: (schema, state, options) =>
+        serializePreviewRecord(schema, state, { ...options, fieldKeyMode: 'data-name' }, true),
+      submissionOptions: { allowRetain: true },
+      storageAdapter: {
+        load: async (identity) => structuredClone(records.get(identity) ?? null),
+        save: async (identity, value) => records.set(identity, structuredClone(value)),
+      },
+    });
+    try {
+      const opened = await manager.create({
+        ...identityOptions,
+        state: initial(),
+        configuration: { lifecycle: false, recordKind: 'new' },
+      });
+      const review = await manager.command({
+        sessionId: opened.sessionId,
+        sequence: 1,
+        action: 'prepare',
+        intent: 'submit',
+      });
+      assert.equal(review.status, 'requires_decision');
+      const retained = await manager.command({
+        sessionId: opened.sessionId,
+        sequence: 2,
+        action: 'prepare',
+        intent: 'submit',
+        decision: { reviewId: review.reviewId, action: 'retain' },
+      });
+      assert.equal(retained.eligible, true);
+      assert.equal(retained.payload.id, opened.recordIdentity);
+      const persisted = await manager.persist({
+        sessionId: opened.sessionId,
+        preparationId: retained.preparationId,
+      });
+      assert.equal(persisted.freshness.status, 'pending');
+      assert.deepEqual([...records.keys()], [opened.recordIdentity]);
+      const reopened = await manager.create({
+        recordIdentity: opened.recordIdentity,
+        configuration: { lifecycle: false, recordKind: 'existing' },
+      });
+      assert.equal(reopened.state.values.grand, 330);
+      assert.deepEqual(
+        reopened.state.repeatable.lines.map((row) => row.values.total),
+        [110, 220]
+      );
+      assert.deepEqual(reopened.persistedFreshness, retained.meta.freshness);
+    } finally {
+      manager.disposeAll();
+    }
+  });
+
 test('CLI storage configuration and atomic adapter preserve companion data and identity zero', async () => {
   assert.throws(
     () => validatePreviewStorageOptions({ submissionOptions: { allowRetain: true } }),

@@ -806,7 +806,7 @@ export function createPreviewSessionManager({
       if (sessions.size >= maxSessions) dispose(sessions.keys().next().value);
       const session = {
         editor,
-        identity: request.recordIdentity ?? request.recordOptions?.mainRecordId ?? id,
+        identity: identity ?? id,
         fingerprint: fingerprint(schema),
         touched: Date.now(),
         sequence: 0,
