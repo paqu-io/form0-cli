@@ -1028,6 +1028,9 @@ export class FormStateManager {
   }
 
   updateFieldValidation(field, container, value, isRequired, errorMessage) {
+    if (!container) return;
+    // Retain only this control's latest server policy for immediate presence feedback.
+    container._form0Validation = { isRequired, errorMessage };
     this.clearFieldInstanceError(container);
 
     if (errorMessage) {
@@ -1041,6 +1044,13 @@ export class FormStateManager {
         this.showFieldInstanceError(container, 'This field is required');
       }
     }
+  }
+
+  updateFieldPresenceFeedback(field, container, value) {
+    const policy = container?._form0Validation;
+    if (!policy) return;
+    // Intrinsic errors remain authoritative until the server evaluates the changed value.
+    this.updateFieldValidation(field, container, value, policy.isRequired, policy.errorMessage);
   }
 
   /**

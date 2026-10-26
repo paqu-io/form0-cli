@@ -478,11 +478,23 @@ export function createPreviewEventUI({
       const selected = target(contextPath);
       let node = snapshot;
       for (const part of contextPath) node = node?.repeatable?.[part.key]?.[part.index];
+      const instance = renderer
+        .getFieldInstanceRegistry()
+        .get(`${renderer.formatContextPath(contextPath)}::${fieldKey}`);
+      if (instance)
+        stateManager.updateFieldPresenceFeedback(
+          instance.field,
+          instance.container,
+          node?.values?.[fieldKey]
+        );
+      const values = node?.values || {};
       return report(
         await client.request({
           action: 'update',
           ...selected,
-          values: node?.values || {},
+          // Other fields may already contain newer results from an earlier queued handler.
+          values:
+            fieldKey && Object.hasOwn(values, fieldKey) ? { [fieldKey]: values[fieldKey] } : values,
           fieldKey,
           uiIntent,
         })

@@ -2,6 +2,44 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FormStateManager } from '../src/server/static/form-state-manager.js';
 
+function feedbackManager() {
+  const manager = new FormStateManager({});
+  manager.clearFieldInstanceError = (container) => (container.error = null);
+  manager.showFieldInstanceError = (container, message) => (container.error = message);
+  return manager;
+}
+
+test('signature presence feedback is immediate, instance-local and follows current required policy', () => {
+  const manager = feedbackManager();
+  const field = { type: 'SignatureField', data_name: 'signature' };
+  const first = {},
+    second = {};
+  manager.updateFieldValidation(field, first, null, true);
+  manager.updateFieldValidation(field, second, null, true);
+  manager.updateFieldPresenceFeedback(field, first, { data: 'drawn' });
+  assert.equal(first.error, null);
+  assert.equal(second.error, 'This field is required');
+  manager.updateFieldPresenceFeedback(field, first, null);
+  assert.equal(first.error, 'This field is required');
+  manager.updateFieldValidation(field, first, null, false);
+  manager.updateFieldPresenceFeedback(field, first, null);
+  assert.equal(first.error, null);
+});
+
+test('presence feedback preserves intrinsic errors until a new authoritative evaluation', () => {
+  const manager = feedbackManager();
+  const field = { type: 'NumericField', data_name: 'age' };
+  const container = {};
+  manager.updateFieldValidation(field, container, 12, true, 'Must be at least 16');
+  manager.updateFieldPresenceFeedback(field, container, 18);
+  assert.equal(container.error, 'Must be at least 16');
+  manager.updateFieldValidation(field, container, 18, true);
+  manager.updateFieldPresenceFeedback(field, container, 0);
+  assert.equal(container.error, null);
+  manager.updateFieldPresenceFeedback(field, container, null);
+  assert.equal(container.error, 'This field is required');
+});
+
 // Only the field-instance DOM surface is supplied. A document-wide lookup is a scope error.
 function choiceInstance(kind, values) {
   const input = { value: '' };

@@ -1085,6 +1085,14 @@ function addFormEventListeners() {
       if (target.closest('[class*="choice-field"]')) {
         return;
       }
+      // Signature values already reach the coordinator through signaturefield-change.
+      // Keep the compatibility input event available without executing each change twice.
+      if (
+        previewEvents.enabled &&
+        target.matches('input[type="hidden"][data-field-value="true"]') &&
+        target.closest('.signature-field-container')
+      )
+        return;
       const fieldName = target.getAttribute('name');
       if (!fieldName) {
         return;

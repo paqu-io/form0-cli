@@ -28,6 +28,12 @@ const signature = {
   media_id: 'preserve',
   mime_type: 'image/png',
 };
+const signatureField = (name) => {
+  const result = field('SignatureField', name, { required: true, agreement_text: null });
+  for (const key of ['supporting_image', 'supporting_image_path', 'supporting_image_display'])
+    delete result[key];
+  return result;
+};
 const schema = {
   form: {
     name: 'Preview control regressions',
@@ -39,19 +45,23 @@ const schema = {
     SETVALUE('note', 'changed');
   });
   ON('change', 'row_trigger', function() { SETVALUE('row_choice', 'blue'); });
+  ON('change', 'signature', function() { SETVALUE('signature_events', ($signature_events || 0) + 1); });
 `,
     },
     elements: [
       field('NumericField', 'trigger'),
+      field('NumericField', 'constrained', { min: 16 }),
+      field('NumericField', 'signature_events', { default_value: 0 }),
       field('TextField', 'note'),
       choice('SingleChoiceField', 'single'),
       choice('MultiChoiceField', 'multiple'),
       choice('SingleChoiceField', 'radio', { display: 'radio' }),
       choice('MultiChoiceField', 'checks', { display: 'checkbox' }),
-      field('SignatureField', 'signature', { required: true, agreement_text: null }),
+      signatureField('signature'),
       repeatable('rows', [
         field('NumericField', 'row_trigger'),
         choice('SingleChoiceField', 'row_choice'),
+        signatureField('row_signature'),
       ]),
       {
         type: 'Section',
@@ -68,8 +78,6 @@ const schema = {
     ],
   },
 };
-for (const name of ['supporting_image', 'supporting_image_path', 'supporting_image_display'])
-  delete schema.form.elements.find((item) => item.type === 'SignatureField')[name];
 validateSchema(schema.form);
 const directory = await mkdtemp(path.join(os.tmpdir(), 'form0-control-browser-'));
 const safe = process.env.FORM0_PREVIEW_SAFE === '1';
@@ -222,6 +230,116 @@ try {
         assert.ok((await settle(page)).state.values.signature.data);
       },
       { signature }
+    );
+    for (const name of ['signature', 'row_signature'])
+      await scenario(
+        lifecycle,
+        `${name} required feedback clears before server evaluation returns`,
+        async (page) => {
+          if (name === 'row_signature') {
+            await page.locator('[data-preview-row-action="edit"]').first().click();
+            await settle(page);
+          }
+          const pad = page.locator(`[data-name="${name}"]`);
+          assert.equal(await pad.locator('.error-message').count(), 1);
+          let release;
+          const pending = new Promise((resolve) => (release = resolve));
+          await page.route('**/api/preview-events', async (route) => {
+            if (route.request().postDataJSON().action === 'update') await pending;
+            await route.continue();
+          });
+          try {
+            const canvas = pad.locator('canvas');
+            await canvas.scrollIntoViewIfNeeded();
+            const box = await canvas.boundingBox();
+            await page.mouse.move(box.x + 20, box.y + 30);
+            await page.mouse.down();
+            await page.mouse.move(box.x + 100, box.y + 65, { steps: 5 });
+            await page.mouse.up();
+            assert.ok(
+              await pad
+                .locator('input[type="hidden"]')
+                .evaluate((input) => JSON.parse(input.value)?.data)
+            );
+            assert.equal(
+              await pad.locator('.error-message').count(),
+              0,
+              'Signature presence feedback must not wait for a server reply'
+            );
+          } finally {
+            release();
+            await settle(page);
+          }
+        }
+      );
+    await scenario(lifecycle, 'one signature change produces one managed update', async (page) => {
+      let requests = 0;
+      let release;
+      const pending = new Promise((resolve) => (release = resolve));
+      await page.route('**/api/preview-events', async (route) => {
+        const request = route.request().postDataJSON();
+        if (request.action === 'update' && request.fieldKey === 'signature') {
+          requests++;
+          await pending;
+        }
+        await route.continue();
+      });
+      await page.evaluate(() => {
+        window.signatureChanges = 0;
+        document.addEventListener('signaturefield-change', (event) => {
+          if (event.target.name === 'signature') window.signatureChanges++;
+        });
+      });
+      const canvas = page.locator('[data-name="signature"] canvas');
+      try {
+        await canvas.scrollIntoViewIfNeeded();
+        const box = await canvas.boundingBox();
+        await page.mouse.move(box.x + 20, box.y + 30);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 100, box.y + 65, { steps: 5 });
+        await page.mouse.up();
+      } finally {
+        release();
+      }
+      const settled = await settle(page);
+      const changes = await page.evaluate(() => window.signatureChanges);
+      assert.ok(changes >= 5, 'Live stroke updates must remain enabled');
+      assert.equal(
+        requests,
+        changes,
+        'The compatibility input event must not dispatch change twice'
+      );
+      assert.equal(
+        settled.state.values.signature_events,
+        changes,
+        'Queued stroke updates must preserve the current values written by previous handlers'
+      );
+    });
+    await scenario(
+      lifecycle,
+      'pending presence feedback preserves intrinsic errors',
+      async (page) => {
+        const input = page.locator('[data-name="constrained"] input');
+        const error = page.locator('[data-name="constrained"] .error-message');
+        await input.fill('12');
+        await settle(page);
+        const message = await error.textContent();
+        assert.match(message, /16/);
+        let release;
+        const pending = new Promise((resolve) => (release = resolve));
+        await page.route('**/api/preview-events', async (route) => {
+          if (route.request().postDataJSON().action === 'update') await pending;
+          await route.continue();
+        });
+        try {
+          await input.fill('18');
+          assert.equal(await error.textContent(), message);
+        } finally {
+          release();
+          await settle(page);
+        }
+        assert.equal(await error.count(), 0);
+      }
     );
     await scenario(
       lifecycle,

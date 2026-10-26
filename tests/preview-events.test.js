@@ -12,6 +12,7 @@ import { field, repeatable } from './fixtures/preview-event-fields.js';
 import { setLocale } from '../src/utils/i18n.js';
 import { defaultFormTemplate } from '../src/form0-forms/form-schema-template.js';
 import { ensureKeysForSchema } from '../src/utils/ensure-keys.js';
+import { createPreviewEventUI } from '../src/server/static/preview-event-ui.js';
 
 const rootValues = { input: 4, trace: '' };
 const rowPath = (id, index = 0) => [
@@ -67,6 +68,42 @@ async function withPreview(
     await rm(dir, { recursive: true, force: true });
   }
 }
+
+test('browser field edits preserve prior handler writes while explicit batch updates stay supported', async () => {
+  await withPreview(
+    fixture("ON('change', 'input', function() { SETVALUE('trace', $trace + 'x'); });"),
+    async ({ started, command }) => {
+      const previousDocument = globalThis.document;
+      globalThis.document = { getElementById: () => null };
+      try {
+        const ui = createPreviewEventUI({
+          client: {
+            resolvePath: () => [],
+            getScopes: () => started.scopes,
+            request: command,
+          },
+          renderer: { getFieldInstanceRegistry: () => new Map(), formatContextPath: () => 'root' },
+          stateManager: {},
+          showError: (message) => assert.fail(message),
+        });
+        // Both edits were captured before the first handler wrote trace.
+        const first = { values: { input: 5, trace: '' }, repeatable: {} };
+        const second = { values: { input: 6, trace: '' }, repeatable: {} };
+        assert.equal((await ui.update(first, 'input')).state.values.trace, 'x');
+        assert.equal((await ui.update(second, 'input')).state.values.trace, 'xx');
+        assert.equal(second.values.trace, '');
+        assert.equal(
+          (await ui.update({ values: { input: 7, trace: 'batch' }, repeatable: {} })).state.values
+            .trace,
+          'batch'
+        );
+      } finally {
+        if (previousDocument === undefined) delete globalThis.document;
+        else globalThis.document = previousDocument;
+      }
+    }
+  );
+});
 
 test('preview keeps container conditions in their owning record maps after event dispatch', async () => {
   const section = (name, elements) => ({
