@@ -1,4 +1,4 @@
-import { hasRecordCollections } from './preview-events/record-coordinator.js';
+import { createRecordBackend, hasRecordCollections } from './preview-events/record-coordinator.js';
 import { validatePreviewStorageOptions } from './preview-events/storage.js';
 import express from 'express';
 import { createPreviewSessionManager } from './preview-events/editor.js';
@@ -777,7 +777,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
       }
       const { schema } = payload;
 
-      const result = await createRecordEvaluator({
+      const result = await createRecordBackend({
         schema,
         diagnostics: { console: false },
       }).evaluateScope({ values: {}, repeatable: {} }, { instancePath: [] });

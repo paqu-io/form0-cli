@@ -814,7 +814,7 @@ export class FormStateManager {
     }
   }
 
-  setBooleanFieldValue(field, container, value) {
+  setBooleanChoiceValue(field, container, value) {
     const boolContainer = container.querySelector('.boolean-field-container');
     if (!boolContainer) return;
 
@@ -849,7 +849,7 @@ export class FormStateManager {
     if (boolContainer._setUpdating) boolContainer._setUpdating(false);
   }
 
-  setMultiChoiceFieldValue(field, container, value) {
+  setMultiChoiceValue(field, container, value) {
     const mcContainer =
       container.querySelector('.multi-choice-field-checkbox-container') ||
       container.querySelector('.multi-choice-field-container') ||
@@ -948,10 +948,10 @@ export class FormStateManager {
         this.setSingleChoiceValue(field, container, value);
         break;
       case 'BooleanField':
-        this.setBooleanFieldValue(field, container, value);
+        this.setBooleanChoiceValue(field, container, value);
         break;
       case 'MultiChoiceField':
-        this.setMultiChoiceFieldValue(field, container, value);
+        this.setMultiChoiceValue(field, container, value);
         break;
       case 'PhotoField':
       case 'VideoField':
