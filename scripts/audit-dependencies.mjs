@@ -4,13 +4,14 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { assessAudit, readAuditGraph } from './audit-policy.mjs';
 
-/** Run a real production audit. Injection is limited to tests; the CLI exposes no bypass options. */
+/** Run a real production audit. Release checks remain strict unless validation is selected. */
 export function auditProject({
   projectRoot,
   policy,
   now = Date.now(),
   run = spawnSync,
   env = process.env,
+  purpose = 'release',
 }) {
   const args = ['audit', '--omit=dev', '--omit=peer', '--audit-level=high', '--json'];
   // npm_execpath avoids shell execution of npm.cmd when invoked by npm scripts on Windows.
@@ -40,18 +41,28 @@ export function auditProject({
   } catch (error) {
     return failed('Dependency/policy verification failed: ' + error.message);
   }
-  return { ...assessAudit({ report, exitCode: child.status, policy, graph, now }), report };
+  return {
+    ...assessAudit({ report, exitCode: child.status, policy, graph, now, purpose }),
+    report,
+  };
+}
+
+export function parseAuditArguments(args) {
+  if (args.length === 0) return 'release';
+  if (args.length === 1 && args[0] === '--validation') return 'validation';
+  throw new Error('Usage: node scripts/audit-dependencies.mjs [--validation]');
 }
 
 function main() {
+  const purpose = parseAuditArguments(process.argv.slice(2));
   const root = fileURLToPath(new URL('..', import.meta.url));
   const policy = JSON.parse(
     readFileSync(new URL('./security-exceptions.json', import.meta.url), 'utf8')
   );
-  const result = auditProject({ projectRoot: root, policy });
+  const result = auditProject({ projectRoot: root, policy, purpose });
   if (result.report) {
     console.log(
-      'Production npm audit:',
+      `Production dependency audit (${purpose}):`,
       result.report.metadata?.vulnerabilities || 'invalid report'
     );
     for (const [name, finding] of Object.entries(result.report.vulnerabilities || {})) {
@@ -66,7 +77,7 @@ function main() {
   }
   if (result.accepted.length) {
     console.warn(
-      `TEMPORARY ACCEPTED RISK ${result.exceptionId}; expires ${result.expiresAt}. Vulnerabilities remain in the published dependency tree.`
+      `TEMPORARY ACCEPTED RISK ${result.exceptionId} for ${purpose} checks; expires ${result.expiresAt}. Vulnerabilities remain in the dependency tree.`
     );
     for (const item of result.accepted)
       console.warn(`  accepted ${item.name}@${item.version}: ${item.path}`);

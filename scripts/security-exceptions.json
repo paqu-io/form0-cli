@@ -8,7 +8,8 @@
       "approvedOn": "2026-10-27",
       "expiresAt": "2026-11-03T00:00:00.000Z",
       "cliVersion": "0.8.0",
-      "reason": "Maintainer-approved temporary acceptance for one CLI release while upstream Pi pins vulnerable Undici. This does not patch the dependency or make installed-user audits clean.",
+      "validationVersion": "0.7.0",
+      "reason": "Maintainer-approved validation of the unreleased 0.7.0 working tree and publication of 0.8.0 only while upstream Pi pins vulnerable Undici. Approval expires unchanged on 3 November 2026. This does not patch the dependency or make installed-user audits clean.",
       "packages": {
         "@earendil-works/pi-coding-agent": {
           "version": "1.0.4",

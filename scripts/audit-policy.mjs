@@ -48,6 +48,11 @@ function policyErrors(policy, now) {
       !Object.keys(entry.packages).length
     )
       return [...errors, 'Invalid exception release/package scope.'];
+    if (
+      entry.validationVersion !== undefined &&
+      (!pinnedVersion(entry.validationVersion) || entry.validationVersion === entry.cliVersion)
+    )
+      errors.push('Invalid exception validation version.');
     for (const [name, pkg] of Object.entries(entry.packages)) {
       if (
         !record(pkg) ||
@@ -126,9 +131,17 @@ function validateReport(report, exitCode) {
   return errors;
 }
 
-/** Pure, fail-closed policy. Callers cannot change the clock or scope through command-line flags. */
-export function assessAudit({ report, exitCode, policy, graph, now = Date.now() }) {
+/** Pure, fail-closed policy; explicit purposes select only versions approved in the repository. */
+export function assessAudit({
+  report,
+  exitCode,
+  policy,
+  graph,
+  now = Date.now(),
+  purpose = 'release',
+}) {
   const errors = [...validateReport(report, exitCode), ...policyErrors(policy, now)];
+  if (!['release', 'validation'].includes(purpose)) errors.push('Invalid audit purpose.');
   const accepted = [];
   if (errors.length) return { ok: false, errors, accepted };
   const exception = policy.exceptions[0];
@@ -140,17 +153,16 @@ export function assessAudit({ report, exitCode, policy, graph, now = Date.now() 
   }
   if (!record(graph?.manifest) || !record(graph?.lock?.packages) || !record(graph?.installed))
     return { ok: false, errors: ['Dependency graph could not be verified.'], accepted };
-  for (const version of [
-    graph.manifest.version,
-    graph.lock.version,
-    graph.lock.packages['']?.version,
-  ])
-    if (version !== exception.cliVersion)
-      errors.push(
-        'Exception is approved only for form0-cli ' +
-          exception.cliVersion +
-          '; manifest and lock must match that release.'
-      );
+  const versions = [graph.manifest.version, graph.lock.version, graph.lock.packages['']?.version];
+  if (!versions.every((version) => version === versions[0]))
+    errors.push('Manifest and root lockfile versions must agree.');
+  const allowedVersions = [exception.cliVersion];
+  if (purpose === 'validation' && exception.validationVersion)
+    allowedVersions.push(exception.validationVersion);
+  if (!allowedVersions.includes(versions[0]))
+    errors.push(
+      `Exception allows form0-cli ${allowedVersions.join(' or ')} for ${purpose} checks only.`
+    );
   for (const [name, pkg] of Object.entries(exception.packages)) {
     const installed = graph.installed[pkg.path];
     const locked = graph.lock.packages[pkg.path];
@@ -219,6 +231,7 @@ export function assessAudit({ report, exitCode, policy, graph, now = Date.now() 
     accepted: errors.length ? [] : accepted,
     exceptionId: exception.id,
     expiresAt: exception.expiresAt,
+    purpose,
   };
 }
 

@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, mkdir, rm, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { auditProject } from '../scripts/audit-dependencies.mjs';
+import { auditProject, parseAuditArguments } from '../scripts/audit-dependencies.mjs';
 import { readAuditGraph } from '../scripts/audit-policy.mjs';
+import { parse as parseYAML } from 'yaml';
 
 const policy = JSON.parse(
   await readFile(new URL('../scripts/security-exceptions.json', import.meta.url), 'utf8')
@@ -37,6 +38,76 @@ async function fixture(t) {
   return root;
 }
 const child = () => ({ status: 1, stdout: JSON.stringify(report) });
+
+test('validation is explicit; missing or unknown command arguments cannot widen release checks', () => {
+  assert.equal(parseAuditArguments([]), 'release');
+  assert.equal(parseAuditArguments(['--validation']), 'validation');
+  for (const args of [
+    ['--ci'],
+    ['--validation', '--validation'],
+    ['--validation', '--other'],
+    ['--now', '2026-10-27'],
+  ])
+    assert.throws(() => parseAuditArguments(args), /Usage:/);
+});
+
+test('installed 0.7.0 metadata permits validation only, including when CI environment flags are present', async (t) => {
+  const root = await fixture(t);
+  for (const version of ['0.7.0', '0.8.0', '0.8.1']) {
+    for (const file of ['package.json', 'package-lock.json']) {
+      const location = path.join(root, file);
+      const data = JSON.parse(await readFile(location, 'utf8'));
+      data.version = version;
+      if (file === 'package-lock.json') data.packages[''].version = version;
+      await writeFile(location, JSON.stringify(data));
+    }
+    const options = {
+      projectRoot: root,
+      policy,
+      now,
+      run: child,
+      env: { CI: 'true', GITHUB_ACTIONS: 'true', npm_lifecycle_event: 'ci:check' },
+    };
+    assert.equal(auditProject(options).ok, version === '0.8.0', `default ${version}`);
+    assert.equal(
+      auditProject({ ...options, purpose: 'release' }).ok,
+      version === '0.8.0',
+      `release ${version}`
+    );
+    assert.equal(
+      auditProject({ ...options, purpose: 'validation' }).ok,
+      version !== '0.8.1',
+      `validation ${version}`
+    );
+  }
+});
+
+test('CI runs validation checks while publication still runs the strict release gate before npm publish', async () => {
+  const root = new URL('../', import.meta.url);
+  const manifest = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
+  const ci = parseYAML(await readFile(new URL('.github/workflows/ci.yml', root), 'utf8'));
+  const publish = parseYAML(await readFile(new URL('.github/workflows/publish.yml', root), 'utf8'));
+  assert.equal(manifest.scripts['security:audit:prod'], 'node scripts/audit-dependencies.mjs');
+  assert.equal(
+    manifest.scripts['security:audit:validation'],
+    'node scripts/audit-dependencies.mjs --validation'
+  );
+  assert.equal(
+    manifest.scripts['ci:check'],
+    'npm run check && npm run security:audit:validation && npm run package:check'
+  );
+  assert.equal(
+    manifest.scripts['release:check'],
+    'npm run check && npm run security:audit:prod && npm run package:check'
+  );
+  assert.ok(ci.jobs.quality.steps.some((step) => step.run === 'npm run ci:check'));
+  const steps = publish.jobs.publish.steps;
+  const releaseCheck = steps.findIndex((step) => step.run === 'npm run release:check');
+  const publication = steps.findIndex((step) => step.run?.includes('npm publish'));
+  assert.ok(releaseCheck >= 0 && publication > releaseCheck);
+  assert.ok(steps.every((step) => !/--validation|ci:check/.test(step.run || '')));
+});
+
 test('runner invokes a production npm audit and verifies real dependency resolution', async (t) => {
   const root = await fixture(t);
   let called = 0;
@@ -74,9 +145,11 @@ test('network/command/timeout/JSON failures cannot be converted into accepted ri
     { status: 1, stdout: 'invalid JSON' },
     { status: 1, stdout: JSON.stringify({ error: { code: 'REGISTRY' } }) },
   ]) {
-    const result = auditProject({ projectRoot: root, policy, now, run: () => failure });
-    assert.equal(result.ok, false);
-    assert.deepEqual(result.accepted, []);
+    for (const purpose of ['release', 'validation']) {
+      const result = auditProject({ projectRoot: root, policy, now, purpose, run: () => failure });
+      assert.equal(result.ok, false);
+      assert.deepEqual(result.accepted, []);
+    }
   }
 });
 test('Node package resolution accepts Pi import-only exports without loading its code', async (t) => {
