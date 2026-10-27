@@ -23,9 +23,11 @@ test('a fresh CLI browser preview enables lifecycle without changing the headles
     lifecycle: true,
     recordKind: 'new',
     readonly: false,
-    fieldInteractions: [],
+    fieldInteractions: ['focus', 'blur', 'click'],
   });
   assert.equal(normalizeEventOptions().lifecycle, false);
+  assert.deepEqual(normalizeEventOptions().fieldInteractions, ['focus', 'blur', 'click']);
+  assert.deepEqual(normalizeEventOptions({ fieldInteractions: [] }).fieldInteractions, []);
 });
 
 test('explicit stored opt-outs and existing/read-only classifications remain respected', () => {
