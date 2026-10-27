@@ -1065,13 +1065,13 @@ function addFormEventListeners() {
         if (!field) return;
         const name = field.getAttribute('data-name');
         const definition = formRenderer.findFieldByDataName(name);
-        const type =
-          event.type === 'focusin' ? 'focus' : event.type === 'focusout' ? 'blur' : 'click';
-        if (type === 'click' && definition?.type !== 'HyperlinkField') return;
-        if (type !== 'click' && !['TextField', 'NumericField'].includes(definition?.type)) return;
+        const type = event.type === 'focusin' ? 'focus' : 'blur';
+        if (!['TextField', 'NumericField'].includes(definition?.type)) return;
+        if (!event.target.matches?.('input, textarea')) return;
         previewEvents.interaction(type, name, contextualPath(event.target));
       };
-      for (const type of ['focusin', 'focusout', 'click'])
+      // Built-in inputs expose focus/blur. Click needs a supported activation field.
+      for (const type of ['focusin', 'focusout'])
         form.addEventListener(type, form._previewInteractionHandler, true);
     }
     if (formInputHandler) {

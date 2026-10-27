@@ -33,7 +33,7 @@ export function createPreviewEventUI({
     lifecycle: true,
     recordKind: 'new',
     readonly: false,
-    fieldInteractions: [],
+    fieldInteractions: ['focus', 'blur', 'click'],
   };
   let controller = null,
     intent = 0;

@@ -14,6 +14,7 @@ const schema = {
       field('NumericField', 'amount', { default_value: 1 }),
       field('NumericField', 'save_count', { default_value: 0 }),
       field('TextField', 'trace', { default_value: '' }),
+      field('TextField', 'interaction_trace', { default_value: '' }),
       repeatable('projects', [
         field('TextField', 'project_name'),
         repeatable('tasks', [field('NumericField', 'cost')]),
@@ -26,6 +27,12 @@ ON('new-record', function() { SETVALUE('trace', $trace + '|new'); });
 ON('edit-record', function() { SETVALUE('trace', $trace + '|edit'); });
 ON('validate-record', function() { if ($amount < 0) INVALID('Positive amount required'); });
 ON('save-record', function() { SETVALUE('save_count', $save_count + 1); });
+ON('focus', 'amount', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|focus'); });
+ON('blur', 'amount', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|blur'); });
+ON('click', 'amount', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|click'); });
+ON('focus', 'trace', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|text-focus'); });
+ON('blur', 'trace', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|text-blur'); });
+ON('click', 'trace', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|text-click'); });
 `,
     },
   },
@@ -127,6 +134,39 @@ try {
       await page.waitForFunction(
         () => document.querySelector('[name="trace"]')?.value === 'load|new'
       );
+      const amount = page.locator('[name="amount"]');
+      await amount.focus();
+      await page.waitForFunction(() =>
+        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|focus')
+      );
+      await amount.blur();
+      await page.waitForFunction(() =>
+        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|blur')
+      );
+      await amount.click();
+      await page.waitForFunction(() =>
+        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|focus')
+      );
+      await amount.blur();
+      await page.waitForFunction(() =>
+        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|blur')
+      );
+      assert.equal(
+        await page.locator('[name="interaction_trace"]').inputValue(),
+        '|focus|blur|focus|blur'
+      );
+      await page.locator('[name="trace"]').click();
+      await page.waitForFunction(() =>
+        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|text-focus')
+      );
+      await page.locator('[name="trace"]').blur();
+      await page.waitForFunction(() =>
+        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|text-blur')
+      );
+      assert.equal(
+        await page.locator('[name="interaction_trace"]').inputValue(),
+        '|focus|blur|focus|blur|text-focus|text-blur'
+      );
       assert.equal(await page.locator('#preview-actions').evaluate((x) => x.open), false);
       assert.equal(await page.locator('#preview-draft').isVisible(), false);
       if (process.env.FORM0_SCREENSHOT_DIR)
@@ -136,6 +176,8 @@ try {
         });
       await page.locator('.settings-button').click();
       assert.equal(await page.locator('#settings-preview-lifecycle').isChecked(), true);
+      for (const type of ['focus', 'blur', 'click'])
+        assert.equal(await page.locator('#settings-preview-' + type).isChecked(), true);
       if (process.env.FORM0_SCREENSHOT_DIR)
         await page.screenshot({
           path: path.join(process.env.FORM0_SCREENSHOT_DIR, 'settings.png'),
@@ -305,7 +347,12 @@ try {
         body: JSON.stringify({ error: 'Simulated unavailable storage' }),
       })
     );
+    const failureLogged = page.waitForEvent('console', {
+      predicate: (message) =>
+        message.type() === 'error' && message.text().includes('Simulated unavailable storage'),
+    });
     await submit(page);
+    await failureLogged;
     assert.ok(
       logs.some((x) => x.type === 'error' && x.text.includes('Simulated unavailable storage'))
     );

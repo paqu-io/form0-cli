@@ -273,15 +273,17 @@ A fresh built-in browser preview enables managed lifecycle events and opens as a
 In **Form Settings → Record preview**, choose **Existing record** to exercise edit hooks or
 **Open read-only** to exercise load-only opening. Classification selects lifecycle hooks; it does not
 load a database record. Existing explicitly saved lifecycle opt-outs remain respected.
-**Advanced event settings** contains the lifecycle compatibility switch and optional focus/blur/click
-subscriptions. Changing configuration starts a new editor session with accepted values.
+**Advanced event settings** contains the lifecycle compatibility switch and focus/blur/click
+subscriptions, all enabled by default. Explicitly saved empty subscriptions remain an opt-out. Changing configuration starts a new editor session with accepted values.
 An app launched through `serve --app` retains its own event options. React and Native have no such
-settings UI; their API defaults remain opt-in pending a separate host-classification decision.
+settings UI; lifecycle and supported interactions default on, with explicit host record classification.
 
 The enabled preview evaluates effective values, runs `load-record`, then the selected `new-record`
 or `edit-record`. User field changes and enabled status changes run contextual events after queued
 updates settle; defaults, calculations and `SETVALUE()` do not create additional change events.
-Optional focus/blur apply to text and numeric controls; click applies to supported hyperlinks.
+Built-in text and numeric controls emit focus/blur by default; choice controls use change. Automatic
+click is reserved for supported activation fields. There is currently no HyperlinkField and no
+built-in control automatically emits click. Explicit host controller dispatch remains available.
 
 Submit runs built-in and synchronous `INVALID(message)` validation, then `save-record` once, and
 validates again only if pre-save values changed. Connectors receive that final prepared record.

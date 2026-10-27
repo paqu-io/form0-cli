@@ -48,7 +48,7 @@ export function normalizeEventOptions(events = {}) {
     throw new Error(
       'form0: events.recordKind must be "new" or "existing" when lifecycle is enabled.'
     );
-  const interactions = events.fieldInteractions ?? [];
+  const interactions = events.fieldInteractions ?? ['focus', 'blur', 'click'];
   if (
     !Array.isArray(interactions) ||
     interactions.some((type) => !['focus', 'blur', 'click'].includes(type))
