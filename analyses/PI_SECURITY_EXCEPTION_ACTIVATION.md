@@ -6,6 +6,10 @@ the [CLI 0.8.1 failure diagnosis](CLI_081_RELEASE_FAILURES.md) and
 evidence below retain their recorded version/findings; the current policy permits validation at
 0.8.1 and publication at 0.8.2 only, with the original expiry unchanged.
 
+The subsequent [PR 85 Node 22 reporting correction](CLI_085_NODE22_TEST_REPORTING.md) retains this
+policy and raises full CLI verification to **226 passing tests** on both pinned Node lines. Its
+test-runner failure occurred before the audit; it required no security-policy expansion.
+
 ## Historical 0.8.0 activation
 
 The maintainer approved the exact temporary risk described in
