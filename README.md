@@ -322,6 +322,18 @@ new session. These settings apply to the built-in preview; `serve --app` retains
 
 - Node.js 22.19.0+
 
+## Development and release checks
+
+Run `npm run ci:check` before opening a PR. It runs formatting, tests, smoke, production-dependency
+audit and package checks. The temporary security policy permits the unreleased working tree to
+remain version 0.7.0 during validation; it also accepts the intended 0.8.0 release candidate.
+
+Keep the established `development` → `main` workflow. The maintainer bumps the version on `main`,
+then runs `npm run release:check` before tagging and publishing. That command remains restricted to
+0.8.0 under the temporary exception; a 0.7.0 working tree cannot pass publication checks. Both paths
+enforce the same advisory/dependency restrictions and expire on 3 November 2026 at 00:00 UTC.
+See [the security policy](./SECURITY.md). These checks do not bump, tag or publish a package.
+
 ## 📚 Documentation
 
 - [CLI overview](https://docs.form0.dev/cli/overview)

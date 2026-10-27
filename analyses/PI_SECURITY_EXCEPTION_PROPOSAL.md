@@ -1,8 +1,9 @@
 # Approved Pi security exception — 27 October 2026
 
-**Status: approved by aragornii on 27 October 2026; implemented for CLI 0.8.0 only.** The
-maintainer explicitly accepted the temporary risk to proceed with that release. Both CI/publish
-workflows retain `release:check`; its production audit now applies the bounded checked-in policy.
+**Status: approved by aragornii on 27 October 2026; publication restricted to CLI 0.8.0 only.** The
+maintainer explicitly accepted the temporary risk to proceed with that release, then approved
+pre-release validation of the 0.7.0 working tree to preserve bumps on main. CI runs `ci:check`;
+publication retains strict `release:check`. Both apply the same bounded audit policy.
 This approval does not authorize this agent to bump, publish, merge or deploy a release.
 
 ## Selected decision
@@ -63,8 +64,9 @@ credential access, actual database connection or exploit against an external sys
 
 ## Implemented activation contract
 
-Only the audit script implementation changes to an exception-aware, fail-closed gate, used by the
-existing release:check in both CI and publication. Neither workflow loses its release checks.
+The audit script implements an exception-aware, fail-closed gate. CI selects validation through
+`ci:check`; publication retains strict `release:check`. Neither workflow loses formatting, test,
+smoke, production-dependency audit or package checks.
 The gate must run a real production npm audit and preserve visible reporting of every accepted
 finding. Its policy is checked into the repository with the approval record, owner and expiry.
 
@@ -73,7 +75,8 @@ The gate may accept only:
 1. The three exact advisory identifiers above, on the exact nested Undici path and version.
 2. Pi 1.0.4's inherited finding, only while its entire via chain consists of those accepted Undici
    findings. A direct Pi advisory or another inherited cause must fail.
-3. The explicitly approved CLI release version and the unexpired approval window.
+3. The explicitly approved CLI release version, or the approved 0.7.0 working-tree label only in
+   validation, within the unchanged approval window.
 
 It must reject audit/network/parser failures, any unrecognized advisory/package/path, changed
 versions, new critical findings, expired/unapproved policy, and a broadened inherited chain. Root
@@ -97,14 +100,15 @@ Active harness: .local-test-harnesses/form0-plan3-20261022.
 - logs/preview-polish-pi-downgrade-pack.json and final-review/pi-downgrade-probe/: npm's suggested older
   package archive and metadata; its public index/types lack ModelRuntime.
 - Registry queries: Pi latest 1.4.0 → undici 8.10.2; Undici latest 8.12.3.
-- Both maintained .github/workflows files still call release:check and use the same exception-aware audit.
+- Both maintained workflows use the same exception-aware audit: CI calls ci:check with validation
+  selected explicitly; publication retains strict release:check.
 - `scripts/security-exceptions.json` records the approval, exact versions/advisories and expiry.
 - `scripts/audit-dependencies.mjs` runs real npm audit; `scripts/audit-policy.mjs` verifies its report
   and Node package resolution without importing or executing installed dependency entrypoints.
 
-The maintained manifest remains 0.7.0: its release gate deliberately rejects that version because
-approval covers **0.8.0 only**. The maintainer must bump the manifest and lockfile to 0.8.0 before
-running release checks and publishing, and must release before expiry. Verification uses a versioned
-0.8.0 candidate in the existing independent CLI tree; it does not change the maintained release version.
+The maintained manifest remains 0.7.0. PR/branch validation may accept that working-tree label under
+the explicit amendment, while release checks deliberately reject it. The maintainer merges to main,
+bumps the manifest/lockfile to 0.8.0, then runs release checks and publishes before expiry. Independent
+verification exercises both labels without changing the maintained release version.
 See [activation verification](PI_SECURITY_EXCEPTION_ACTIVATION.md) for current pass/fail evidence.
 Native/mobile dependency exceptions remain entirely separate.

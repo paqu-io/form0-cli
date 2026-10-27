@@ -41,11 +41,17 @@ Accepted Undici advisories are [GHSA-xjj6-f33q-929c](https://github.com/advisori
 through those exact dependencies. Potential effects include denial of service and integrity-check
 bypass in the affected HTTP client paths. Form expression SAFE mode does not patch an HTTP library.
 
-CI and publication still run a real production audit. The exception-aware gate verifies the exact
-release, approval, expiry, dependency versions/paths, installed resolution and advisory identities.
+The maintainer also approved validation of the unreleased working tree labelled **0.7.0**, preserving
+version bumps on main. `npm run ci:check` explicitly selects validation and accepts 0.7.0 or 0.8.0.
+`npm run release:check` and the publication workflow remain restricted to **0.8.0 only**. No other
+release is approved by the validation allowance. CI environment flags do not select this allowance.
+
+Both paths run a real production-dependency audit. The exception-aware gate verifies the exact
+version, approval, expiry, dependency versions/paths, installed resolution and advisory identities.
 New findings, broader inherited chains, audit failures and expiry still block. No automatic renewal
 is allowed. Remove this exception as soon as the dependency is fixed; after expiry, remediate before
 any further publication. Runtime consumers need a fixed package release to remove the vulnerability.
 
-The repository policy is scripts/security-exceptions.json; both workflows use the same release gate.
+The repository policy is scripts/security-exceptions.json; both workflows use the same audit policy
+with an explicit validation context for CI and a strict release context for publication.
 The exception does not apply to other CLI releases, packages or the separate Native/mobile policy.

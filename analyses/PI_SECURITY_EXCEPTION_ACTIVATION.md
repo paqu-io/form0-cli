@@ -2,7 +2,8 @@
 
 The maintainer approved the exact temporary risk described in
 [the reviewed proposal](PI_SECURITY_EXCEPTION_PROPOSAL.md). This change activates that policy for
-**form0-cli 0.8.0 only**, until **3 November 2026, 00:00 UTC**. It does not patch Pi/Undici or make
+**publication of form0-cli 0.8.0 only**, until **3 November 2026, 00:00 UTC**. On the same date the
+maintainer also approved pre-release validation at 0.7.0; see the amendment below. It does not patch Pi/Undici or make
 installed users' raw npm audit reports clean. No release operation was performed.
 
 ## Implementation
@@ -10,8 +11,9 @@ installed users' raw npm audit reports clean. No release operation was performed
 `security:audit:prod` runs a real production npm audit through `scripts/audit-dependencies.mjs`.
 `scripts/audit-policy.mjs` verifies its report against `scripts/security-exceptions.json` and checks
 the manifest, lockfile, installed package metadata and Node package resolution. Package lookup
-supports Pi's import-only exports without executing its entrypoint. Both existing workflows still
-call `release:check`; no workflow/check name or global audit severity threshold was removed.
+supports Pi's import-only exports without executing its entrypoint. CI now runs `ci:check`; the
+publication workflow retains strict `release:check`. Both retain the full checks and real production
+dependency audit. Required job names and the global audit severity threshold are unchanged.
 
 Only Pi coding-agent 1.0.4's inherited finding and its exact nested Undici 8.10.2 advisories are
 accepted: GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472 and GHSA-xjj6-f33q-929c. Unknown findings, additional
@@ -43,10 +45,11 @@ was needed. Only the real public npm audit endpoint was queried.
 
 ## Maintainer release boundary
 
-The maintained manifest remains **0.7.0**. Before publication, bump the CLI manifest/lockfile to
-**0.8.0**, run `npm run release:check` again, and publish before the exception expires. A different
-release needs an explicitly reviewed policy change. CI will reject 0.7.0 under this exact exception;
-that is intentional, not evidence of a clean current-version release gate.
+The maintained manifest remains **0.7.0**. Run `npm run ci:check` while preparing the PR, merge
+development to main, then bump the CLI manifest/lockfile on main to **0.8.0** before publication.
+Run `npm run release:check` and publish before the exception expires. A different release needs an
+explicitly reviewed policy change. Release checks still reject 0.7.0; CI validation may accept it
+under the explicit amendment below.
 
 Remove the exception as soon as a verified fixed Pi/fork dependency is adopted. Existing installed
 releases require users to upgrade to that fixed distribution; approval expiry does not repair them.
@@ -55,3 +58,16 @@ The subsequent [terminal-color test correction](TERMINAL_COLOR_TEST_FAILURES.md)
 to **212 passing tests** and full release checks on both Node lines with true-color forced. The
 208-test result above retains its original provenance. Exception scope, expiry and dependencies
 are unchanged.
+
+## Approved pre-release validation amendment — 27 October 2026
+
+The maintainer explicitly approved **0.7.0 for pre-release validation while publication remains
+restricted to 0.8.0**. The policy now records validationVersion:0.7.0 alongside cliVersion:0.8.0.
+Only `--validation`, selected by `ci:check`, permits the former. The default audit remains strict;
+unknown arguments/purposes reject. Manifest and both root lockfile version locations must agree,
+even when each mismatched version would individually be allowed for validation.
+
+No advisory, dependency version/path, severity, approval expiry or production persistence behavior
+changed. The workflow triggered by pushed version tags and the publication workflow are unchanged.
+See [amendment verification](PRE_RELEASE_VALIDATION_EXCEPTION.md) for current evidence. Earlier
+208/212-test and 0.7.0 rejection logs above retain their original strict-release provenance.
