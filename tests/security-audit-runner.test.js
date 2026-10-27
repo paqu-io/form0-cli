@@ -18,8 +18,8 @@ const pi = '@earendil-works/pi-coding-agent';
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'form0-audit-policy-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const manifest = { name: 'form0-cli', version: '0.8.0', dependencies: { [pi]: '1.0.4' } };
-  const lock = { version: '0.8.0', packages: { '': manifest } };
+  const manifest = { name: 'form0-cli', version: '0.8.2', dependencies: { [pi]: '1.0.4' } };
+  const lock = { version: '0.8.2', packages: { '': manifest } };
   for (const [name, pkg] of Object.entries(policy.exceptions[0].packages)) {
     const folder = path.join(root, pkg.path);
     await mkdir(folder, { recursive: true });
@@ -51,9 +51,9 @@ test('validation is explicit; missing or unknown command arguments cannot widen 
     assert.throws(() => parseAuditArguments(args), /Usage:/);
 });
 
-test('installed 0.7.0 metadata permits validation only, including when CI environment flags are present', async (t) => {
+test('installed 0.8.1 metadata permits validation only, including when CI environment flags are present', async (t) => {
   const root = await fixture(t);
-  for (const version of ['0.7.0', '0.8.0', '0.8.1']) {
+  for (const version of ['0.8.0', '0.8.1', '0.8.2', '0.8.3']) {
     for (const file of ['package.json', 'package-lock.json']) {
       const location = path.join(root, file);
       const data = JSON.parse(await readFile(location, 'utf8'));
@@ -68,15 +68,15 @@ test('installed 0.7.0 metadata permits validation only, including when CI enviro
       run: child,
       env: { CI: 'true', GITHUB_ACTIONS: 'true', npm_lifecycle_event: 'ci:check' },
     };
-    assert.equal(auditProject(options).ok, version === '0.8.0', `default ${version}`);
+    assert.equal(auditProject(options).ok, version === '0.8.2', `default ${version}`);
     assert.equal(
       auditProject({ ...options, purpose: 'release' }).ok,
-      version === '0.8.0',
+      version === '0.8.2',
       `release ${version}`
     );
     assert.equal(
       auditProject({ ...options, purpose: 'validation' }).ok,
-      version !== '0.8.1',
+      ['0.8.1', '0.8.2'].includes(version),
       `validation ${version}`
     );
   }

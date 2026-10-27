@@ -2,14 +2,14 @@
   "version": 1,
   "exceptions": [
     {
-      "id": "pi-undici-cli-080-20261027",
+      "id": "pi-undici-cli-082-20261027",
       "approved": true,
       "approvedBy": "aragornii",
       "approvedOn": "2026-10-27",
       "expiresAt": "2026-11-03T00:00:00.000Z",
-      "cliVersion": "0.8.0",
-      "validationVersion": "0.7.0",
-      "reason": "Maintainer-approved validation of the unreleased 0.7.0 working tree and publication of 0.8.0 only while upstream Pi pins vulnerable Undici. Approval expires unchanged on 3 November 2026. This does not patch the dependency or make installed-user audits clean.",
+      "cliVersion": "0.8.2",
+      "validationVersion": "0.8.1",
+      "reason": "Maintainer explicitly approved the eight reviewed Undici advisories for validation of 0.8.1 and publication of 0.8.2 only. Predominant local developer/testing use reduces exposure but does not remove HTTP client risk. Exact Pi/Undici pins and the 3 November 2026 expiry remain unchanged. This does not patch the dependency or make installed-user audits clean.",
       "packages": {
         "@earendil-works/pi-coding-agent": {
           "version": "1.0.4",
@@ -27,7 +27,12 @@
           "advisories": {
             "GHSA-4qv8-2p9j-2685": "moderate",
             "GHSA-f72v-6w45-q472": "moderate",
-            "GHSA-xjj6-f33q-929c": "high"
+            "GHSA-xjj6-f33q-929c": "high",
+            "GHSA-4w7w-5xrc-9h26": "high",
+            "GHSA-2m5v-pch6-74hx": "high",
+            "GHSA-qrxm-fqhp-jwvm": "high",
+            "GHSA-9fm3-97px-rjf6": "moderate",
+            "GHSA-55wc-3pg8-jfw6": "moderate"
           }
         }
       }

@@ -1,5 +1,10 @@
 # Approved Pi security exception — 27 October 2026
 
+Historical 0.8.0 approval below. The subsequent
+[explicitly approved 0.8.2 amendment](PI_SECURITY_EXCEPTION_082_REVIEW.md) and
+[activation evidence](PI_SECURITY_EXCEPTION_ACTIVATION.md#approved-082-amendment--27-october-2026)
+describe the current eight-advisory policy, validation at 0.8.1 and unchanged expiry.
+
 **Status: approved by aragornii on 27 October 2026; publication restricted to CLI 0.8.0 only.** The
 maintainer explicitly accepted the temporary risk to proceed with that release, then approved
 pre-release validation of the 0.7.0 working tree to preserve bumps on main. CI runs `ci:check`;
