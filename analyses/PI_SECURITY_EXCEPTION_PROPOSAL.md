@@ -1,15 +1,16 @@
-# Proposed Pi security exception — 27 October 2026
+# Approved Pi security exception — 27 October 2026
 
-**Status: proposed, not approved or activated.** The strict production audit and both CI/publish
-workflows remain unchanged. This document does not lift the maintainer's earlier publication hold.
-The maintainer requested reviewing a short-lived exception rather than preparing a fork.
+**Status: approved by aragornii on 27 October 2026; implemented for CLI 0.8.0 only.** The
+maintainer explicitly accepted the temporary risk to proceed with that release. Both CI/publish
+workflows retain `release:check`; its production audit now applies the bounded checked-in policy.
+This approval does not authorize this agent to bump, publish, merge or deploy a release.
 
-## Decision proposed
+## Selected decision
 
 Allow one planned form0-cli 0.8.0 release with the exact known Pi/Undici findings below, expiring at
 **2026-11-03 00:00:00 UTC**. This is acceptance of a known dependency risk, not a vulnerability fix.
 Version selection, approval, publication and the release date remain maintainer-owned. If another CLI
-version is selected, the proposed release scope must be amended explicitly before activation.
+version is selected, the approved release scope must be amended explicitly before activation.
 
 A fresh production lockfile audit on 27 October reports two package entries: one high Undici entry
 containing three advisories, and one inherited moderate Pi entry. Package count is not advisory count.
@@ -26,7 +27,7 @@ containing three advisories, and one inherited moderate Pi entry. Package count 
 | [GHSA-f72v-6w45-q472](https://github.com/advisories/GHSA-f72v-6w45-q472) | Moderate | Mixed-case SRI algorithm tokens can bypass integrity checks.                                                                                                                    |
 
 All three advisories are fixed in Undici 8.12.2; current registry Undici is 8.12.3. Current latest Pi
-1.4.0 still pins 8.10.2. This proposal would ship the vulnerable dependency to installed CLI users;
+1.4.0 still pins 8.10.2. This approved exception allows shipping the vulnerable dependency to installed CLI users;
 a passing exception-aware CI gate would not make npm audit clean for them.
 
 ## Exposure and evidence limits
@@ -60,10 +61,10 @@ credential access, actual database connection or exploit against an external sys
 - Prior shrinkwrap/bundling probes and their portability/size limits remain recorded in
   form0-core/analyses/PLAN_3_SECURITY_REVIEW.md. They are not being substituted into this release.
 
-## Activation contract if approved
+## Implemented activation contract
 
-Replace only the audit script implementation with an exception-aware, fail-closed gate, used by the
-existing release:check in both CI and publication. Do not remove either workflow's release checks.
+Only the audit script implementation changes to an exception-aware, fail-closed gate, used by the
+existing release:check in both CI and publication. Neither workflow loses its release checks.
 The gate must run a real production npm audit and preserve visible reporting of every accepted
 finding. Its policy is checked into the repository with the approval record, owner and expiry.
 
@@ -79,7 +80,7 @@ versions, new critical findings, expired/unapproved policy, and a broadened inhe
 manifest/lock/installed resolution must agree. A new high/moderate finding must not disappear merely
 because this known high finding is accepted. No automatic renewal or expiry extension is permitted.
 
-Automated policy cases required before activation: the current real report is accepted only when
+Automated policy cases covering activation: the current real report is accepted only when
 approved; an unknown advisory, direct Pi advisory, extra nested vulnerable copy, changed version,
 malformed audit, network failure, absent approval and expiry all fail. A patched clean graph must
 pass the strict audit after the exception is removed. CI and the publish gate must use the same policy.
@@ -88,7 +89,7 @@ Remove the exception and restore the ordinary strict audit as soon as a verified
 fork dependency is adopted. Before expiry, either remediate or stop further publication. Existing
 installed releases remain vulnerable until their users upgrade to a fixed distribution.
 
-## Current evidence and next approval
+## Evidence and release boundary
 
 Active harness: .local-test-harnesses/form0-plan3-20261022.
 
@@ -96,9 +97,14 @@ Active harness: .local-test-harnesses/form0-plan3-20261022.
 - logs/preview-polish-pi-downgrade-pack.json and final-review/pi-downgrade-probe/: npm's suggested older
   package archive and metadata; its public index/types lack ModelRuntime.
 - Registry queries: Pi latest 1.4.0 → undici 8.10.2; Undici latest 8.12.3.
-- Both maintained .github/workflows files still call release:check, whose production audit is strict.
+- Both maintained .github/workflows files still call release:check and use the same exception-aware audit.
+- `scripts/security-exceptions.json` records the approval, exact versions/advisories and expiry.
+- `scripts/audit-dependencies.mjs` runs real npm audit; `scripts/audit-policy.mjs` verifies its report
+  and Node package resolution without importing or executing installed dependency entrypoints.
 
-**Approval requested:** accept this exact risk for form0-cli 0.8.0 until 3 November 2026 at 00:00 UTC,
-then implement and test the bounded policy above. Reviewing this proposal alone is not approval to
-activate it, publish the CLI or change the publication hold. Native/mobile dependency exceptions
-remain entirely separate.
+The maintained manifest remains 0.7.0: its release gate deliberately rejects that version because
+approval covers **0.8.0 only**. The maintainer must bump the manifest and lockfile to 0.8.0 before
+running release checks and publishing, and must release before expiry. Verification uses a versioned
+0.8.0 candidate in the existing independent CLI tree; it does not change the maintained release version.
+See [activation verification](PI_SECURITY_EXCEPTION_ACTIVATION.md) for current pass/fail evidence.
+Native/mobile dependency exceptions remain entirely separate.

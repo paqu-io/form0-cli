@@ -14,10 +14,10 @@
   "scripts": {
     "test": "node --test",
     "smoke": "node bin/form0.js --help",
-    "format": "prettier --write \"src/**/*.{js,jsx,json}\" \"bin/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.{js,mjs}\" package.json README.md SECURITY.md SUPPORT.md CONTRIBUTING.md .github/workflows/ci.yml .github/workflows/publish.yml",
-    "format:check": "prettier --check \"src/**/*.{js,jsx,json}\" \"bin/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.{js,mjs}\" package.json README.md SECURITY.md SUPPORT.md CONTRIBUTING.md .github/workflows/ci.yml .github/workflows/publish.yml",
+    "format": "prettier --write \"src/**/*.{js,jsx,json}\" \"bin/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.{js,mjs,json}\" package.json README.md SECURITY.md SUPPORT.md CONTRIBUTING.md .github/workflows/ci.yml .github/workflows/publish.yml",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,json}\" \"bin/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.{js,mjs,json}\" package.json README.md SECURITY.md SUPPORT.md CONTRIBUTING.md .github/workflows/ci.yml .github/workflows/publish.yml",
     "package:check": "node scripts/check-package-contents.mjs",
-    "security:audit:prod": "npm audit --omit=dev --omit=peer --audit-level=high",
+    "security:audit:prod": "node scripts/audit-dependencies.mjs",
     "check": "npm run format:check && npm test && npm run smoke",
     "release:check": "npm run check && npm run security:audit:prod && npm run package:check",
     "generate-localazy-config": "node scripts/generate-localazy-config.js",
