@@ -1,5 +1,9 @@
 # Pi exception activation — 27 October 2026
 
+Latest next-release checkpoint: [CLI 0.8.1 failure diagnosis](CLI_081_RELEASE_FAILURES.md).
+Main/publish reject 0.8.1, and a newer audit adds five unapproved advisories. The historical approval
+and evidence below remain scoped to their recorded version/findings; no amendment is activated.
+
 The maintainer approved the exact temporary risk described in
 [the reviewed proposal](PI_SECURITY_EXCEPTION_PROPOSAL.md). This change activates that policy for
 **publication of form0-cli 0.8.0 only**, until **3 November 2026, 00:00 UTC**. On the same date the
