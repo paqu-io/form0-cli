@@ -732,6 +732,15 @@ test('preview controls are present in each client locale rather than the CLI-onl
           'cancel',
           'draftPrepared',
           'submitted',
+          'settingsHelp',
+          'advancedSettings',
+          'advancedActions',
+          'parentHint',
+          'readonlyHint',
+          'noConnectors',
+          'submissionStarted',
+          'submissionBlocked',
+          'companionPersisted',
         ])
           assert.equal(
             typeof response.translations['previewEvents.' + key],

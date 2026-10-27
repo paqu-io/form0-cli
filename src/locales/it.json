@@ -36,7 +36,7 @@
     "diagnostics.warnings": "{count} avvisi",
     "diagnostics.and": "e",
     "diagnostics.runFindings": "Valutazione dei calcoli completata con {summary}.",
-    "previewEvents.settings": "Eventi portabili dell’anteprima",
+    "previewEvents.settings": "Anteprima del record",
     "previewEvents.enable": "Abilita gli eventi del ciclo di vita",
     "previewEvents.recordKind": "Classificazione del record",
     "previewEvents.new": "Nuovo record",
@@ -67,7 +67,23 @@
     "freshness.next": "Successivo",
     "freshness.pending": "Alcuni calcoli salvati dei figli devono ancora essere aggiornati.",
     "freshness.validationCount": "Esiti di validazione: {count}",
-    "freshness.record": "Record"
+    "freshness.record": "Record",
+    "previewEvents.settingsHelp": "La classificazione sceglie new-record o edit-record; non carica un record dal database.",
+    "previewEvents.advancedSettings": "Impostazioni avanzate degli eventi",
+    "previewEvents.advancedActions": "Azioni avanzate di anteprima",
+    "previewEvents.actionsHelp": "Prepara bozza permette di esaminarla senza salvarla. Annulla scarta le modifiche dell’editor; Chiudi esegue il ciclo di chiusura.",
+    "previewEvents.parentHint": "Modifica {parent} prima di modificare questa riga.",
+    "previewEvents.readonlyHint": "Questa anteprima è in sola lettura. Cambia Apri in sola lettura nelle impostazioni del modulo per modificare.",
+    "previewEvents.closedHint": "Riapri l’editor prima di modificare le righe.",
+    "previewEvents.submissionStarted": "Avvio dell’invio del record...",
+    "previewEvents.submissionCancelled": "Invio annullato; nessun record inviato.",
+    "previewEvents.submissionBlocked": "Invio bloccato da errori di validazione o preparazione.",
+    "previewEvents.submitting": "Invio del record preparato alla destinazione di salvataggio configurata...",
+    "previewEvents.noConnectors": "Nessun connettore database configurato; record preparato solo per l’anteprima.",
+    "previewEvents.connectorResults": "Risultati dell’invio ai connettori",
+    "previewEvents.connectorSucceeded": "Salvato correttamente",
+    "previewEvents.connectorFailed": "Invio non riuscito",
+    "previewEvents.companionPersisted": "Record e stato di aggiornamento salvati insieme."
   },
   "commands": {
     "init": {

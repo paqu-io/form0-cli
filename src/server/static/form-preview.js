@@ -1292,6 +1292,7 @@ async function handleManagedSubmit() {
   const button = document.getElementById('submit-btn');
   if (button) button.disabled = true;
   hideGlobalError();
+  console.info('🚀 [RECORD SUBMIT] ' + t('previewEvents.submissionStarted'));
   try {
     let result = await controller.prepareSave({ intent: 'submit' });
     while (result.status === 'requires_decision') {
@@ -1302,9 +1303,16 @@ async function handleManagedSubmit() {
         decision: { reviewId: result.reviewId, action },
       });
     }
-    if (result.status === 'cancelled') return;
+    if (result.status === 'cancelled') {
+      console.info('↩️ [RECORD SUBMIT] ' + t('previewEvents.submissionCancelled'));
+      return;
+    }
     if (controller !== previewEvents.controller) return;
     if (!result.eligible) {
+      console.warn('❌ [RECORD SUBMIT] ' + t('previewEvents.submissionBlocked'), {
+        issues: result.issues,
+        validationSummary: result.validationSummary,
+      });
       showGlobalError(
         result.issues?.length
           ? result.issues.map((issue) => issue.message).join('\n')
@@ -1312,12 +1320,8 @@ async function handleManagedSubmit() {
       );
       return;
     }
-    console.info(
-      '[form0] ' +
-        t('previewEvents.recordPrepared') +
-        '\n' +
-        JSON.stringify(result.payload, null, 2)
-    );
+    console.info('📋 [STRUCTURED RECORD] ' + t('previewEvents.recordPrepared'), result.payload);
+    console.info('💾 [DATABASE SUBMIT] ' + t('previewEvents.submitting'));
     const response = await fetch('/api/submit-record', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1329,6 +1333,22 @@ async function handleManagedSubmit() {
     });
     const submission = await response.json();
     if (controller !== previewEvents.controller) return;
+    const connectors = submission.connectorResults;
+    const previewOnly = submission.success && Array.isArray(connectors) && !connectors.length;
+    if (previewOnly) console.info('ℹ️ [DATABASE SUBMIT] ' + t('previewEvents.noConnectors'));
+    else if (connectors?.length) {
+      const summary = submission.message || t('previewEvents.connectorResults');
+      if (submission.success) console.info('✅ [DATABASE SUBMIT] ' + summary);
+      else console.warn('⚠️ [DATABASE SUBMIT] ' + summary);
+      for (const connector of connectors) {
+        const details = connector.success
+          ? connector.message || t('previewEvents.connectorSucceeded')
+          : connector.error || t('previewEvents.connectorFailed');
+        const line = `${connector.success ? '✅' : '❌'} ${connector.connector}: ${details}`;
+        if (connector.success) console.info(line);
+        else console.error(line);
+      }
+    }
     if (!response.ok || !submission.success)
       throw new Error(submission.error || submission.message || t('previewEvents.submitFailed'));
     if (submission.freshness)
@@ -1344,8 +1364,13 @@ async function handleManagedSubmit() {
       createdAtTimestamp = timestamps.created_at_client;
       lastSubmissionTimestamp = timestamps.updated_at_client;
     }
-    showGlobalSuccess(t('previewEvents.submitted'));
+    if (submission.freshness)
+      console.info('✅ [PERSISTENCE] ' + t('previewEvents.companionPersisted'));
+    const message = t(previewOnly ? 'previewEvents.noConnectors' : 'previewEvents.submitted');
+    console.info('✅ [RECORD SUBMIT] ' + message);
+    showGlobalSuccess(message);
   } catch (error) {
+    console.error('❌ [RECORD SUBMIT] ' + t('previewEvents.submitFailed') + ': ' + error.message);
     showGlobalError(error.message);
   } finally {
     managedSubmitting = false;

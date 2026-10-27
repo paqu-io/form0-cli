@@ -36,7 +36,7 @@
     "diagnostics.warnings": "{count} avertissements",
     "diagnostics.and": "et",
     "diagnostics.runFindings": "L’évaluation des calculs s’est terminée avec {summary}.",
-    "previewEvents.settings": "Événements portables de l’aperçu",
+    "previewEvents.settings": "Aperçu de l’enregistrement",
     "previewEvents.enable": "Activer les événements du cycle de vie",
     "previewEvents.recordKind": "Classification de l’enregistrement",
     "previewEvents.new": "Nouvel enregistrement",
@@ -67,7 +67,23 @@
     "freshness.next": "Suivant",
     "freshness.pending": "Certains calculs enfants enregistrés doivent encore être actualisés.",
     "freshness.validationCount": "Résultats de validation : {count}",
-    "freshness.record": "Enregistrement"
+    "freshness.record": "Enregistrement",
+    "previewEvents.settingsHelp": "La classification choisit new-record ou edit-record ; elle ne charge aucun enregistrement de la base de données.",
+    "previewEvents.advancedSettings": "Paramètres avancés des événements",
+    "previewEvents.advancedActions": "Actions avancées de l’aperçu",
+    "previewEvents.actionsHelp": "Préparer le brouillon permet de l’inspecter sans le sauvegarder. Annuler abandonne les modifications ; Fermer exécute le cycle de déchargement.",
+    "previewEvents.parentHint": "Modifiez {parent} avant de modifier cette ligne.",
+    "previewEvents.readonlyHint": "Cet aperçu est en lecture seule. Modifiez Ouvrir en lecture seule dans les paramètres du formulaire pour éditer.",
+    "previewEvents.closedHint": "Rouvrez l’éditeur avant de modifier les lignes.",
+    "previewEvents.submissionStarted": "Début de l’envoi de l’enregistrement...",
+    "previewEvents.submissionCancelled": "Envoi annulé ; aucun enregistrement envoyé.",
+    "previewEvents.submissionBlocked": "Envoi bloqué par des erreurs de validation ou de préparation.",
+    "previewEvents.submitting": "Envoi de l’enregistrement préparé vers la destination de stockage configurée...",
+    "previewEvents.noConnectors": "Aucun connecteur de base de données configuré ; enregistrement préparé uniquement pour l’aperçu.",
+    "previewEvents.connectorResults": "Résultats de l’envoi aux connecteurs",
+    "previewEvents.connectorSucceeded": "Sauvegarde réussie",
+    "previewEvents.connectorFailed": "Échec de l’envoi",
+    "previewEvents.companionPersisted": "Enregistrement et état de mise à jour sauvegardés ensemble."
   },
   "commands": {
     "init": {

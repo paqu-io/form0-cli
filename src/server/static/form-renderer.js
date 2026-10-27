@@ -987,7 +987,7 @@ export class FormRenderer {
 
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
-    removeButton.className = 'repeatable-instance-remove';
+    removeButton.className = 'repeatable-instance-remove repeatable-row-button';
     removeButton.textContent = 'Remove';
     removeButton.disabled = !canRemove;
     if (this.managedPreview)
@@ -1001,6 +1001,7 @@ export class FormRenderer {
       for (const action of ['edit', 'save', 'cancel']) {
         const button = document.createElement('button');
         button.type = 'button';
+        button.className = 'repeatable-row-button';
         button.dataset.previewRowAction = action;
         button.textContent = this.managedPreview.translate('previewEvents.' + action);
         button.onclick = () => this.managedPreview[action](instancePath);
@@ -1009,6 +1010,13 @@ export class FormRenderer {
     }
 
     instanceDiv.appendChild(headerRow);
+    if (this.managedPreview) {
+      const hint = document.createElement('p');
+      hint.className = 'preview-row-hint';
+      hint.id = 'preview-row-hint-' + encodeURIComponent(contextKey);
+      hint.hidden = true;
+      instanceDiv.appendChild(hint);
+    }
 
     const content = document.createElement('div');
     content.className = 'repeatable-instance-content';
