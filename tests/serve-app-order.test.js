@@ -94,7 +94,8 @@ test('interactive serve --app starts the app before the dev server when its port
       setTimeout(() => app.listen(appPort, 'localhost'), 200);
     };
     manager.startDevServer = async (args, options) => {
-      const listening = await waitForPort(appPort, { timeoutMs: 1 });
+      // Observe the fixture directly; a second 1 ms probe can expire before it runs.
+      const listening = app.listening;
       order.push(
         `dev (app listening: ${listening}, ${options.banner} banner for: ${options.appUrl})`
       );
