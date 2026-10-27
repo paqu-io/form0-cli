@@ -1,15 +1,15 @@
-# Proposed Pi security exception for CLI 0.8.2 — review, 27 October 2026
+# Pi security exception for CLI 0.8.2 — review and approval, 27 October 2026
 
-**Status: REVIEW ONLY — NOT APPROVED OR ACTIVATED.** This document reviews a possible
-publication exception for **0.8.2**, with **0.8.1** permitted for pre-release validation only.
-The existing approval remains publication **0.8.0** / validation **0.7.0**, covering three
-advisories, and expires at **2026-11-03T00:00:00Z**. Review of five additional findings does not
-extend that approval. [Current policy](../scripts/security-exceptions.json),
-[earlier activation](PI_SECURITY_EXCEPTION_ACTIVATION.md).
+**Status: explicitly approved by aragornii on 27 October 2026 and activated.** The maintainer
+approved the reviewed eight-advisory scope for publication **0.8.2 only**, with **0.8.1** permitted
+for pre-release validation only, and the unchanged expiry **2026-11-03T00:00:00Z**. The earlier
+publication **0.8.0** / validation **0.7.0** approval remains historical; it did not itself authorize
+the five additional findings. [Current policy](../scripts/security-exceptions.json),
+[activation and verification](PI_SECURITY_EXCEPTION_ACTIVATION.md#approved-082-amendment--27-october-2026).
 
-The proposed exception would deliberately permit distributing vulnerable Undici 8.10.2. It would
-accept eight identified advisories, including conditional confidentiality/integrity failures and
-process-wide denial of service. A passing exception-aware gate would not patch the dependency or
+The approved exception deliberately permits distributing vulnerable Undici 8.10.2. It accepts
+eight identified advisories, including conditional confidentiality/integrity failures and
+process-wide denial of service. A passing exception-aware gate does not patch the dependency or
 make installed users' raw npm audits clean. Prefer a verified fixed upstream Pi distribution or a
 separately reviewed patched distribution when available.
 
@@ -131,17 +131,17 @@ prerequisites. Catching a request promise, limiting documentation body size, dis
 agent tools or selecting SAFE form expressions does not establish containment of transport-level
 process failures. Do not describe all eight as either proven exploitable or proven unreachable.
 
-## Exact proposed approval scope — NOT APPROVED
+## Exact approved amendment
 
-Only a separate, explicit maintainer decision could authorize activation of this amendment. It
-would replace the earlier version/advisory scope while preserving its dependency boundaries and
-expiry. The proposal contains no permission to bump, tag, merge or publish.
+The maintainer's separate, explicit approval authorizes activation of this amendment. It replaces
+the earlier version/advisory scope while preserving its dependency boundaries and expiry.
+Bumps, tags, merges and publication remain maintainer-owned.
 
-| Boundary                                | Proposed value                                                                                                                                                                                            |
+| Boundary                                | Approved value                                                                                                                                                                                            |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Publication version                     | `form0-cli` **0.8.2 only**                                                                                                                                                                                |
 | Additional pre-release validation label | **0.8.1 only**, through the existing explicit validation purpose; 0.8.2 remains valid under its release scope                                                                                             |
-| Maintainer approval                     | **Absent for this amendment**; record the actual decision only after it is given                                                                                                                          |
+| Maintainer approval                     | **Explicitly approved by aragornii on 27 October 2026**, including predominantly local developer/testing use as exposure context                                                                          |
 | Expiry                                  | **2026-11-03T00:00:00Z** (**3 November, 01:00 Europe/Paris**), unchanged; no automatic renewal or extension                                                                                               |
 | Direct Pi dependency                    | `@earendil-works/pi-coding-agent` **1.0.4**, exactly `node_modules/@earendil-works/pi-coding-agent`, direct, inherited through `undici` only, maximum package severity **moderate**                       |
 | Nested vulnerable dependency            | `undici` **8.10.2**, exactly `node_modules/@earendil-works/pi-coding-agent/node_modules/undici`, indirect, parent Pi above, maximum package severity **high**                                             |
@@ -149,28 +149,31 @@ expiry. The proposal contains no permission to bump, tag, merge or publish.
 | Required verification                   | Root manifest and both root lockfile versions agree; locked/installed dependency versions, exact parent pin, paths and Node resolution agree; real production audit and visible findings remain mandatory |
 | Other controls                          | Existing global audit threshold, CI/publication checks, seven-day policy limit and failure handling remain in place; no generic severity or inherited-chain allowance                                     |
 
-An eventual implementation would update the approval record, public disclosure and focused policy
-tests together. A version-only amendment cannot accept the five added identities. Previously
-recorded approvals and successful test logs retain their historical scope; they are not evidence
-of approval or passing checks for the proposed 0.8.2 release.
+Activation updates the approval record, public disclosure and focused policy tests together.
+A version-only amendment cannot accept the five added identities. Previously recorded approvals
+and successful test logs retain their historical scope; current verification is recorded in the
+activation document.
 [Policy](../scripts/security-exceptions.json), [gate](../scripts/audit-policy.mjs),
 [prior diagnosis](CLI_081_RELEASE_FAILURES.md).
 
 ## Recommendation and approval boundary
 
-The current gate can enforce the exact expanded proposal without weakening its general audit
-rules. If the maintainer chooses to accept the residual risk to ship this patch, use it only as a
-short bridge ending at the original expiry and keep remediation as the exit requirement. It still
+The current gate enforces the exact expanded scope without weakening its general audit rules.
+The maintainer accepted the residual risk as a short bridge ending at the original expiry;
+remediation remains the exit requirement. It still
 ships a vulnerable transport that can participate in ordinary interactive HTTP requests. This is
 not an assessment that the dependency is harmless or isolated to unused functionality.
 
-Before activation, explicitly approve **all eight advisories**, publication **0.8.2**, validation
-**0.8.1**, the exact existing dependency paths/pins and the unchanged expiry. Approval of a review
-or the historical three-advisory 0.8.0 release is insufficient. After approval, implement the policy,
-disclosure and regression cases together, run real CI/release checks in independent trees, and
-leave bumps, merge, tag and publication to the maintainer. Do not move the existing v0.8.1 tag.
+The maintainer explicitly approved **all eight advisories**, publication **0.8.2**, validation
+**0.8.1**, the exact existing dependency paths/pins and the unchanged expiry. The additional
+context is that form0-cli will mainly run locally while developers test. This reduces exposure
+compared with an unattended public service; local data/work, outbound responses, redirects,
+proxies and compromised/custom endpoints remain relevant. The approval does not claim transport
+isolation or treat the intended usage as a patch.
 
-No approval has been recorded by this review. The active policy remains byte-for-byte unchanged.
+Policy, disclosure and regression cases are updated together and real CI/release checks use an
+independent tree. Bumps, merge, tag and publication remain maintainer-owned. The existing v0.8.1
+tag must not be moved by this activation.
 
 ## Exit and stop conditions
 
@@ -186,16 +189,16 @@ No approval has been recorded by this review. The active policy remains byte-for
   escalation, mismatched metadata/resolution, absent approval or audit/network/parser failure
   requires rejection under the existing gate.
 - **Stop outside the chosen version purpose:** no publication of 0.8.1, 0.8.3 or another label is
-  authorized by this proposal. Do not reinterpret validation permission as publication approval.
-  Existing release tags are outside the proposed change.
+  authorized by this amendment. Do not reinterpret validation permission as publication approval.
+  Existing release tags are outside this change.
 - **Reassess when exposure changes:** adoption of custom TLS verification, shared redirect caching,
   Undici EventSource/WebSocket, throwing decompression handlers or broader provider/extension
   access should trigger a new reachability/risk review rather than relying on the present surface.
 
-These are proposed acceptance conditions and existing gate constraints, not an amendment applied
-to the checked-in policy. [Current gate](../scripts/audit-policy.mjs).
+These are the approved acceptance conditions and existing gate constraints.
+[Current gate](../scripts/audit-policy.mjs).
 
-## Evidence and limits
+## Original review evidence and limits — before activation
 
 - This review inspected upstream owner advisories and the repository's manifest, lockfile,
   exception policy, policy implementation and prior release diagnosis. It produced this Markdown
@@ -219,7 +222,7 @@ to the checked-in policy. [Current gate](../scripts/audit-policy.mjs).
   Source inspected in the installed Pi and nested Undici packages; SHA-256 of Pi's dispatcher file
   is `f9aa2c81b0a5958ffba6368506f24c9b202904c234ada19494cdc9c4a1d0e97b`, and Undici's global file is
   `ad78c73866021cae34d47f7896561c56294e5c1f15915d6ef1780f763a816b9d`.
-- Active policy SHA-256 remains
+- Before activation the policy SHA-256 was
   `029aa2bea384f50a1a3e0a688fbfb1b78b0800e071212eb096d045846073cd67`.
 - No dependency installation, provider call, credential access, exploit, browser/device test,
   release check, publication, tag change or executable-policy change was performed for this review.

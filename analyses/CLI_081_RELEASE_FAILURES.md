@@ -1,10 +1,11 @@
 # CLI 0.8.1 release failures — 27 October 2026
 
-Status: diagnosis verified. No security-policy amendment, dependency upgrade, tag change or
-publication is authorized or performed by this document. The existing approval remains unchanged.
-
-The maintainer selected reviewing an expanded exception. See the
-[completed risk and scope review](PI_SECURITY_EXCEPTION_082_REVIEW.md); it is not approval or activation.
+Status: diagnosis verified; the subsequent expanded exception was explicitly approved by aragornii
+on 27 October 2026 and activated for validation **0.8.1** / publication **0.8.2 only**. See
+[reviewed scope](PI_SECURITY_EXCEPTION_082_REVIEW.md) and
+[activation evidence](PI_SECURITY_EXCEPTION_ACTIVATION.md#approved-082-amendment--27-october-2026).
+The failure diagnosis and original gate evidence below are historical. No dependency upgrade,
+version bump, tag change or publication was performed by this work.
 
 ## Why PR checks passed and main/release failed
 
@@ -66,8 +67,9 @@ If the maintainer chooses another temporary exception, the proposed narrow amend
 - Update the approval record, disclosure and tests together only after explicit maintainer approval.
   The original 0.8.0 approval and historical tests retain their provenance.
 
-This proposal is **not activated**. Its risk includes shipping the vulnerable dependency to installed
-users. A passing exception-aware gate would not mean that their npm audits are clean.
+This proposal was subsequently explicitly approved and activated; see the current checkpoint above.
+Its risk includes shipping the vulnerable dependency to installed users. A passing exception-aware
+gate does not mean that their npm audits are clean.
 
 The v0.8.1 release points to `ead9553` and is present on GitHub; registry versions stop at 0.8.0 at
 inspection. Re-running that old release continues using its old policy. A fix merged into main does
@@ -75,6 +77,8 @@ not modify a tag. Prefer a fresh release/tag from the corrected commit; moving v
 an explicit maintainer decision. No release or tag mutation was performed here.
 
 ## Reproducible evidence
+
+The following captures the original diagnosis before the approved amendment was activated.
 
 - Running `node scripts/audit-dependencies.mjs --validation` in the current 0.8.1 checkout fails
   with the version restriction and five unaccepted advisories.
