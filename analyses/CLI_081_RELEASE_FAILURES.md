@@ -3,6 +3,9 @@
 Status: diagnosis verified. No security-policy amendment, dependency upgrade, tag change or
 publication is authorized or performed by this document. The existing approval remains unchanged.
 
+The maintainer selected reviewing an expanded exception. See the
+[completed risk and scope review](PI_SECURITY_EXCEPTION_082_REVIEW.md); it is not approval or activation.
+
 ## Why PR checks passed and main/release failed
 
 The PR's source commit `aaa0adb` declares CLI 0.8.0. Main was then bumped to 0.8.1 in

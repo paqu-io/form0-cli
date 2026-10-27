@@ -3,6 +3,8 @@
 Latest next-release checkpoint: [CLI 0.8.1 failure diagnosis](CLI_081_RELEASE_FAILURES.md).
 Main/publish reject 0.8.1, and a newer audit adds five unapproved advisories. The historical approval
 and evidence below remain scoped to their recorded version/findings; no amendment is activated.
+The [expanded exception review](PI_SECURITY_EXCEPTION_082_REVIEW.md) records exact proposed scope,
+primary advisory conditions and observed import/transport exposure; explicit approval is still pending.
 
 The maintainer approved the exact temporary risk described in
 [the reviewed proposal](PI_SECURITY_EXCEPTION_PROPOSAL.md). This change activates that policy for
