@@ -1459,3 +1459,65 @@ body {
   color: #6c6c6c;
   padding: 4px 0;
 }
+
+/* Developer preview controls share the form's existing button and settings treatment. */
+.repeatable-row-button {
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition:
+    background 0.2s ease,
+    transform 0.15s ease;
+}
+.repeatable-row-button[data-preview-row-action] {
+  background: #e2e8f0;
+  color: #2d3748;
+}
+.repeatable-row-button[data-preview-row-action]:hover {
+  background: #cbd5e0;
+}
+.repeatable-row-button[data-preview-row-action='save'] {
+  background: #187547;
+  color: #fff;
+}
+.repeatable-row-button[data-preview-row-action='save']:hover {
+  background: #125b36;
+}
+.repeatable-row-button:focus-visible {
+  outline: 2px solid #3182ce;
+  outline-offset: 2px;
+}
+.repeatable-row-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.preview-row-hint {
+  margin: 4px 0 10px;
+  font-size: 0.85rem;
+  color: #4a5568;
+}
+.preview-tools {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+}
+.preview-tools > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.preview-tools > .settings-checkbox-item {
+  margin-top: 10px;
+}
+#preview-actions > button {
+  margin: 4px 6px 0 0;
+}
+.settings-form-row {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}

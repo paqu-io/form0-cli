@@ -1,3 +1,4 @@
+import { v7 as uuidv7 } from 'uuid';
 import { createFormEngine, buildRepeatableMetadata, WarningSystem } from 'form0-core';
 import { randomUUID, createHash } from 'node:crypto';
 import {
@@ -6,6 +7,11 @@ import {
   eventDataSignature,
   mergeCustomValidation,
 } from './session-dispatcher.js';
+
+import { restorePreviewRecord } from './storage.js';
+import { createChangeLabels } from './submission-presentation.js';
+import { createRecordCoordinator, applyRecordState } from './record-coordinator.js';
+import { normalizeChoiceOperationValue } from '../static/choice-operation-values.js';
 
 const maps = ['values', 'errors', 'visible', 'required', 'read_only'];
 function savedRows(repeatable) {
@@ -74,9 +80,17 @@ export function createPreviewEditor({
   evaluateRepeatable,
   recordOptions = {},
   createEngine = createFormEngine,
+  submissionOptions = {},
+  initialFreshness = null,
+  evaluationOptions = {},
 }) {
   const dispatcher = createEventSession(configuration);
-  if (!dispatcher.config.lifecycle) throw new Error('Managed preview requires lifecycle opt-in.');
+  const coordinator = createRecordCoordinator({
+    ...evaluationOptions,
+    schema,
+    getOptions: () => ({ submissionOptions, initialFreshness }),
+    seed: initialState,
+  });
   const metadata = buildRepeatableMetadata(schema.form?.elements || []);
   const rootNames = [...metadata.fieldOwnership]
     .filter(([, field]) => field.parentPath.length === 0)
@@ -86,6 +100,7 @@ export function createPreviewEditor({
   const presentations = [];
   const retired = [];
   let source;
+  let prepared = null;
   let alive = true;
   let controller = dispatcher.start();
   const clone = copyEventData;
@@ -99,17 +114,22 @@ export function createPreviewEditor({
     configuration.recordKind
   );
 
-  function refreshCommitted() {
-    if (!evaluateRepeatable) return;
-    const evaluated = evaluateRepeatable(schema, state(root).values, root.row.repeatable);
-    root.row.repeatable = clone(evaluated.repeatable);
-    committedDiagnostics = clone(evaluated.diagnostics || []);
-    committedWarnings = clone(evaluated.warnings || []);
+  async function refreshCommitted() {
+    await root.engine.eval();
+    coordinator.changed();
   }
   function state(entry) {
     const current = entry.engine.getState();
     return clone({
-      ...Object.fromEntries(maps.map((key) => [key, pick(current[key], entry.names)])),
+      ...Object.fromEntries(
+        maps.map((key) => [
+          key,
+          pick(
+            current[key],
+            key === 'values' || key === 'errors' ? entry.names : entry.conditionNames
+          ),
+        ])
+      ),
       repeatable: clone(entry.row.repeatable || {}),
     });
   }
@@ -196,10 +216,20 @@ export function createPreviewEditor({
     };
   }
   function makeEntry(path, names, fieldKey, row, kind) {
+    // Containers own conditions in their containing record; nested rows have separate maps.
+    const conditionNames = new Set(names);
+    const visit = (elements) => {
+      for (const field of elements || []) {
+        conditionNames.add(field.data_name);
+        if (field.type === 'Section' || field.type === 'BuildingPlanSection') visit(field.elements);
+      }
+    };
+    visit(path.length ? definition(path)?.field.elements : schema.form?.elements);
     const entry = {
       scopeId: randomUUID(),
       path: clone(path),
       names,
+      conditionNames: [...conditionNames],
       fieldKey,
       row: clone(row),
       kind,
@@ -223,6 +253,7 @@ export function createPreviewEditor({
     entry.warnings = warnings;
     entry.engine = createEngine({
       schema,
+      ...evaluationOptions,
       initialValues: { ...ancestors, ...entry.row.values },
       eventScope: { instancePath: entry.path },
       diagnostics: { console: false },
@@ -236,17 +267,49 @@ export function createPreviewEditor({
           }));
       },
     });
-    entry.engine.eval();
     entries.set(entry.scopeId, entry);
-    const read = async () => state(entry);
+    entry.release = coordinator.bind(path, {
+      read: () => ({ ...entry.row, ...state(entry) }),
+      apply: async (snapshot) => {
+        applyRecordState(entry.engine, snapshot);
+        entry.row.repeatable = clone(snapshot.repeatable || {});
+      },
+    });
+    entry.engine.recordCoordinator = coordinator;
+    // The existing engine owns events. Evaluation always has accepted record context.
+    const scalarEval = entry.engine.eval.bind(entry.engine);
+    entry.engine.eval = () => {
+      if (!coordinator.hasCollections()) {
+        scalarEval();
+        entry.pending = Promise.resolve();
+        return entry.pending;
+      }
+      const pending = coordinator.evaluate(path).then((result) => {
+        if (!entry.active) return;
+        if (result.status !== 'evaluated')
+          throw new Error(result.issues?.[0]?.message || 'Scope evaluation failed.');
+        applyRecordState(entry.engine, result.state);
+        entry.diagnostics = result.diagnostics || [];
+      });
+      entry.pending = pending;
+      return pending;
+    };
+    const read = async () => {
+      await entry.pending;
+      return state(entry);
+    };
     const adapter = {
+      recordCoordinator: coordinator,
       isCurrent: () => alive && entry.active && entries.get(entry.scopeId) === entry,
       readableValues: () => state(entry).values,
       refreshReads: async (values) => Object.assign(entry.engine.getState().values, clone(values)),
       settle: read,
       read,
       snapshot: () => state(entry),
-      trigger: (type, key, data) => entry.engine.triggerDetailed(type, key, data),
+      trigger: (type, key, data) =>
+        configuration.lifecycle || ['load-record', 'change'].includes(type)
+          ? entry.engine.triggerDetailed(type, key, data)
+          : { operations: [], validationIssues: [], issues: [] },
       async process(operations, _meta, isCurrent) {
         if (!isCurrent()) throw new Error('Editor has ended.');
         let changed = false;
@@ -254,15 +317,18 @@ export function createPreviewEditor({
           if (operation.operation === 'SETVALUE') {
             const { fieldDataName, valueToSet } = operation.params;
             if (!names.includes(fieldDataName)) throw new Error('Operation targets another scope.');
-            entry.engine.getState().values[fieldDataName] = clone(valueToSet);
+            const field = metadata.fieldOwnership.get(fieldDataName)?.field;
+            entry.engine.getState().values[fieldDataName] = clone(
+              normalizeChoiceOperationValue(field?.type, valueToSet)
+            );
             changed = true;
           } else if (operation.operation === 'ALERT') presentations.push(clone(operation));
           else throw new Error('Unsupported preview operation: ' + operation.operation);
         }
         if (changed) {
-          entry.engine.eval();
+          await entry.engine.eval();
           entry.handle?.dataChanged();
-          if (!entry.path.length) refreshCommitted();
+          if (!entry.path.length) await refreshCommitted();
         }
       },
       validate: (snapshot) => summary(entry, snapshot),
@@ -275,6 +341,7 @@ export function createPreviewEditor({
       endScope: () => {
         if (!entry.active) return;
         entry.active = false;
+        entry.release?.();
         entries.delete(entry.scopeId);
         retired.push({ scopeId: entry.scopeId, instancePath: clone(entry.path) });
       },
@@ -337,6 +404,7 @@ export function createPreviewEditor({
     return entry;
   }
   async function initialize(entry) {
+    await entry.engine.eval();
     const suffix = entry.path.length ? 'repeatable' : 'record';
     const load = await controller.dispatch({
       type: 'load-' + suffix,
@@ -345,7 +413,7 @@ export function createPreviewEditor({
       fieldKey: entry.fieldKey,
     });
     if (load.issues.length) return load;
-    if (!configuration.readonly) {
+    if (configuration.lifecycle && !configuration.readonly) {
       const result = await controller.dispatch({
         type:
           (entry.path.length ? entry.kind : configuration.recordKind) === 'new'
@@ -387,8 +455,9 @@ export function createPreviewEditor({
     );
     return {
       ...clone(result),
+      persistedFreshness: coordinator.freshness(),
       state: visible,
-      committedState: state(root),
+      ...(drafts.length ? { committedState: state(root) } : {}),
       diagnostics: [
         ...closedFindings,
         ...[...entries.values()].flatMap((entry) => clone(entry.diagnostics)),
@@ -409,19 +478,47 @@ export function createPreviewEditor({
       retiredScopes: retired.splice(0),
     };
   }
-  refreshCommitted();
-  source = state(root);
-  const ready = initialize(root);
+  const ready = initialize(root).then((result) => {
+    source = state(root);
+    return result;
+  });
   return {
     ready,
+    async persist(preparationId, save) {
+      if (
+        !prepared ||
+        prepared.result.preparationId !== preparationId ||
+        prepared.signature !== coordinator.signature()
+      )
+        return failed('stale_preparation', 'Prepare the current record before persisting it.');
+      const selected = prepared;
+      await save(clone(selected.result.payload), clone(selected.result.meta.freshness));
+      if (selected !== prepared)
+        return failed('stale_preparation', 'The preparation changed while persisting.');
+      const result = await controller.acknowledgeSave({ preparationId });
+      if (!result.issues.length) prepared = null;
+      return result;
+    },
     dispose() {
       if (!alive) return;
       dispatcher.end();
+      coordinator.dispose();
       alive = false;
     },
     async command(request) {
       await ready;
       if (request.action === 'inspect') return response();
+      if (request.action === 'changes') {
+        const result = await controller.getSaveChanges(request);
+        const label = createChangeLabels(schema, coordinator.capture());
+        return {
+          ...result,
+          changes: result.changes?.map((change) => ({ ...change, label: label(change) })),
+          sessionId: request.sessionId,
+        };
+      }
+      if (request.action === 'acknowledge')
+        return response(await controller.acknowledgeSave(request));
       if (!root.active) return response(failed('scope_closed', 'The record editor has ended.'));
       const path = request.instancePath ?? [];
       if (!Array.isArray(path))
@@ -481,9 +578,9 @@ export function createPreviewEditor({
           pick(clone(request.values || {}), entry.names)
         );
         if (before !== eventDataSignature(state(entry).values)) {
-          entry.engine.eval();
+          await entry.engine.eval();
           entry.handle.dataChanged();
-          if (!entry.path.length) refreshCommitted();
+          if (!entry.path.length) await refreshCommitted();
         }
         if (request.fieldKey) {
           const field =
@@ -526,6 +623,8 @@ export function createPreviewEditor({
           recordOptions = { ...recordOptions, ...clone(request.recordOptions) };
         }
         const result = await controller.prepareSave({
+          decision: request.decision,
+          signal: request.signal,
           intent: request.action === 'accept-row' ? (request.intent ?? 'submit') : request.intent,
           scopeId: entry.scopeId,
           instancePath: entry.path,
@@ -548,7 +647,8 @@ export function createPreviewEditor({
           if (index < 0 || entry.kind === 'new') rows.push(result.payload);
           else rows[index] = result.payload;
           parent.handle.dataChanged();
-          if (!parent.path.length) refreshCommitted();
+          await parent.engine.eval();
+          if (!parent.path.length) await refreshCommitted();
           const membership = await controller.dispatch({
             type: 'change',
             fieldKey: entry.fieldKey,
@@ -562,6 +662,8 @@ export function createPreviewEditor({
           if (membership.issues.length)
             return response({ ...result, notificationIssues: membership.issues });
         }
+        if (!entry.path.length)
+          prepared = result.eligible ? { result, signature: coordinator.signature() } : null;
         return response(result);
       }
       if (request.action === 'cancel') {
@@ -635,7 +737,8 @@ export function createPreviewEditor({
         }
         rows.splice(index, 1);
         entry.handle.dataChanged();
-        if (!entry.path.length) refreshCommitted();
+        await entry.engine.eval();
+        if (!entry.path.length) await refreshCommitted();
         // Positional siblings cannot keep a lifetime that would now name another record.
         for (const sibling of [...entries.values()])
           if (
@@ -681,10 +784,14 @@ export function createPreviewSessionManager({
   maxSessions = 32,
   ttlMs = 30 * 60 * 1000,
   createEngine,
+  submissionOptions,
+  storageAdapter,
+  evaluationOptions,
 }) {
   const sessions = new Map();
   function dispose(id) {
     const session = sessions.get(id);
+    for (const controller of session?.cancellations?.values() || []) controller.abort();
     session?.editor.dispose();
     sessions.delete(id);
   }
@@ -697,11 +804,23 @@ export function createPreviewSessionManager({
       const schema = getSchema();
       if (!schema) throw new Error('No schema loaded.');
       const id = randomUUID();
+      const identity =
+        request.recordIdentity ??
+        request.recordOptions?.mainRecordId ??
+        (storageAdapter ? uuidv7() : undefined);
+      const stored =
+        storageAdapter && identity != null ? await storageAdapter.load(identity) : null;
       const editor = createPreviewEditor({
         schema,
-        initialState: request.state,
+        initialState: stored?.record ? restorePreviewRecord(schema, stored.record) : request.state,
+        initialFreshness: stored?.freshness,
+        submissionOptions,
+        evaluationOptions,
         configuration: request.configuration,
-        recordOptions: request.recordOptions,
+        recordOptions: {
+          ...request.recordOptions,
+          ...(storageAdapter ? { mainRecordId: stored?.record?.id ?? identity } : {}),
+        },
         serializeRecord: (state, options) => serializeRecord(schema, state, options),
         evaluateRepeatable,
         createEngine,
@@ -709,21 +828,62 @@ export function createPreviewSessionManager({
       if (sessions.size >= maxSessions) dispose(sessions.keys().next().value);
       const session = {
         editor,
+        identity: identity ?? id,
         fingerprint: fingerprint(schema),
         touched: Date.now(),
         sequence: 0,
         tail: Promise.resolve(),
         cache: new Map(),
+        cacheSizes: new Map(),
+        cacheBytes: 0,
         saving: new Set(),
+        cancellations: new Map(),
+        cancelled: new Set(),
       };
       sessions.set(id, session);
       const initial = await editor.ready;
       return {
         sessionId: id,
         sequence: 0,
+        ...(storageAdapter ? { recordIdentity: identity } : {}),
         ...(await editor.command({ action: 'inspect', instancePath: [] })),
         ...initial,
       };
+    },
+    cancel(request) {
+      const session = sessions.get(request.sessionId);
+      if (!session || typeof request.requestId !== 'string' || request.requestId.length > 128)
+        return failed('stale_preparation', 'No current cancellable preparation.');
+      const controller = session.cancellations.get(request.requestId);
+      if (controller) controller.abort();
+      else {
+        session.cancelled.add(request.requestId);
+        while (session.cancelled.size > 32)
+          session.cancelled.delete(session.cancelled.values().next().value);
+      }
+      return { status: 'cancelled', eligible: false, payload: null, issues: [] };
+    },
+    async persist(request) {
+      const session = sessions.get(request.sessionId);
+      if (!storageAdapter || !session || session.fingerprint !== fingerprint(getSchema()))
+        return failed(
+          'invalid_persistence',
+          'This preview has no current persistence adapter session.'
+        );
+      if (session.persisting)
+        return failed('save_in_progress', 'Persistence is already in progress.');
+      session.persisting = true;
+      const work = session.tail.then(() =>
+        session.editor.persist(request.preparationId, (record, freshness) =>
+          storageAdapter.save(session.identity, { record, freshness })
+        )
+      );
+      session.tail = work.catch(() => {});
+      try {
+        return await work;
+      } finally {
+        session.persisting = false;
+      }
     },
     command(request) {
       prune();
@@ -746,6 +906,13 @@ export function createPreviewSessionManager({
         return Promise.resolve(failed('out_of_order', 'Preview requests must arrive in order.'));
       session.sequence = sequence;
       const saving = request.action === 'prepare' || request.action === 'accept-row';
+      const abort = saving && request.requestId ? new AbortController() : null;
+      if (abort) {
+        if (typeof request.requestId !== 'string' || request.requestId.length > 128)
+          return Promise.resolve(failed('invalid_request', 'requestId must be a bounded string.'));
+        session.cancellations.set(request.requestId, abort);
+        if (session.cancelled.delete(request.requestId)) abort.abort();
+      }
       const target = request.scopeId || 'root';
       const busy = saving && session.saving.has(target);
       if (saving) session.saving.add(target);
@@ -754,16 +921,42 @@ export function createPreviewSessionManager({
           sessions.get(request.sessionId) === session
             ? busy
               ? failed('save_in_progress', 'Save preparation is already in progress.')
-              : session.editor.command(request)
+              : storageAdapter && request.action === 'acknowledge'
+                ? failed(
+                    'persistence_required',
+                    'The server adapter acknowledges successful persistence.'
+                  )
+                : session.editor.command({ ...request, signal: abort?.signal })
             : failed('stale_generation', 'Preview session has ended.')
         )
-        .then((result) => ({ sessionId: request.sessionId, sequence, ...result }))
+        .then((result) => {
+          const response = { sessionId: request.sessionId, sequence, ...result };
+          if (session.cache.has(sequence)) {
+            const bytes = Buffer.byteLength(JSON.stringify(response));
+            session.cacheSizes.set(sequence, bytes);
+            session.cacheBytes += bytes;
+            // Keep the latest replay, bounding older response retention by bytes as well as count.
+            while (session.cache.size > 1 && session.cacheBytes > 8 * 1024 * 1024) {
+              const oldest = session.cache.keys().next().value;
+              session.cache.delete(oldest);
+              session.cacheBytes -= session.cacheSizes.get(oldest) || 0;
+              session.cacheSizes.delete(oldest);
+            }
+          }
+          return response;
+        })
         .finally(() => {
           if (saving && !busy) session.saving.delete(target);
+          if (abort) session.cancellations.delete(request.requestId);
         });
       session.tail = work.catch(() => {});
       session.cache.set(sequence, work);
-      while (session.cache.size > 32) session.cache.delete(session.cache.keys().next().value);
+      while (session.cache.size > 32) {
+        const oldest = session.cache.keys().next().value;
+        session.cache.delete(oldest);
+        session.cacheBytes -= session.cacheSizes.get(oldest) || 0;
+        session.cacheSizes.delete(oldest);
+      }
       return work.then(copyEventData);
     },
     dispose,

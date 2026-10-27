@@ -35,3 +35,16 @@ test('Pi uses the patched brace-expansion version recorded in the root lockfile'
     "npm must not replace the root lockfile remediation with Pi's published shrinkwrap version"
   );
 });
+
+test('Express resolves the patched body parser recorded in the root lockfile', () => {
+  const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+  const expressRequire = createRequire(import.meta.resolve('express'));
+  const manifestPath = expressRequire.resolve('body-parser/package.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const lock = JSON.parse(readFileSync(path.join(projectRoot, 'package-lock.json'), 'utf8'));
+  const lockKey = path.relative(projectRoot, path.dirname(manifestPath)).split(path.sep).join('/');
+  const [major, minor] = manifest.version.split('.').map(Number);
+  assert.equal(major, 2);
+  assert.ok(minor >= 4, 'body-parser must include the compressed-request security fix');
+  assert.equal(manifest.version, lock.packages[lockKey]?.version);
+});

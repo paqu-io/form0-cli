@@ -1,3 +1,4 @@
+import { reviewSubmission } from './submission-review.js';
 import { FormRenderer } from './form-renderer.js';
 import { resolveSupportingImagePath } from './supporting-image-utils.js';
 import { FormStateManager } from './form-state-manager.js';
@@ -1084,6 +1085,14 @@ function addFormEventListeners() {
       if (target.closest('[class*="choice-field"]')) {
         return;
       }
+      // Signature values already reach the coordinator through signaturefield-change.
+      // Keep the compatibility input event available without executing each change twice.
+      if (
+        previewEvents.enabled &&
+        target.matches('input[type="hidden"][data-field-value="true"]') &&
+        target.closest('.signature-field-container')
+      )
+        return;
       const fieldName = target.getAttribute('name');
       if (!fieldName) {
         return;
@@ -1109,6 +1118,8 @@ function addFormEventListeners() {
       if (target.closest('[class*="choice-field"]')) {
         return;
       }
+      // File pickers publish their value through the field-specific media notification.
+      if (previewEvents.enabled && target.type === 'file' && !target.getAttribute('name')) return;
       markInstanceUpdatedFromTarget(target);
       if (previewEvents.enabled) {
         if (['select-one', 'file', 'date', 'time'].includes(target.type))
@@ -1248,7 +1259,7 @@ function addFormEventListeners() {
 
   // Hook into engine state application to refresh header/metadata title
   const originalApply = formStateManager.applyFormState.bind(formStateManager);
-  formStateManager.applyFormState = function (state) {
+  formStateManager.applyFormState = function (state, options) {
     try {
       // Update live title
       const title = computeLiveTitle(state.values || {});
@@ -1269,7 +1280,7 @@ function addFormEventListeners() {
     } catch (e) {
       console.warn('Failed updating metadata preview:', e);
     }
-    return originalApply(state);
+    return originalApply(state, options);
   };
 }
 
@@ -1281,10 +1292,27 @@ async function handleManagedSubmit() {
   const button = document.getElementById('submit-btn');
   if (button) button.disabled = true;
   hideGlobalError();
+  console.info('🚀 [RECORD SUBMIT] ' + t('previewEvents.submissionStarted'));
   try {
-    const result = await controller.prepareSave({ intent: 'submit' });
+    let result = await controller.prepareSave({ intent: 'submit' });
+    while (result.status === 'requires_decision') {
+      const action = await reviewSubmission(controller, result, currentSchema, t);
+      if (controller !== previewEvents.controller) return;
+      result = await controller.prepareSave({
+        intent: 'submit',
+        decision: { reviewId: result.reviewId, action },
+      });
+    }
+    if (result.status === 'cancelled') {
+      console.info('↩️ [RECORD SUBMIT] ' + t('previewEvents.submissionCancelled'));
+      return;
+    }
     if (controller !== previewEvents.controller) return;
     if (!result.eligible) {
+      console.warn('❌ [RECORD SUBMIT] ' + t('previewEvents.submissionBlocked'), {
+        issues: result.issues,
+        validationSummary: result.validationSummary,
+      });
       showGlobalError(
         result.issues?.length
           ? result.issues.map((issue) => issue.message).join('\n')
@@ -1292,28 +1320,57 @@ async function handleManagedSubmit() {
       );
       return;
     }
-    console.info(
-      '[form0] ' +
-        t('previewEvents.recordPrepared') +
-        '\n' +
-        JSON.stringify(result.payload, null, 2)
-    );
+    console.info('📋 [STRUCTURED RECORD] ' + t('previewEvents.recordPrepared'), result.payload);
+    console.info('💾 [DATABASE SUBMIT] ' + t('previewEvents.submitting'));
     const response = await fetch('/api/submit-record', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ record: result.payload }),
+      body: JSON.stringify({
+        record: result.payload,
+        sessionId: controller.getSessionId(),
+        preparationId: result.preparationId,
+      }),
     });
     const submission = await response.json();
     if (controller !== previewEvents.controller) return;
+    const connectors = submission.connectorResults;
+    const previewOnly = submission.success && Array.isArray(connectors) && !connectors.length;
+    if (previewOnly) console.info('ℹ️ [DATABASE SUBMIT] ' + t('previewEvents.noConnectors'));
+    else if (connectors?.length) {
+      const summary = submission.message || t('previewEvents.connectorResults');
+      if (submission.success) console.info('✅ [DATABASE SUBMIT] ' + summary);
+      else console.warn('⚠️ [DATABASE SUBMIT] ' + summary);
+      for (const connector of connectors) {
+        const details = connector.success
+          ? connector.message || t('previewEvents.connectorSucceeded')
+          : connector.error || t('previewEvents.connectorFailed');
+        const line = `${connector.success ? '✅' : '❌'} ${connector.connector}: ${details}`;
+        if (connector.success) console.info(line);
+        else console.error(line);
+      }
+    }
     if (!response.ok || !submission.success)
       throw new Error(submission.error || submission.message || t('previewEvents.submitFailed'));
+    if (submission.freshness)
+      await previewEvents.accept({ persistedFreshness: submission.freshness });
+    if (!submission.freshness) {
+      const acknowledged = await controller.acknowledgeSave({
+        preparationId: result.preparationId,
+      });
+      if (acknowledged.issues?.length) throw new Error(acknowledged.issues[0].message);
+    }
     const timestamps = result.meta?.timestamps;
     if (timestamps) {
       createdAtTimestamp = timestamps.created_at_client;
       lastSubmissionTimestamp = timestamps.updated_at_client;
     }
-    showGlobalSuccess(t('previewEvents.submitted'));
+    if (submission.freshness)
+      console.info('✅ [PERSISTENCE] ' + t('previewEvents.companionPersisted'));
+    const message = t(previewOnly ? 'previewEvents.noConnectors' : 'previewEvents.submitted');
+    console.info('✅ [RECORD SUBMIT] ' + message);
+    showGlobalSuccess(message);
   } catch (error) {
+    console.error('❌ [RECORD SUBMIT] ' + t('previewEvents.submitFailed') + ': ' + error.message);
     showGlobalError(error.message);
   } finally {
     managedSubmitting = false;

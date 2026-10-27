@@ -8,8 +8,11 @@ import { createFormEngine } from 'form0-core';
 import { createApp, serializePreviewRecord } from '../src/server/express-server.js';
 import { createPreviewEditor } from '../src/server/preview-events/editor.js';
 import { eventSchema } from './fixtures/preview-event-conformance.js';
-import { field } from './fixtures/preview-event-fields.js';
+import { field, repeatable } from './fixtures/preview-event-fields.js';
 import { setLocale } from '../src/utils/i18n.js';
+import { defaultFormTemplate } from '../src/form0-forms/form-schema-template.js';
+import { ensureKeysForSchema } from '../src/utils/ensure-keys.js';
+import { createPreviewEventUI } from '../src/server/static/preview-event-ui.js';
 
 const rootValues = { input: 4, trace: '' };
 const rowPath = (id, index = 0) => [
@@ -66,6 +69,225 @@ async function withPreview(
   }
 }
 
+test('browser field edits preserve prior handler writes while explicit batch updates stay supported', async () => {
+  await withPreview(
+    fixture("ON('change', 'input', function() { SETVALUE('trace', $trace + 'x'); });"),
+    async ({ started, command }) => {
+      const previousDocument = globalThis.document;
+      globalThis.document = { getElementById: () => null };
+      try {
+        const ui = createPreviewEventUI({
+          client: {
+            resolvePath: () => [],
+            getScopes: () => started.scopes,
+            request: command,
+          },
+          renderer: { getFieldInstanceRegistry: () => new Map(), formatContextPath: () => 'root' },
+          stateManager: {},
+          showError: (message) => assert.fail(message),
+        });
+        // Both edits were captured before the first handler wrote trace.
+        const first = { values: { input: 5, trace: '' }, repeatable: {} };
+        const second = { values: { input: 6, trace: '' }, repeatable: {} };
+        assert.equal((await ui.update(first, 'input')).state.values.trace, 'x');
+        assert.equal((await ui.update(second, 'input')).state.values.trace, 'xx');
+        assert.equal(second.values.trace, '');
+        assert.equal(
+          (await ui.update({ values: { input: 7, trace: 'batch' }, repeatable: {} })).state.values
+            .trace,
+          'batch'
+        );
+      } finally {
+        if (previousDocument === undefined) delete globalThis.document;
+        else globalThis.document = previousDocument;
+      }
+    }
+  );
+});
+
+test('preview keeps container conditions in their owning record maps after event dispatch', async () => {
+  const section = (name, elements) => ({
+    type: 'Section',
+    key: name,
+    data_name: name,
+    label: name,
+    display: 'inline',
+    description: null,
+    description_mode: null,
+    visible: false,
+    visible_conditions: { field_id: 'input', operator: 'equal_to', value: 1 },
+    elements,
+  });
+  const schema = {
+    form: {
+      name: 'Scoped container state',
+      elements: [
+        field('NumericField', 'input'),
+        section('root_section', [field('TextField', 'root_note')]),
+        repeatable('rows', [section('row_section', [field('TextField', 'row_note')])]),
+      ],
+    },
+  };
+  await withPreview(
+    schema,
+    async ({ started, command }) => {
+      assert.equal(started.state.visible.root_section, false);
+      assert.equal(Object.hasOwn(started.state.visible, 'row_section'), false);
+      const updated = await command({ action: 'update', values: { input: 1 }, fieldKey: 'input' });
+      assert.equal(updated.state.visible.root_section, true);
+      assert.equal(Object.hasOwn(updated.state.visible, 'row_section'), false);
+      const opened = await command({ action: 'open-row', instancePath: rowPath(0) });
+      assert.equal(opened.state.repeatable.rows[0].visible.row_section, true);
+      assert.equal(Object.hasOwn(opened.state.repeatable.rows[0].visible, 'root_section'), false);
+    },
+    undefined,
+    { values: { input: 0 }, repeatable: { rows: [{ id: 0, values: {}, repeatable: {} }] } }
+  );
+});
+
+test('preview SETVALUE preserves legacy choice shorthand before evaluation and serialization', async () => {
+  const choice = (type, name, extra = {}) =>
+    field(type, name, {
+      choices: [
+        { value: 'red', label: 'Red' },
+        { value: 'blue', label: 'Blue' },
+      ],
+      ...(type === 'BooleanField'
+        ? { third_option_enabled: false }
+        : {
+            allow_other: true,
+            is_searchable: false,
+            is_searchable_mode: null,
+          }),
+      ...extra,
+    });
+  const schema = {
+    form: {
+      name: 'Legacy operation values',
+      events: {
+        code: `ON('change', 'input', function() {
+      SETVALUE('single', 'red');
+      SETVALUE('multiple', ['red', 'blue']);
+      SETVALUE('boolean', 'blue');
+    });`,
+      },
+      elements: [
+        field('NumericField', 'input'),
+        choice('SingleChoiceField', 'single'),
+        choice('MultiChoiceField', 'multiple'),
+        choice('BooleanField', 'boolean'),
+      ],
+    },
+  };
+  for (const lifecycle of [false, true])
+    await withPreview(
+      schema,
+      async ({ command }) => {
+        const updated = await command({
+          action: 'update',
+          values: { input: 1 },
+          fieldKey: 'input',
+        });
+        assert.deepEqual(updated.issues, []);
+        assert.deepEqual(updated.state.values.single, {
+          choice: [{ value: 'red', label: 'red' }],
+          other: [],
+        });
+        assert.deepEqual(updated.state.values.multiple, {
+          choices: [
+            { value: 'red', label: 'red' },
+            { value: 'blue', label: 'blue' },
+          ],
+          other: [],
+        });
+        assert.deepEqual(updated.state.values.boolean, {
+          choice: [{ value: 'blue', label: 'blue' }],
+        });
+        assert.deepEqual(updated.state.errors, {});
+        const prepared = await command({ action: 'prepare', intent: 'submit' });
+        assert.equal(prepared.eligible, true);
+        assert.deepEqual(prepared.payload.form_values.single, {
+          choice_value: updated.state.values.single.choice,
+          other_value: [],
+        });
+        assert.deepEqual(prepared.payload.form_values.multiple, {
+          choices_value: updated.state.values.multiple.choices,
+          other_value: [],
+        });
+      },
+      { lifecycle, recordKind: 'existing' },
+      { values: {}, repeatable: {} }
+    );
+});
+
+test('preview SETVALUE normalizes row choices without mutating sibling or structured selection metadata', async () => {
+  const original = {
+    choice: [{ value: 'blue', label: 'Custom blue', extra: { keep: 1 } }],
+    other: [],
+  };
+  const schema = {
+    form: {
+      name: 'Row shorthand',
+      events: { code: "ON('change', 'amount', function() { SETVALUE('selection', 'red'); });" },
+      elements: [
+        repeatable('rows', [
+          field('NumericField', 'amount'),
+          field('SingleChoiceField', 'selection', {
+            allow_other: true,
+            is_searchable: false,
+            is_searchable_mode: null,
+            choices: [
+              { value: 'red', label: 'Red' },
+              { value: 'blue', label: 'Blue' },
+            ],
+          }),
+        ]),
+      ],
+    },
+  };
+  const initial = {
+    values: {},
+    repeatable: {
+      rows: [
+        { id: 0, values: { amount: 0, selection: original }, repeatable: {} },
+        { id: 'sibling', values: { amount: 4, selection: original }, repeatable: {} },
+      ],
+    },
+  };
+  const before = structuredClone(initial);
+  await withPreview(
+    schema,
+    async ({ command }) => {
+      await command({ action: 'open-row', instancePath: rowPath(0) });
+      const updated = await command({
+        action: 'update',
+        instancePath: rowPath(0),
+        values: { amount: 1 },
+        fieldKey: 'amount',
+      });
+      assert.deepEqual(updated.issues, []);
+      assert.equal(updated.state.repeatable.rows[0].values.selection.choice[0].value, 'red');
+      assert.deepEqual(updated.state.repeatable.rows[1].values.selection, original);
+    },
+    { lifecycle: true, recordKind: 'existing' },
+    initial
+  );
+  assert.deepEqual(initial, before);
+});
+
+test('standard project age handler reads root age and preserves numeric validation', async () => {
+  const schema = structuredClone(defaultFormTemplate);
+  ensureKeysForSchema(schema.form.elements);
+  await withPreview(schema, async ({ command }) => {
+    const result = await command({ action: 'update', values: { age: 12 }, fieldKey: 'age' });
+    assert.deepEqual(result.issues, []);
+    assert.match(result.state.errors.age, /at least/);
+    assert.ok(
+      result.presentations.some((operation) => operation.params.message === 'Age changed to 12')
+    );
+  });
+});
+
 test('preview load/new/edit classification follows explicit opt-in and readonly opens load only', async () => {
   const schema = fixture(
     "ON('load-record', function(){ SETVALUE('trace','load'); }); ON('new-record', function(){ SETVALUE('trace',$trace+':new'); }); ON('edit-record', function(){ SETVALUE('trace',$trace+':edit'); });"
@@ -101,7 +323,7 @@ test('custom validation repeats, clears on editable change, blocks submit and pe
       const blocked = await command({ action: 'prepare', intent: 'submit' });
       assert.equal(blocked.eligible, false);
       assert.equal(blocked.payload, null);
-      assert.equal(blocked.validationSummary.generalErrors[0].message, 'Reach four.');
+      assert.equal(blocked.validationSummary.orderedIssues[0].message, 'Reach four.');
       assert.deepEqual(blocked.state.errors, {});
       assert.equal(blocked.state.values.trace, '');
     }
@@ -139,8 +361,11 @@ test('row removal rejects readonly sessions and ambiguous IDs without changing a
           affectedPath: rowPath(rows[0].id),
         });
         assert.equal(result.issues[0]?.code, expected);
-        assert.deepEqual(result.committedState.repeatable, started.committedState.repeatable);
-        assert.equal(result.committedState.repeatable.rows.length, rows.length);
+        assert.deepEqual(
+          (result.committedState || result.state).repeatable,
+          (started.committedState || started.state).repeatable
+        );
+        assert.equal((result.committedState || result.state).repeatable.rows.length, rows.length);
       },
       { lifecycle: true, recordKind: 'existing', readonly },
       { values: rootValues, repeatable: { rows } }
@@ -247,8 +472,8 @@ test('nested rows read ancestors/main, write locally, retain ID zero, and cancel
       assert.equal(Object.hasOwn(prepared.payload, 'read_only'), false);
       assert.equal(prepared.payload.values.quantity, 10);
       const root = await command({ action: 'prepare', intent: 'submit' });
-      assert.equal(root.payload.form_values.rows[0].form_values.amount, 2);
-      assert.equal(root.payload.form_values.rows[0].form_values.children[0].id, 0);
+      assert.equal(root.payload, null);
+      assert.equal(root.issues[0].code, 'pending_editor');
       await command({
         action: 'cancel',
         scopeId: rowScope.scopeId,
@@ -507,6 +732,15 @@ test('preview controls are present in each client locale rather than the CLI-onl
           'cancel',
           'draftPrepared',
           'submitted',
+          'settingsHelp',
+          'advancedSettings',
+          'advancedActions',
+          'parentHint',
+          'readonlyHint',
+          'noConnectors',
+          'submissionStarted',
+          'submissionBlocked',
+          'companionPersisted',
         ])
           assert.equal(
             typeof response.translations['previewEvents.' + key],

@@ -97,7 +97,7 @@ export const defaultFormTemplate = {
         });
 
         ON('change', 'age', function (event) {
-          ALERT('Warning!', 'Email changed to ' + $email);
+          ALERT('Warning!', 'Age changed to ' + $age);
         });
 
         function colorsF(event) {

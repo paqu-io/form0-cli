@@ -1,3 +1,5 @@
+import { normalizeChoiceOperationValue } from './choice-operation-values.js';
+
 /**
  * Manages form state updates and value preservation
  */
@@ -814,7 +816,7 @@ export class FormStateManager {
     }
   }
 
-  setBooleanFieldValue(field, container, value) {
+  setBooleanChoiceValue(field, container, value) {
     const boolContainer = container.querySelector('.boolean-field-container');
     if (!boolContainer) return;
 
@@ -849,7 +851,7 @@ export class FormStateManager {
     if (boolContainer._setUpdating) boolContainer._setUpdating(false);
   }
 
-  setMultiChoiceFieldValue(field, container, value) {
+  setMultiChoiceValue(field, container, value) {
     const mcContainer =
       container.querySelector('.multi-choice-field-checkbox-container') ||
       container.querySelector('.multi-choice-field-container') ||
@@ -948,10 +950,10 @@ export class FormStateManager {
         this.setSingleChoiceValue(field, container, value);
         break;
       case 'BooleanField':
-        this.setBooleanFieldValue(field, container, value);
+        this.setBooleanChoiceValue(field, container, value);
         break;
       case 'MultiChoiceField':
-        this.setMultiChoiceFieldValue(field, container, value);
+        this.setMultiChoiceValue(field, container, value);
         break;
       case 'PhotoField':
       case 'VideoField':
@@ -962,6 +964,12 @@ export class FormStateManager {
         if (hiddenInput) {
           hiddenInput.value = typeof value === 'string' ? value : JSON.stringify(value ?? null);
         }
+        if (value == null || (Array.isArray(value) && value.length === 0))
+          container
+            .querySelector(
+              '.signature-field-container, .photo-field-container, .video-field-container'
+            )
+            ?._resetPreview?.();
         break;
       }
       default:
@@ -1026,6 +1034,9 @@ export class FormStateManager {
   }
 
   updateFieldValidation(field, container, value, isRequired, errorMessage) {
+    if (!container) return;
+    // Retain only this control's latest server policy for immediate presence feedback.
+    container._form0Validation = { isRequired, errorMessage };
     this.clearFieldInstanceError(container);
 
     if (errorMessage) {
@@ -1039,6 +1050,13 @@ export class FormStateManager {
         this.showFieldInstanceError(container, 'This field is required');
       }
     }
+  }
+
+  updateFieldPresenceFeedback(field, container, value) {
+    const policy = container?._form0Validation;
+    if (!policy) return;
+    // Intrinsic errors remain authoritative until the server evaluates the changed value.
+    this.updateFieldValidation(field, container, value, policy.isRequired, policy.errorMessage);
   }
 
   /**
@@ -1091,7 +1109,7 @@ export class FormStateManager {
   /**
    * Apply form state changes to the DOM
    */
-  applyFormState(state) {
+  applyFormState(state, { conditionsOnly = false } = {}) {
     // Apply visibility
     Object.entries(state.visible || {}).forEach(([fieldName, isVisible]) => {
       const element = document.querySelector(`[data-name="${fieldName}"]`);
@@ -1162,6 +1180,8 @@ export class FormStateManager {
         }
       }
     });
+
+    if (conditionsOnly) return;
 
     // Apply calculated values and other computed values
     Object.entries(state.values || {}).forEach(([fieldName, value]) => {
@@ -1853,15 +1873,7 @@ export class FormStateManager {
     }
 
     // Convert string value to proper SingleChoiceField format
-    let choiceValue;
-    if (typeof valueToSet === 'string') {
-      choiceValue = {
-        choice: [{ value: valueToSet, label: valueToSet }],
-        other: [],
-      };
-    } else {
-      choiceValue = valueToSet;
-    }
+    const choiceValue = normalizeChoiceOperationValue('SingleChoiceField', valueToSet);
 
     // Set updating flag to prevent event conflicts
     if (container._setUpdating) container._setUpdating(true);
@@ -1930,15 +1942,7 @@ export class FormStateManager {
     }
 
     // Convert array of strings to proper MultiChoiceField format
-    let choiceValue;
-    if (Array.isArray(valueToSet)) {
-      choiceValue = {
-        choices: valueToSet.map((value) => ({ value, label: value })),
-        other: [],
-      };
-    } else {
-      choiceValue = valueToSet;
-    }
+    const choiceValue = normalizeChoiceOperationValue('MultiChoiceField', valueToSet);
 
     // Apply DOM updates synchronously first
     this.applySyncMultiChoiceDOM(container, hiddenInput, choiceValue);
@@ -2047,14 +2051,7 @@ export class FormStateManager {
     }
 
     // Convert string value to proper BooleanField format
-    let booleanValue;
-    if (typeof valueToSet === 'string') {
-      booleanValue = {
-        choice: [{ value: valueToSet, label: valueToSet }],
-      };
-    } else {
-      booleanValue = valueToSet;
-    }
+    const booleanValue = normalizeChoiceOperationValue('BooleanField', valueToSet);
 
     // Set updating flag to prevent event conflicts
     if (container._setUpdating) container._setUpdating(true);

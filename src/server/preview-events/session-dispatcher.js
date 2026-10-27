@@ -280,16 +280,32 @@ export function createEventSession(configuration = {}) {
   }
   async function validate(scope, isDraft) {
     const state = await scope.adapter.read();
-    const intrinsic = scope.adapter.validate(state);
-    const detail = await execute(
-      scope,
-      scope.instancePath.length ? 'validate-repeatable' : 'validate-record',
-      scope.fieldKey,
-      {
-        isDraft,
-        isValid: !intrinsic.hasErrors,
-      }
-    );
+    const scoped = scope.adapter.recordCoordinator
+      ? await scope.adapter.recordCoordinator.evaluate(scope.instancePath)
+      : null;
+    if (scoped && scoped.status !== 'evaluated')
+      return {
+        detail: failure(
+          'record_evaluation_failed',
+          scoped.issues?.[0]?.message || 'Scope evaluation failed.',
+          scope
+        ),
+        summary: scope.adapter.validate(state),
+        state,
+        signature: scope.adapter.dataSignature(),
+      };
+    const intrinsic = scoped?.validationSummary || scope.adapter.validate(state);
+    const detail = config.lifecycle
+      ? await execute(
+          scope,
+          scope.instancePath.length ? 'validate-repeatable' : 'validate-record',
+          scope.fieldKey,
+          {
+            isDraft,
+            isValid: !intrinsic.hasErrors,
+          }
+        )
+      : { status: 'completed', operations: [], validationIssues: [], issues: [] };
     return {
       detail,
       summary: mergeCustomValidation(intrinsic, detail.validationIssues),
@@ -297,13 +313,31 @@ export function createEventSession(configuration = {}) {
       signature: scope.adapter.dataSignature(),
     };
   }
-  async function prepare(scope, intent) {
+  async function prepare(scope, intent, request = {}) {
     try {
       await scope.adapter.settle();
       if (!current(scope)) return failure('scope_closed', 'The target editor has ended.', scope);
       if (!scope.adapter.canEdit())
         return failure('readonly_scope', 'The target editor is read-only.', scope);
       const draft = intent === 'draft';
+      if (!scope.instancePath.length && scope.adapter.recordCoordinator) {
+        const result = await scope.adapter.recordCoordinator.prepare(
+          { ...request, intent },
+          {
+            managedEvents: config.lifecycle,
+            saveHook: (summary) =>
+              execute(scope, 'save-record', scope.fieldKey, {
+                isDraft: draft,
+                isValid: !summary.hasErrors,
+              }),
+            serialize: (snapshot, selectedIntent, summary) =>
+              scope.adapter.serialize(snapshot, selectedIntent, summary),
+          }
+        );
+        if (!current(scope)) return failure('scope_closed', 'The target editor has ended.', scope);
+        scope.adapter.onPreparation?.(result);
+        return result;
+      }
       let validation = await validate(scope, draft);
       if (validation.detail.issues.length || (!draft && validation.summary.hasErrors))
         return {
@@ -313,15 +347,17 @@ export function createEventSession(configuration = {}) {
           validationSummary: validation.summary,
         };
       const signature = scope.adapter.dataSignature();
-      const save = await execute(
-        scope,
-        scope.instancePath.length ? 'save-repeatable' : 'save-record',
-        scope.fieldKey,
-        {
-          isDraft: draft,
-          isValid: !scope.adapter.validate(validation.state).hasErrors,
-        }
-      );
+      const save = config.lifecycle
+        ? await execute(
+            scope,
+            scope.instancePath.length ? 'save-repeatable' : 'save-record',
+            scope.fieldKey,
+            {
+              isDraft: draft,
+              isValid: !scope.adapter.validate(validation.state).hasErrors,
+            }
+          )
+        : { status: 'completed', operations: [], validationIssues: [], issues: [] };
       if (save.issues.length)
         return { ...save, eligible: false, payload: null, validationSummary: validation.summary };
       if (signature !== scope.adapter.dataSignature()) validation = await validate(scope, draft);
@@ -357,6 +393,7 @@ export function createEventSession(configuration = {}) {
         issues: [],
       };
     } catch (error) {
+      scope.adapter.recordCoordinator?.cancelPreparation();
       return failure(
         'save_preparation_failed',
         error?.message || 'Save preparation failed.',
@@ -383,7 +420,18 @@ export function createEventSession(configuration = {}) {
       prepareSave(request = {}) {
         let captured;
         try {
-          captured = captureRequest(request);
+          if (!request || typeof request !== 'object' || Array.isArray(request))
+            throw new Error('A request object is required.');
+          const { signal, ...portable } = request;
+          captured = captureRequest(portable);
+          if (signal) {
+            if (
+              typeof signal.aborted !== 'boolean' ||
+              typeof signal.addEventListener !== 'function'
+            )
+              throw new Error('signal must be an AbortSignal.');
+            captured.signal = signal;
+          }
         } catch (error) {
           return Promise.resolve(failure('invalid_request', error.message));
         }
@@ -403,9 +451,21 @@ export function createEventSession(configuration = {}) {
             failure('save_in_progress', 'Save preparation is already in progress.', scope)
           );
         saves.add(scope);
-        return enqueue(epoch, () => prepare(scope, captured.intent)).finally(() =>
+        return enqueue(epoch, () => prepare(scope, captured.intent, captured)).finally(() =>
           saves.delete(scope)
         );
+      },
+      async getSaveChanges(request = {}) {
+        const scope = rootScopeId && scopes.get(rootScopeId);
+        return active && epoch === generation && scope?.adapter.recordCoordinator
+          ? scope.adapter.recordCoordinator.getSaveChanges(request)
+          : failure('stale_generation', 'This event controller has ended.');
+      },
+      acknowledgeSave(request = {}) {
+        const scope = rootScopeId && scopes.get(rootScopeId);
+        return active && epoch === generation && scope?.adapter.recordCoordinator
+          ? scope.adapter.recordCoordinator.acknowledgeSave(request)
+          : failure('stale_generation', 'This event controller has ended.');
       },
     });
   }

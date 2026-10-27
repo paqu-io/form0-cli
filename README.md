@@ -264,14 +264,19 @@ errors. Diagnostic details go to stderr; evaluated state remains on stdout.
 These command outcomes do not change `state.errors`, submission validation, or reform draft saving.
 An app launched through `serve --app` retains its own reporting policy.
 
-## Portable events in browser preview (next release)
+## Record preview and lifecycle events
 
-Requires `form0-core` 0.5.1 or later within the supported 0.5.x range (installed with the CLI).
+The current preview uses APIs introduced in `form0-core` 0.8.1. The CLI installs a compatible core
+dependency automatically.
 
-In the built-in browser preview, open **Form Settings**, enable **Portable preview events**, and
-select **New record** or **Existing record** explicitly. The option is off by default. Opening
-read-only runs load only; changing these settings starts a new editor session with accepted values.
-A schema reload retires the previous session rather than pretending the editor was closed.
+A fresh built-in browser preview enables managed lifecycle events and opens as a **New record**.
+In **Form Settings → Record preview**, choose **Existing record** to exercise edit hooks or
+**Open read-only** to exercise load-only opening. Classification selects lifecycle hooks; it does not
+load a database record. Existing explicitly saved lifecycle opt-outs remain respected.
+**Advanced event settings** contains the lifecycle compatibility switch and optional focus/blur/click
+subscriptions. Changing configuration starts a new editor session with accepted values.
+An app launched through `serve --app` retains its own event options. React and Native have no such
+settings UI; their API defaults remain opt-in pending a separate host-classification decision.
 
 The enabled preview evaluates effective values, runs `load-record`, then the selected `new-record`
 or `edit-record`. User field changes and enabled status changes run contextual events after queued
@@ -281,17 +286,22 @@ Optional focus/blur apply to text and numeric controls; click applies to support
 Submit runs built-in and synchronous `INVALID(message)` validation, then `save-record` once, and
 validates again only if pre-save values changed. Connectors receive that final prepared record.
 Custom findings are scope-level summary messages, separate from intrinsic `state.errors` and
-calculation diagnostics. Calculation errors alone add no save blocker. **Prepare draft** returns
-an invalid-capable raw snapshot and validation summary in the console; it does not submit to a
+calculation diagnostics. Calculation errors alone add no save blocker. **Advanced preview actions → Prepare draft** returns
+an invalid-capable raw snapshot and validation summary as an expandable console object; it does not submit to a
 connector or persist a draft. No `saved-*` schema event is added.
 
-Inline rows have **Edit**, **Save row** and **Cancel row** controls in this mode. Opening uses
+Inline rows have **Edit**, **Save row** and **Cancel row** controls. A disabled nested control
+explains which parent editor must be opened first. Opening uses
 repeatable lifecycle hooks; row Save validates and runs its pre-save hook before accepting local
 values. Ancestor/main reads are allowed, while `SETVALUE()` writes only inside that row. Cancel
 restores accepted data, including staged nested edits. Collapsing a row is presentation only.
 Accepted row membership changes notify the owner; failures in that later notification are reported
-without undoing acceptance. Closed-row evaluation keeps preview's existing recursive policy; this
-adds no binding submission-freshness or aggregation policy.
+without undoing acceptance. Closed rows use shared submission preparation without replaying their editing lifecycle.
+
+**Advanced preview actions** also contains **Cancel record** and **Close record** for lifecycle
+inspection. These controls do not persist a draft. Submit remains the primary action. Submission
+console output shows the expandable final record, each connector result and failures. With no
+connector configured, the preview explicitly reports that no database record was saved.
 
 The generation-bound developer controller is `window.form0PreviewEvents` while an editor is active:
 
@@ -311,6 +321,18 @@ new session. These settings apply to the built-in preview; `serve --app` retains
 ## ✅ Requirements
 
 - Node.js 22.19.0+
+
+## Development and release checks
+
+Run `npm run ci:check` before opening a PR. It runs formatting, tests, smoke, production-dependency
+audit and package checks. The temporary security policy permits the unreleased working tree to
+remain version 0.7.0 during validation; it also accepts the intended 0.8.0 release candidate.
+
+Keep the established `development` → `main` workflow. The maintainer bumps the version on `main`,
+then runs `npm run release:check` before tagging and publishing. That command remains restricted to
+0.8.0 under the temporary exception; a 0.7.0 working tree cannot pass publication checks. Both paths
+enforce the same advisory/dependency restrictions and expire on 3 November 2026 at 00:00 UTC.
+See [the security policy](./SECURITY.md). These checks do not bump, tag or publish a package.
 
 ## 📚 Documentation
 

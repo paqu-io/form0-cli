@@ -987,7 +987,7 @@ export class FormRenderer {
 
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
-    removeButton.className = 'repeatable-instance-remove';
+    removeButton.className = 'repeatable-instance-remove repeatable-row-button';
     removeButton.textContent = 'Remove';
     removeButton.disabled = !canRemove;
     if (this.managedPreview)
@@ -1001,6 +1001,7 @@ export class FormRenderer {
       for (const action of ['edit', 'save', 'cancel']) {
         const button = document.createElement('button');
         button.type = 'button';
+        button.className = 'repeatable-row-button';
         button.dataset.previewRowAction = action;
         button.textContent = this.managedPreview.translate('previewEvents.' + action);
         button.onclick = () => this.managedPreview[action](instancePath);
@@ -1009,6 +1010,13 @@ export class FormRenderer {
     }
 
     instanceDiv.appendChild(headerRow);
+    if (this.managedPreview) {
+      const hint = document.createElement('p');
+      hint.className = 'preview-row-hint';
+      hint.id = 'preview-row-hint-' + encodeURIComponent(contextKey);
+      hint.hidden = true;
+      instanceDiv.appendChild(hint);
+    }
 
     const content = document.createElement('div');
     content.className = 'repeatable-instance-content';
@@ -2933,6 +2941,11 @@ export class FormRenderer {
           updateHiddenInput();
         }
         let signatureMeta = null;
+        container._resetPreview = () => {
+          drawing = false;
+          signatureMeta = null;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        };
         function getSignatureMeta() {
           if (!signatureMeta) {
             const ids = createMediaIds();
@@ -3028,6 +3041,13 @@ export class FormRenderer {
         const preview = document.createElement('div');
         preview.className = 'file-preview-container';
         container.appendChild(preview);
+
+        container._resetPreview = () => {
+          for (const photo of selectedPhotos) URL.revokeObjectURL(photo.url);
+          selectedPhotos = [];
+          fileInput.value = '';
+          preview.replaceChildren();
+        };
 
         function renderPhotos() {
           preview.innerHTML = '';
@@ -3135,6 +3155,7 @@ export class FormRenderer {
         container.className = 'video-field-container';
 
         let selectedVideos = [];
+        let selectionGeneration = 0;
 
         const hiddenInput = document.createElement('input');
         hiddenInput.type = 'hidden';
@@ -3152,6 +3173,13 @@ export class FormRenderer {
         const preview = document.createElement('div');
         preview.className = 'file-preview-container';
         container.appendChild(preview);
+
+        container._resetPreview = () => {
+          selectionGeneration++;
+          selectedVideos = [];
+          fileInput.value = '';
+          preview.replaceChildren();
+        };
 
         // Helper to render preview and update hidden input
         function renderVideos() {
@@ -3241,12 +3269,14 @@ export class FormRenderer {
 
         // On file input change, add new files to array
         fileInput.addEventListener('change', async function () {
+          const generation = selectionGeneration;
           if (fileInput.files && fileInput.files.length > 0) {
             for (const file of Array.from(fileInput.files)) {
               // Prevent duplicates by name
               if (!selectedVideos.some((v) => v.name === file.name)) {
                 try {
                   const duration = await getVideoDuration(file);
+                  if (generation !== selectionGeneration) return;
                   const ids = createMediaIds();
                   selectedVideos.push({
                     video_id: ids.video_id,
