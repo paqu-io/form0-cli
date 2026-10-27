@@ -264,9 +264,10 @@ errors. Diagnostic details go to stderr; evaluated state remains on stdout.
 These command outcomes do not change `state.errors`, submission validation, or reform draft saving.
 An app launched through `serve --app` retains its own reporting policy.
 
-## Portable events in browser preview (next release)
+## Record preview and lifecycle events
 
-Requires `form0-core` 0.8.1 or later within the supported 0.8.x range (installed with the CLI).
+The current preview uses APIs introduced in `form0-core` 0.8.1. The CLI installs a compatible core
+dependency automatically.
 
 A fresh built-in browser preview enables managed lifecycle events and opens as a **New record**.
 In **Form Settings → Record preview**, choose **Existing record** to exercise edit hooks or
