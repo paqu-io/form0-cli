@@ -30,6 +30,9 @@ ON('save-record', function() { SETVALUE('save_count', $save_count + 1); });
 ON('focus', 'amount', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|focus'); });
 ON('blur', 'amount', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|blur'); });
 ON('click', 'amount', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|click'); });
+ON('focus', 'trace', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|text-focus'); });
+ON('blur', 'trace', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|text-blur'); });
+ON('click', 'trace', function() { SETVALUE('interaction_trace', ($interaction_trace || '') + '|text-click'); });
 `,
     },
   },
@@ -142,7 +145,27 @@ try {
       );
       await amount.click();
       await page.waitForFunction(() =>
-        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|click')
+        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|focus')
+      );
+      await amount.blur();
+      await page.waitForFunction(() =>
+        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|blur')
+      );
+      assert.equal(
+        await page.locator('[name="interaction_trace"]').inputValue(),
+        '|focus|blur|focus|blur'
+      );
+      await page.locator('[name="trace"]').click();
+      await page.waitForFunction(() =>
+        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|text-focus')
+      );
+      await page.locator('[name="trace"]').blur();
+      await page.waitForFunction(() =>
+        document.querySelector('[name="interaction_trace"]')?.value.endsWith('|text-blur')
+      );
+      assert.equal(
+        await page.locator('[name="interaction_trace"]').inputValue(),
+        '|focus|blur|focus|blur|text-focus|text-blur'
       );
       assert.equal(await page.locator('#preview-actions').evaluate((x) => x.open), false);
       assert.equal(await page.locator('#preview-draft').isVisible(), false);

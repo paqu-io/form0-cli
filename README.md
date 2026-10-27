@@ -281,8 +281,9 @@ settings UI; lifecycle and supported interactions default on, with explicit host
 The enabled preview evaluates effective values, runs `load-record`, then the selected `new-record`
 or `edit-record`. User field changes and enabled status changes run contextual events after queued
 updates settle; defaults, calculations and `SETVALUE()` do not create additional change events.
-Built-in text and numeric controls emit focus/blur and input click by default. Custom controls may
-dispatch supported interactions explicitly. This does not introduce a hyperlink field.
+Built-in text and numeric controls emit focus/blur by default; choice controls use change. Automatic
+click is reserved for supported activation fields. There is currently no HyperlinkField and no
+built-in control automatically emits click. Explicit host controller dispatch remains available.
 
 Submit runs built-in and synchronous `INVALID(message)` validation, then `save-record` once, and
 validates again only if pre-save values changed. Connectors receive that final prepared record.
