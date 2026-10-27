@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import fs from 'fs-extra';
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai';
 import { Form0PiSession } from '../src/ai/pi-session.js';
@@ -31,8 +32,8 @@ test('AI commands reject false-success proposals and preserve preview/apply/undo
   const manager = new AIManager(schemaManager, engineRunner, server, null, shell, {
     sessionFactory: (input) => new Form0PiSession({ ...input, storageRoot: directory }),
     presentation: {
-      write: (message) => output.push(message),
-      writeLines: (lines) => output.push(...lines),
+      write: (message) => output.push(stripVTControlCharacters(message)),
+      writeLines: (lines) => output.push(...lines.map(stripVTControlCharacters)),
     },
   });
   t.after(async () => {

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { stripVTControlCharacters } from 'node:util';
 
 import {
   collectCalculationIssues,
@@ -53,7 +54,7 @@ test('reports nothing for valid calculations', () => {
 test('prints a severity summary and one diagnostic block per issue', () => {
   const lines = [];
   const count = printCalculationIssues(createSchema('IF(\n  true,\n  "a",\n  "b"\n)'), (line) =>
-    lines.push(line)
+    lines.push(stripVTControlCharacters(line))
   );
 
   assert.equal(count, 1);

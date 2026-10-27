@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { stripVTControlCharacters as withoutColors } from 'node:util';
 import { EngineRunner } from '../src/commands/interactive/runners/engine-runner.js';
 import { runCommand } from '../src/commands/run.js';
 import { validateCommand } from '../src/commands/validate.js';
@@ -20,22 +21,31 @@ import {
 
 const cli = fileURLToPath(new URL('../bin/form0.js', import.meta.url));
 const preload = fileURLToPath(new URL('./fixtures/diagnostics-test-home.mjs', import.meta.url));
-const withoutColors = (value) => value.replace(/\u001b\[[0-9;]*m/g, '');
 
 test('standalone commands retain state output and apply error/warning/suppression exit policy', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'form0-diag-command-'));
   const schemaPath = path.join(dir, 'schema.json');
-  const run = (command, args = [], environment = 'production') =>
-    spawnSync(process.execPath, ['--import', preload, cli, command, schemaPath, ...args], {
-      cwd: dir,
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        FORM0_DIAGNOSTICS_TEST_HOME: dir,
-        NODE_ENV: environment,
-        LANG: 'en_US.UTF-8',
-      },
-    });
+  const run = (command, args = [], environment = 'production') => {
+    const result = spawnSync(
+      process.execPath,
+      ['--import', preload, cli, command, schemaPath, ...args],
+      {
+        cwd: dir,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          FORM0_DIAGNOSTICS_TEST_HOME: dir,
+          NODE_ENV: environment,
+          LANG: 'en_US.UTF-8',
+        },
+      }
+    );
+    // Preserve the raw stdout payload; only diagnostic assertions compare visible text.
+    return {
+      ...result,
+      stderr: typeof result.stderr === 'string' ? withoutColors(result.stderr) : result.stderr,
+    };
+  };
   try {
     await writeFile(schemaPath, JSON.stringify(schemaWithCalculation(failureExpression)));
     for (const environment of ['development', 'production']) {

@@ -50,3 +50,8 @@ that is intentional, not evidence of a clean current-version release gate.
 
 Remove the exception as soon as a verified fixed Pi/fork dependency is adopted. Existing installed
 releases require users to upgrade to that fixed distribution; approval expiry does not repair them.
+
+The subsequent [terminal-color test correction](TERMINAL_COLOR_TEST_FAILURES.md) raises verification
+to **212 passing tests** and full release checks on both Node lines with true-color forced. The
+208-test result above retains its original provenance. Exception scope, expiry and dependencies
+are unchanged.

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
+import { promisify, stripVTControlCharacters } from 'node:util';
 import fs from 'fs-extra';
 import { ServerManager } from '../src/commands/interactive/managers/server-manager.js';
 import { resolveAppEndpoint, waitForPort } from '../src/utils/app-dev-server.js';
@@ -143,7 +143,7 @@ function printed(callback) {
   } finally {
     console.log = log;
   }
-  return lines.join('\n').trim().split('\n');
+  return stripVTControlCharacters(lines.join('\n')).trim().split('\n');
 }
 
 test('dev server banners share one shape: status, URL to open, details, one stop hint', () => {
