@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { promisify, stripVTControlCharacters } from 'node:util';
+import { testArguments } from './fixtures/runner-command.js';
 
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -30,7 +31,7 @@ test('terminal text assertions support plain, standard-color and true-color outp
       try {
         const result = await execute(
           process.execPath,
-          ['--test', '--test-reporter=tap', `--test-name-pattern=${names}`, ...files],
+          [...testArguments, '--test-reporter=tap', `--test-name-pattern=${names}`, ...files],
           { cwd: root, env, timeout: 30000, maxBuffer: 1024 * 1024 }
         );
         output = stripVTControlCharacters(result.stdout);

@@ -69,6 +69,18 @@ npm run format  # Prettier
 npm test        # or the repo's documented test command
 ```
 
+In this CLI repository, use `npm test` so every isolated test file loads the shared console
+setup. It keeps console messages visible on the test diagnostic stream, avoiding Node 22's
+raw-stdout report framing bug. Normal CLI subprocesses retain their original output streams.
+For a focused run, use:
+
+```bash
+npm test -- tests/consumer-compatibility.test.js
+```
+
+Tests of raw command output should capture the child process's stdout/stderr rather than pipe
+them into the test worker's stdout. Nested test runners reuse the package's test arguments.
+
 Before opening the pull request:
 
 - **Run the checks.** Each repository documents its own; most have `npm run

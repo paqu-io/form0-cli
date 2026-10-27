@@ -12,7 +12,7 @@
     "SECURITY.md"
   ],
   "scripts": {
-    "test": "node --test",
+    "test": "node --import ./tests/fixtures/console-setup.js --test",
     "smoke": "node bin/form0.js --help",
     "format": "prettier --write \"src/**/*.{js,jsx,json}\" \"bin/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.{js,mjs,json}\" package.json README.md SECURITY.md SUPPORT.md CONTRIBUTING.md .github/workflows/ci.yml .github/workflows/publish.yml",
     "format:check": "prettier --check \"src/**/*.{js,jsx,json}\" \"bin/**/*.js\" \"tests/**/*.js\" \"scripts/**/*.{js,mjs,json}\" package.json README.md SECURITY.md SUPPORT.md CONTRIBUTING.md .github/workflows/ci.yml .github/workflows/publish.yml",
