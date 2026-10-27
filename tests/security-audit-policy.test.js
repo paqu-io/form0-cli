@@ -11,10 +11,10 @@ const policy = JSON.parse(
 const now = Date.parse('2026-10-27T12:00:00Z');
 const pi = '@earendil-works/pi-coding-agent';
 const graph = {
-  manifest: { version: '0.8.0', dependencies: { [pi]: '1.0.4' } },
+  manifest: { version: '0.8.2', dependencies: { [pi]: '1.0.4' } },
   lock: {
-    version: '0.8.0',
-    packages: { '': { version: '0.8.0', dependencies: { [pi]: '1.0.4' } } },
+    version: '0.8.2',
+    packages: { '': { version: '0.8.2', dependencies: { [pi]: '1.0.4' } } },
   },
   installed: {},
 };
@@ -47,10 +47,10 @@ function setVersion(data, version) {
   data.graph.lock.packages[''].version = version;
 }
 
-test('the approved 0.7.0 working tree passes validation but cannot pass release checks', () => {
+test('the approved 0.8.1 working tree passes validation but cannot pass release checks', () => {
   const data = input();
-  data.policy.exceptions[0].validationVersion = '0.7.0';
-  setVersion(data, '0.7.0');
+  data.policy.exceptions[0].validationVersion = '0.8.1';
+  setVersion(data, '0.8.1');
   assert.equal(assessAudit(data).ok, false, 'default must remain publication-strict');
   assert.equal(assessAudit({ ...data, purpose: 'release' }).ok, false);
   const result = assessAudit({ ...data, purpose: 'validation' });
@@ -61,15 +61,15 @@ test('the approved 0.7.0 working tree passes validation but cannot pass release 
 test('validation needs explicit approval and keeps manifest and lock versions consistent', () => {
   const data = input();
   data.purpose = 'validation';
-  setVersion(data, '0.7.0');
+  setVersion(data, '0.8.1');
   delete data.policy.exceptions[0].validationVersion;
   assert.equal(assessAudit(data).ok, false);
-  data.policy.exceptions[0].validationVersion = '0.7.0';
+  data.policy.exceptions[0].validationVersion = '0.8.1';
   assert.equal(assessAudit(data).ok, true);
   for (const mutate of [
-    (x) => (x.graph.manifest.version = '0.8.0'),
-    (x) => (x.graph.lock.version = '0.8.0'),
-    (x) => (x.graph.lock.packages[''].version = '0.8.0'),
+    (x) => (x.graph.manifest.version = '0.8.2'),
+    (x) => (x.graph.lock.version = '0.8.2'),
+    (x) => (x.graph.lock.packages[''].version = '0.8.2'),
   ]) {
     const mixed = structuredClone(data);
     mutate(mixed);
@@ -78,19 +78,19 @@ test('validation needs explicit approval and keeps manifest and lock versions co
 });
 
 test('both contexts reject unapproved versions, invalid purposes and broadened validation approval', () => {
-  for (const version of ['0.6.0', '0.8.1', '0.9.0', '0.7.0-beta.1'])
+  for (const version of ['0.7.0', '0.8.0', '0.8.3', '0.9.0', '0.8.1-beta.1'])
     reject((data) => setVersion(data, version));
   for (const purpose of [null, '', 'ci', 'publish', 'anything'])
     assert.equal(assessAudit({ ...input(), purpose }).ok, false);
-  for (const validationVersion of [null, '*', '^0.7.0', ['0.7.0'], '0.8.0'])
+  for (const validationVersion of [null, '*', '^0.8.1', ['0.8.1'], '0.8.2'])
     reject((data) => (data.policy.exceptions[0].validationVersion = validationVersion));
 });
 
-test('0.7.0 validation still rejects new findings, changed pins, revoked approval and expiry', () => {
+test('0.8.1 validation still rejects new findings, changed pins, revoked approval and expiry', () => {
   const baseline = input();
-  baseline.policy.exceptions[0].validationVersion = '0.7.0';
+  baseline.policy.exceptions[0].validationVersion = '0.8.1';
   baseline.purpose = 'validation';
-  setVersion(baseline, '0.7.0');
+  setVersion(baseline, '0.8.1');
   for (const mutate of [
     (x) => (x.now = Date.parse('2026-11-03T00:00:00Z')),
     (x) => (x.policy.exceptions[0].approved = false),
@@ -114,6 +114,51 @@ test('the actual known report is accepted only within its exact approved release
   assert.equal(result.accepted.length, 2);
   assert.deepEqual(data, original);
 });
+
+test('all eight advisory identities require their own explicit approval', () => {
+  const expected = {
+    'GHSA-4qv8-2p9j-2685': 'moderate',
+    'GHSA-f72v-6w45-q472': 'moderate',
+    'GHSA-xjj6-f33q-929c': 'high',
+    'GHSA-4w7w-5xrc-9h26': 'high',
+    'GHSA-2m5v-pch6-74hx': 'high',
+    'GHSA-qrxm-fqhp-jwvm': 'high',
+    'GHSA-9fm3-97px-rjf6': 'moderate',
+    'GHSA-55wc-3pg8-jfw6': 'moderate',
+  };
+  const reported = Object.fromEntries(
+    report.vulnerabilities.undici.via.map(({ url, severity }) => [url.split('/').at(-1), severity])
+  );
+  assert.deepEqual(reported, expected);
+  assert.deepEqual(policy.exceptions[0].packages.undici.advisories, expected);
+  for (const id of Object.keys(expected)) {
+    reject((data) => delete data.policy.exceptions[0].packages.undici.advisories[id]);
+  }
+});
+
+test('a version-only amendment of the historical three-advisory approval still fails', () => {
+  reject((data) => {
+    const advisories = data.policy.exceptions[0].packages.undici.advisories;
+    const historical = new Set([
+      'GHSA-4qv8-2p9j-2685',
+      'GHSA-f72v-6w45-q472',
+      'GHSA-xjj6-f33q-929c',
+    ]);
+    for (const id of Object.keys(advisories)) {
+      if (!historical.has(id)) delete advisories[id];
+    }
+  });
+});
+
+test('an additional advisory at an already accepted severity still blocks both purposes', () => {
+  reject((data) => {
+    data.report.vulnerabilities.undici.via.push({
+      ...data.report.vulnerabilities.undici.via[0],
+      url: 'https://github.com/advisories/GHSA-new1-new2-new3',
+    });
+  });
+});
+
 test('absent/revoked approval, expiry and invalid clocks fail closed', () => {
   for (const mutate of [
     (x) => (x.policy.exceptions[0].approved = false),
@@ -127,10 +172,10 @@ test('absent/revoked approval, expiry and invalid clocks fail closed', () => {
 });
 test('unapproved CLI versions and mismatched root lock versions fail', () => {
   for (const mutate of [
-    (x) => (x.graph.manifest.version = '0.7.0'),
+    (x) => (x.graph.manifest.version = '0.8.0'),
     (x) => (x.graph.manifest.version = '0.8.1'),
-    (x) => (x.graph.lock.version = '0.7.0'),
-    (x) => (x.graph.lock.packages[''].version = '0.7.0'),
+    (x) => (x.graph.lock.version = '0.8.1'),
+    (x) => (x.graph.lock.packages[''].version = '0.8.1'),
   ])
     reject(mutate);
 });
