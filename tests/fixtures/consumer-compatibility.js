@@ -249,6 +249,21 @@ export function fieldFixture(specs) {
     },
   };
 }
+// These literals are JavaScript source: JSON alone leaves HTML script delimiters unescaped.
+const SCRIPT_ESCAPES = {
+  '<': '\\u003C',
+  '>': '\\u003E',
+  '&': '\\u0026',
+  '\u2028': '\\u2028',
+  '\u2029': '\\u2029',
+};
+function scriptLiteral(value) {
+  const json = JSON.stringify(value);
+  return json === undefined
+    ? 'undefined'
+    : json.replace(/[<>&\u2028\u2029]/g, (c) => SCRIPT_ESCAPES[c]);
+}
+
 export function attachAuditEvents(specs, fixture, kind = 'fields') {
   const f = (type, name, extra) => auditField(specs, type, name, extra);
   if (kind === 'builtins') {
@@ -258,7 +273,7 @@ export function attachAuditEvents(specs, fixture, kind = 'fields') {
     );
     const pairs = BUILTIN_CASES.filter(
       ([name]) => !['SETRESULT', 'REPEATABLEVALUES', 'REPEATABLESUM'].includes(name)
-    ).map(([name, expression]) => JSON.stringify(name) + ':' + expression);
+    ).map(([name, expression]) => scriptLiteral(name) + ':' + expression);
     fixture.schema.form.events = {
       code: `
 function retired() { SETVALUE('event_trace', 'retired'); }
@@ -303,7 +318,7 @@ ON('validate-repeatable', 'rows', function() { if ($cost < 0) INVALID('Row cost 
     const write = (values) =>
       Object.entries(values)
         .filter(([name]) => !['section_note', 'stage'].includes(name))
-        .map(([name, value]) => `SETVALUE(${JSON.stringify(name)}, ${JSON.stringify(value)});`)
+        .map(([name, value]) => `SETVALUE(${scriptLiteral(name)}, ${scriptLiteral(value)});`)
         .join('\n');
     fixture.schema.form.events = {
       code: `ON('change', 'stage', function() { if ($stage === 1) { ${write(changed)} } else if ($stage === 2) { ${write(cleared)} } else { ${write(fixture.snapshot.values)} } });`,
