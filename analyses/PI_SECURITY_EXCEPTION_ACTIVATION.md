@@ -10,6 +10,10 @@ The subsequent [PR 85 Node 22 reporting correction](CLI_085_NODE22_TEST_REPORTIN
 policy and raises full CLI verification to **226 passing tests** on both pinned Node lines. Its
 test-runner failure occurred before the audit; it required no security-policy expansion.
 
+The later [shared test-console correction](CLI_SHARED_TEST_REPORTING.md) replaces the per-file
+workaround, verifies output across the entire suite, and passes **227 tests** on both Node lines.
+Approval scope, expiry and dependency findings remain unchanged.
+
 ## Historical 0.8.0 activation
 
 The maintainer approved the exact temporary risk described in

@@ -1,5 +1,9 @@
 # PR 85 Node 22 test-reporting failure — 28 October 2026
 
+Latest checkpoint: the [shared test-console correction](CLI_SHARED_TEST_REPORTING.md) supersedes
+this per-file workaround after the same runner bug appeared in the consumer catalog suite. The
+original diagnosis and verification below remain historical; the common setup now covers all files.
+
 [Run 40599302867, Node 22 job 122523135316](https://github.com/paqu-io/form0-cli/actions/runs/40599302867/job/122523135316?pr=85)
 fails while executing `tests/preview-events.test.js`. Node 24 passes. The failing stack is inside
 Node's `FileTest.#processRawBuffer` / `parseMessage`, with

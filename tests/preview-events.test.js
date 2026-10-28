@@ -1,10 +1,9 @@
-import test, { beforeEach } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { format } from 'node:util';
 import { createFormEngine } from 'form0-core';
 import { createApp, serializePreviewRecord } from '../src/server/express-server.js';
 import { createPreviewEditor } from '../src/server/preview-events/editor.js';
@@ -14,12 +13,6 @@ import { setLocale } from '../src/utils/i18n.js';
 import { defaultFormTemplate } from '../src/form0-forms/form-schema-template.js';
 import { ensureKeysForSchema } from '../src/utils/ensure-keys.js';
 import { createPreviewEventUI } from '../src/server/static/preview-event-ui.js';
-
-beforeEach((t) => {
-  // Node 22 can misread Unicode stdout as a test report: nodejs/node#65934.
-  // Keep registration logs visible through the structured reporter; restore after each case.
-  t.mock.method(console, 'log', (...args) => t.diagnostic(format(...args)));
-});
 
 const rootValues = { input: 4, trace: '' };
 const rowPath = (id, index = 0) => [
