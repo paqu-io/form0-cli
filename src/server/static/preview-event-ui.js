@@ -3,6 +3,7 @@ import {
   clearValidationFindings,
   renderValidationFindings,
 } from './submission-review.js';
+import { createManagedBuildingPlanController } from './building-plan-preview.js';
 const copy = (value) => JSON.parse(JSON.stringify(value));
 const samePath = (a, b) =>
   a.length === b.length &&
@@ -37,6 +38,10 @@ export function createPreviewEventUI({
   };
   let controller = null,
     intent = 0;
+  let currentState = null;
+  const busyCanvases = new Set();
+  const canvasBusy = (path) =>
+    [...busyCanvases].some((plan) => path.some((part) => part.key === plan.floorKey));
   let sessionGeneration = 0;
   const controls = new Map();
   const preferenceKey = 'form0-preview-events';
@@ -156,6 +161,30 @@ export function createPreviewEventUI({
   }
   const hooks = {
     translate,
+    canvasController: (planController) =>
+      createManagedBuildingPlanController({
+        controller: planController,
+        client,
+        renderer,
+        stateManager,
+        configuration: () => ({
+          readonly:
+            configuration.readonly ||
+            stateManager.getNodeState(currentState, planController.contextPath)?.read_only?.[
+              planController.section.data_name
+            ] === true,
+        }),
+        session: () => controller,
+        target,
+        add: hooks.add,
+        edit: hooks.edit,
+        report,
+        busyChanged: (busy) => {
+          if (busy) busyCanvases.add(planController);
+          else busyCanvases.delete(planController);
+          if (!planController.disposed && controller && currentState) refreshControls(currentState);
+        },
+      }),
     edit: (path) =>
       action({
         action: 'open-row',
@@ -218,6 +247,7 @@ export function createPreviewEventUI({
         configuration.readonly ||
           !controller ||
           !opened ||
+          canvasBusy(contextPath) ||
           node?.read_only?.[field.data_name] === true
       );
     }
@@ -229,13 +259,15 @@ export function createPreviewEventUI({
       row.dataset.previewScopeId = scope.scopeId || '';
       const parentRow = row.parentElement?.closest('[data-repeatable-context]');
       const parentLabel = parentRow?.querySelector('.repeatable-instance-title')?.textContent;
-      const reason = configuration.readonly
-        ? translate('previewEvents.readonlyHint')
-        : !controller
-          ? translate('previewEvents.closedHint')
-          : !parent.scopeId
-            ? translate('previewEvents.parentHint', { parent: parentLabel || 'parent' })
-            : '';
+      const reason = canvasBusy(path)
+        ? translate('previewEvents.canvasBusy')
+        : configuration.readonly
+          ? translate('previewEvents.readonlyHint')
+          : !controller
+            ? translate('previewEvents.closedHint')
+            : !parent.scopeId
+              ? translate('previewEvents.parentHint', { parent: parentLabel || 'parent' })
+              : '';
       const hint = row.querySelector(':scope > .preview-row-hint');
       if (hint) {
         hint.textContent = reason;
@@ -261,12 +293,16 @@ export function createPreviewEventUI({
         };
         button.hidden = type === 'edit' ? opened : !opened;
         button.disabled =
-          configuration.readonly || !controller || !target(path.slice(0, -1)).scopeId;
+          configuration.readonly ||
+          canvasBusy(path) ||
+          !controller ||
+          !target(path.slice(0, -1)).scopeId;
         explain(button);
       }
       const remove = row.querySelector('.repeatable-instance-remove');
       if (remove) {
-        remove.disabled = configuration.readonly || !controller || !parent.scopeId;
+        remove.disabled =
+          configuration.readonly || canvasBusy(path) || !controller || !parent.scopeId;
         explain(remove);
         const command = client.bindRequest({
           action: 'remove-row',
@@ -282,7 +318,8 @@ export function createPreviewEventUI({
       const path = parent
         ? renderer.parseContextKey(parent.getAttribute('data-repeatable-context'))
         : [];
-      add.disabled = configuration.readonly || !controller || !target(path).scopeId;
+      add.disabled =
+        configuration.readonly || canvasBusy(path) || !controller || !target(path).scopeId;
       const parentScope = target(path);
       const section = add._previewSection;
       const command = client.bindRequest(() => {
@@ -328,6 +365,7 @@ export function createPreviewEventUI({
     const submit = document.getElementById('submit-btn');
     if (submit)
       submit.disabled =
+        busyCanvases.size > 0 ||
         configuration.readonly ||
         !controller ||
         !activeScopes.some((scope) => !scope.instancePath.length);
@@ -335,6 +373,7 @@ export function createPreviewEventUI({
       const button = document.getElementById('preview-' + name);
       if (button)
         button.disabled =
+          busyCanvases.size > 0 ||
           !activeScopes.some((scope) => !scope.instancePath.length) ||
           (name === 'draft' && configuration.readonly);
     }
@@ -504,7 +543,9 @@ export function createPreviewEventUI({
         button.onclick = run;
         button.hidden = false;
       }
-      refreshControls(client.getState());
+      const initialState = client.getState();
+      refreshControls(initialState);
+      renderer.syncBuildingPlanControllers();
       return report(started.result || started);
     },
     dispose() {
@@ -515,6 +556,7 @@ export function createPreviewEventUI({
       controller = null;
       globalThis.form0PreviewEvents = null;
       stateManager.managedUpdate = null;
+      busyCanvases.clear();
       stateManager.customValidation = [];
       const actions = document.getElementById('preview-actions');
       if (actions) actions.hidden = true;
@@ -582,6 +624,7 @@ export function createPreviewEventUI({
       onWarnings(result.warnings || []);
       if (result.retiredScopes?.length) diagnostics?.retireScopes?.(result.retiredScopes);
       if (result.state) {
+        currentState = result.state;
         renderer.applyManagedRepeatableState(result.state.repeatable || {});
         stateManager.applyFormState(result.state, { conditionsOnly: true });
         // Synchronize each actual field instance once, before validating its displayed value.
@@ -608,6 +651,7 @@ export function createPreviewEventUI({
         stateManager.customValidation = copy(result.customValidation || []);
         onStatus(result.state.values);
         refreshControls(result.state);
+        renderer.syncBuildingPlanControllers(request);
       }
       if (result.eligible && !request.instancePath?.length && result.meta?.timestamps)
         onPrepared(result.meta.timestamps);

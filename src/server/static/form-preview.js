@@ -993,15 +993,8 @@ async function initializeDefaultValues(epoch = renderGeneration) {
       if (epoch !== renderGeneration) return;
       const defaultValues = data.defaultValues || {};
 
-      // Apply default values to form inputs (suppress logging during initialization)
-      Object.entries(defaultValues).forEach(([fieldName, defaultValue]) => {
-        if (defaultValue !== null && defaultValue !== undefined) {
-          const field = formRenderer.findFieldByDataName(fieldName);
-          if (field) {
-            formStateManager.setFieldValue(fieldName, defaultValue, true); // suppressLogging = true
-          }
-        }
-      });
+      // Hydrate the evaluated snapshot; calculated results are loading data, not editable writes.
+      formStateManager.applyInitialValues(defaultValues);
     } else {
       console.warn('Failed to load default values, using fallback');
       // Fallback default values
@@ -1013,14 +1006,7 @@ async function initializeDefaultValues(epoch = renderGeneration) {
         isActive: true,
         createdAt: new Date().toISOString(),
       };
-      Object.entries(defaultValues).forEach(([fieldName, defaultValue]) => {
-        if (defaultValue !== null && defaultValue !== undefined) {
-          const field = formRenderer.findFieldByDataName(fieldName);
-          if (field) {
-            formStateManager.setFieldValue(fieldName, defaultValue, true); // suppressLogging = true
-          }
-        }
-      });
+      formStateManager.applyInitialValues(defaultValues);
     }
   } catch (err) {
     console.error('Error loading default values:', err);
@@ -1033,14 +1019,7 @@ async function initializeDefaultValues(epoch = renderGeneration) {
       isActive: true,
       createdAt: new Date().toISOString(),
     };
-    Object.entries(defaultValues).forEach(([fieldName, defaultValue]) => {
-      if (defaultValue !== null && defaultValue !== undefined) {
-        const field = formRenderer.findFieldByDataName(fieldName);
-        if (field) {
-          formStateManager.setFieldValue(fieldName, defaultValue, true); // suppressLogging = true
-        }
-      }
-    });
+    formStateManager.applyInitialValues(defaultValues);
   }
 }
 

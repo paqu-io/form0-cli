@@ -83,7 +83,8 @@
     "previewEvents.connectorResults": "Resultados del envío a conectores",
     "previewEvents.connectorSucceeded": "Guardado correctamente",
     "previewEvents.connectorFailed": "Error de envío",
-    "previewEvents.companionPersisted": "Registro y estado de actualización guardados juntos."
+    "previewEvents.companionPersisted": "Registro y estado de actualización guardados juntos.",
+    "previewEvents.canvasBusy": "Actualizando la planta…"
   },
   "commands": {
     "init": {

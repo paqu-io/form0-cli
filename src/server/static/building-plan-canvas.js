@@ -630,7 +630,8 @@ export class BuildingPlanCanvas {
     this.render();
   }
 
-  handleMouseDown(event) {
+  async handleMouseDown(event) {
+    if (this.controller?.canEdit && !this.controller.canEdit()) return;
     const point = this.getCanvasPoint(event);
 
     if (this.mode === MODE_DRAW_COLUMN) {
@@ -652,7 +653,7 @@ export class BuildingPlanCanvas {
         wallRatio = wallSnap.ratio;
       }
       const ratios = getRoomRatios(placementPoint, roomRect);
-      const created = this.controller?.createColumn?.(room.id, {
+      const created = await this.controller?.createColumn?.(room.id, {
         centerU: ratios.u,
         centerV: ratios.v,
         wallSegmentIndex,
@@ -698,7 +699,7 @@ export class BuildingPlanCanvas {
     if (this.mode === MODE_DRAW_DOOR || this.mode === MODE_DRAW_WINDOW) {
       const wallHit = this.findWallNearPoint(point);
       if (wallHit && wallHit.wall) {
-        const created = this.placeOpening(
+        const created = await this.placeOpening(
           this.mode === MODE_DRAW_DOOR ? 'door' : 'window',
           wallHit
         );
@@ -1361,7 +1362,8 @@ export class BuildingPlanCanvas {
     }
   }
 
-  handleMouseUp(event) {
+  async handleMouseUp(event) {
+    if (this.controller?.canEdit && !this.controller.canEdit()) return;
     const point = this.getCanvasPoint(event);
 
     if (this.mode === MODE_DRAW_ROOM && this.roomDraft) {
@@ -1375,7 +1377,7 @@ export class BuildingPlanCanvas {
           width: this.snapSize(rect.width),
           height: this.snapSize(rect.height),
         };
-        const created = this.controller?.createRoom(snapped);
+        const created = await this.controller?.createRoom(snapped);
         if (created) {
           this.selectedRoomId = created.id;
           this.controller?.focusRoom(created.id);
@@ -1394,7 +1396,7 @@ export class BuildingPlanCanvas {
         const endPoint = this.snapToRoomEdges(point, room);
         if (distance(this.wallDraft.start, endPoint) > 3) {
           const wallPoints = roundPoints([this.wallDraft.start, endPoint]);
-          const created = this.controller?.createWall(room.id, wallPoints);
+          const created = await this.controller?.createWall(room.id, wallPoints);
           if (created) {
             this.selectedWallId = created.id;
             this.controller?.focusWall(created.id);
@@ -1416,7 +1418,7 @@ export class BuildingPlanCanvas {
         const endPoint = preview.endPoint;
         const length = startPoint && endPoint ? distance(startPoint, endPoint) : 0;
         if (length > 5) {
-          const created = this.controller?.createBeam?.(draft.roomId, {
+          const created = await this.controller?.createBeam?.(draft.roomId, {
             startU: preview.startU,
             startV: preview.startV,
             endU: preview.endU,
@@ -1452,7 +1454,7 @@ export class BuildingPlanCanvas {
       if (room) {
         const commitRect = room.previewRect || room.rect;
         if (commitRect && (state.type !== 'resize' || state.moved)) {
-          this.controller?.updateRoom(room.id, commitRect);
+          await this.controller?.updateRoom(room.id, commitRect);
         }
       }
       this.dragState = null;
@@ -1467,7 +1469,7 @@ export class BuildingPlanCanvas {
       const state = this.wallDragState;
       const wall = this.walls.find((w) => w.id === state.wallId);
       if (wall && state.previewPoints && state.moved) {
-        this.controller?.updateWall(wall.id, state.previewPoints);
+        await this.controller?.updateWall(wall.id, state.previewPoints);
       }
       if (wall) {
         delete wall.previewPoints;
@@ -1494,11 +1496,11 @@ export class BuildingPlanCanvas {
           };
           if (state.type === 'door') {
             updates.height = opening.height;
-            this.controller?.updateDoor?.(opening.id, updates);
+            await this.controller?.updateDoor?.(opening.id, updates);
           } else {
             updates.height = opening.height;
             updates.distanceFromFloor = opening.distanceFromFloor;
-            this.controller?.updateWindow?.(opening.id, updates);
+            await this.controller?.updateWindow?.(opening.id, updates);
           }
         }
       }
@@ -1515,7 +1517,7 @@ export class BuildingPlanCanvas {
       if (column) {
         const preview = column.preview;
         if (preview && state.moved) {
-          this.controller?.updateColumn?.(column.id, {
+          await this.controller?.updateColumn?.(column.id, {
             centerU: preview.centerU,
             centerV: preview.centerV,
             wallSegmentIndex: preview.wallSegmentIndex,
@@ -1539,7 +1541,7 @@ export class BuildingPlanCanvas {
       if (beam) {
         const preview = beam.preview;
         if (preview && state.moved) {
-          this.controller?.updateBeam?.(beam.id, {
+          await this.controller?.updateBeam?.(beam.id, {
             startU: preview.startU,
             startV: preview.startV,
             endU: preview.endU,
@@ -2374,6 +2376,7 @@ export class BuildingPlanCanvas {
       button.type = 'button';
       button.textContent = floor.label || 'Floor #' + (floor.index + 1);
       button.className = 'building-plan-floor-tab';
+      button.disabled = this.controller?.isBusy?.() === true;
       if (floor.index === this.activeFloorIndex) {
         button.classList.add('active');
       }
@@ -2383,6 +2386,7 @@ export class BuildingPlanCanvas {
   }
 
   handleFloorTabClick(index) {
+    if (this.controller?.isBusy?.()) return;
     if (index === this.activeFloorIndex) {
       return;
     }
@@ -2470,6 +2474,18 @@ export class BuildingPlanCanvas {
       } else {
         this.windowButton.title = 'Click a wall to place a window';
       }
+    }
+    if (this.controller?.canEdit && !this.controller.canEdit()) {
+      for (const button of [
+        this.floorButton,
+        this.roomButton,
+        this.wallButton,
+        this.columnButton,
+        this.beamButton,
+        this.doorButton,
+        this.windowButton,
+      ])
+        if (button) button.disabled = true;
     }
   }
 
@@ -2943,7 +2959,7 @@ export class BuildingPlanCanvas {
     return bestMatch;
   }
 
-  placeOpening(type, wallHit) {
+  async placeOpening(type, wallHit) {
     const wall = wallHit?.wall;
     if (!wall) return null;
 
@@ -2974,7 +2990,7 @@ export class BuildingPlanCanvas {
     const endRatio = clamp(startRatio + spanRatio, 0, 1);
 
     if (type === 'door' && this.controller && typeof this.controller.createDoor === 'function') {
-      const result = this.controller.createDoor(wall.id, {
+      const result = await this.controller.createDoor(wall.id, {
         segmentIndex: wallHit.segmentIndex || 0,
         startRatio,
         endRatio,
@@ -2997,7 +3013,7 @@ export class BuildingPlanCanvas {
       this.controller &&
       typeof this.controller.createWindow === 'function'
     ) {
-      const result = this.controller.createWindow(wall.id, {
+      const result = await this.controller.createWindow(wall.id, {
         segmentIndex: wallHit.segmentIndex || 0,
         startRatio,
         endRatio,

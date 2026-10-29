@@ -145,7 +145,7 @@ test('preview keeps container conditions in their owning record maps after event
   );
 });
 
-test('preview SETVALUE preserves legacy choice shorthand before evaluation and serialization', async () => {
+test('preview SETVALUE normalizes choice shorthand through the shared core contract before evaluation and serialization', async () => {
   const choice = (type, name, extra = {}) =>
     field(type, name, {
       choices: [
@@ -190,18 +190,19 @@ test('preview SETVALUE preserves legacy choice shorthand before evaluation and s
         });
         assert.deepEqual(updated.issues, []);
         assert.deepEqual(updated.state.values.single, {
-          choice: [{ value: 'red', label: 'red' }],
+          choice: [{ value: 'red', label: 'Red' }],
           other: [],
         });
         assert.deepEqual(updated.state.values.multiple, {
           choices: [
-            { value: 'red', label: 'red' },
-            { value: 'blue', label: 'blue' },
+            { value: 'red', label: 'Red' },
+            { value: 'blue', label: 'Blue' },
           ],
           other: [],
         });
         assert.deepEqual(updated.state.values.boolean, {
-          choice: [{ value: 'blue', label: 'blue' }],
+          choice: [{ value: 'blue', label: 'Blue' }],
+          other: [],
         });
         assert.deepEqual(updated.state.errors, {});
         const prepared = await command({ action: 'prepare', intent: 'submit' });
@@ -290,12 +291,12 @@ test('standard project age handler reads root age and preserves numeric validati
 
 test('preview load/new/edit classification follows explicit opt-in and readonly opens load only', async () => {
   const schema = fixture(
-    "ON('load-record', function(){ SETVALUE('trace','load'); }); ON('new-record', function(){ SETVALUE('trace',$trace+':new'); }); ON('edit-record', function(){ SETVALUE('trace',$trace+':edit'); });"
+    "ON('load-record', function(event){ if(event.mode === 'edit') SETVALUE('trace','load'); }); ON('new-record', function(){ SETVALUE('trace',$trace+':new'); }); ON('edit-record', function(){ SETVALUE('trace',$trace+':edit'); });"
   );
   for (const [kind, readonly, expected] of [
     ['new', false, 'load:new'],
     ['existing', false, 'load:edit'],
-    ['new', true, 'load'],
+    ['new', true, ''],
   ])
     await withPreview(
       schema,
@@ -311,6 +312,17 @@ test('preview load/new/edit classification follows explicit opt-in and readonly 
       },
       { lifecycle: true, recordKind: kind, readonly }
     );
+});
+
+test('readonly preview load events cannot write accepted record values', async () => {
+  await withPreview(
+    fixture("ON('load-record', function(){ SETVALUE('trace', 'changed'); });"),
+    async ({ started }) => {
+      assert.equal(started.issues[0]?.code, 'readonly_operation_not_allowed');
+      assert.equal(started.state.values.trace, '');
+    },
+    { lifecycle: true, recordKind: 'existing', readonly: true }
+  );
 });
 
 test('custom validation repeats, clears on editable change, blocks submit and permits invalid draft', async () => {
@@ -371,6 +383,62 @@ test('row removal rejects readonly sessions and ambiguous IDs without changing a
       { values: rootValues, repeatable: { rows } }
     );
   }
+});
+
+test('preview updates reject malformed, unowned and derived targets before applying a batch', async () => {
+  const schema = fixture('');
+  schema.form.elements.push(
+    field('SingleChoiceField', 'country', {
+      choices: [{ value: 'it', label: 'Italy' }],
+      allow_other: true,
+      is_searchable: false,
+      is_searchable_mode: null,
+    }),
+    field('CalculatedField', 'total', { calculate: '$input * 10' })
+  );
+  await withPreview(schema, async ({ command }) => {
+    const first = await command({ action: 'update', values: { input: 3, country: 'it' } });
+    assert.deepEqual(first.issues, []);
+    assert.equal(first.state.values.total, 30);
+    assert.equal(first.state.values.country.choice[0].label, 'Italy');
+    for (const values of [
+      null,
+      [],
+      { input: 9, typo: 1 },
+      { input: 9, country: false },
+      { total: 999 },
+      { country: ['it'] },
+    ]) {
+      const rejected = await command({ action: 'update', values });
+      assert.ok(rejected.issues.length);
+      assert.deepEqual(rejected.state.values, first.state.values);
+    }
+    const unknown = await command({ action: 'update', values: { country: 'xx' } });
+    assert.equal(unknown.state.values.country.choice[0].value, 'xx');
+    assert.match(unknown.state.errors.country, /invalid value/);
+  });
+});
+
+test('preview SETVALUE cannot partially apply a batch containing a calculated target', async () => {
+  const schema = fixture(
+    "ON('change', 'input', function(){ SETVALUE('trace', 'partial'); SETVALUE('total', 999); });"
+  );
+  schema.form.elements.push(field('CalculatedField', 'total', { calculate: '$input * 10' }));
+  for (const lifecycle of [false, true])
+    await withPreview(
+      schema,
+      async ({ command }) => {
+        const rejected = await command({
+          action: 'update',
+          values: { input: 3 },
+          fieldKey: 'input',
+        });
+        assert.ok(rejected.issues.length);
+        assert.equal(rejected.state.values.trace, '');
+        assert.equal(rejected.state.values.total, 30);
+      },
+      { lifecycle, recordKind: 'existing' }
+    );
 });
 
 test('pre-save runs once, revalidates changed values and retains a failed prepared edit for correction', async () => {

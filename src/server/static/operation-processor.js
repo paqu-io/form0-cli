@@ -1,3 +1,4 @@
+import { normalizeChoiceOperationValue } from './choice-operation-values.js';
 /**
  * Central operation processor for handling form operations
  * Routes operations to appropriate handlers based on type and operation name
@@ -52,6 +53,20 @@ export class OperationProcessor {
       return;
     }
     await this.ready;
+    const prepared = operations.map((operation) => {
+      if (operation?.type !== 'FIELD_OPERATION' || operation.operation !== 'SETVALUE')
+        return operation;
+      const field = this.formStateManager.formRenderer.findFieldByDataName(
+        operation.params?.fieldDataName
+      );
+      return {
+        ...operation,
+        params: {
+          ...operation.params,
+          valueToSet: normalizeChoiceOperationValue(field, operation.params.valueToSet),
+        },
+      };
+    });
 
     const canBatchEngine =
       this.formStateManager &&
@@ -64,7 +79,7 @@ export class OperationProcessor {
 
     try {
       // Apply all operations with state updates deferred
-      for (const operation of operations) {
+      for (const operation of prepared) {
         await this.processOperation(operation, true); // skipStateUpdate = true
       }
 

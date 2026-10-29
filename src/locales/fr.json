@@ -83,7 +83,8 @@
     "previewEvents.connectorResults": "Résultats de l’envoi aux connecteurs",
     "previewEvents.connectorSucceeded": "Sauvegarde réussie",
     "previewEvents.connectorFailed": "Échec de l’envoi",
-    "previewEvents.companionPersisted": "Enregistrement et état de mise à jour sauvegardés ensemble."
+    "previewEvents.companionPersisted": "Enregistrement et état de mise à jour sauvegardés ensemble.",
+    "previewEvents.canvasBusy": "Mise à jour de l’étage…"
   },
   "commands": {
     "init": {

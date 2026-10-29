@@ -752,7 +752,8 @@
     "previewEvents.connectorResults": "Connector submission results",
     "previewEvents.connectorSucceeded": "Stored successfully",
     "previewEvents.connectorFailed": "Submission failed",
-    "previewEvents.companionPersisted": "Record and freshness saved together."
+    "previewEvents.companionPersisted": "Record and freshness saved together.",
+    "previewEvents.canvasBusy": "Updating floor…"
   },
   "common": {
     "failedToLoadValues": "❌ Failed to load initial values: {message}",

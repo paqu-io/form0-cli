@@ -83,7 +83,8 @@
     "previewEvents.connectorResults": "Risultati dell’invio ai connettori",
     "previewEvents.connectorSucceeded": "Salvato correttamente",
     "previewEvents.connectorFailed": "Invio non riuscito",
-    "previewEvents.companionPersisted": "Record e stato di aggiornamento salvati insieme."
+    "previewEvents.companionPersisted": "Record e stato di aggiornamento salvati insieme.",
+    "previewEvents.canvasBusy": "Aggiornamento del piano…"
   },
   "commands": {
     "init": {

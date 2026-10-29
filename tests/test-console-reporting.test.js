@@ -31,7 +31,7 @@ test('shared setup keeps console output off raw stdout across test files and mod
   ]);
   assert.equal(code, 0, JSON.stringify(report.failed));
   assert.deepEqual(report.failed, []);
-  assert.equal(report.passed.length, 30, 'all 23 preview, 6 catalog and 1 probe cases must run');
+  assert.equal(report.passed.length, 33, 'all 26 preview, 6 catalog and 1 probe cases must run');
   assert.deepEqual(report.stdout, [], 'console output must not share the binary report stream');
   const messages = stripVTControlCharacters(report.stderr.join('\n'));
   assert.match(messages, /🔧 \[EVENT HANDLER\] Registered:/);

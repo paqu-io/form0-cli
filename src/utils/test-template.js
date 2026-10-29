@@ -21,6 +21,10 @@ const state = engine.getState();
 console.log(JSON.stringify(state, null, 2));
 console.log();
 
+// For later input updates, use engine.setValue(dataName, value) or engine.setValues(updates).
+// Setters evaluate automatically; dispatch change events explicitly when your host needs them.
+// Choice IDs are strings: SingleChoice/Boolean accept one ID; MultiChoice accepts an array.
+
 // Check validation results
 const hasErrors = Object.keys(state.errors).length > 0;
 console.log('✅ Form validation result:', hasErrors ? 'INVALID' : 'VALID');
