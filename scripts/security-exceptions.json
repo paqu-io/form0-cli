@@ -2,14 +2,14 @@
   "version": 1,
   "exceptions": [
     {
-      "id": "pi-undici-cli-082-20261027",
+      "id": "pi-undici-cli-090-20261029",
       "approved": true,
       "approvedBy": "aragornii",
-      "approvedOn": "2026-10-27",
+      "approvedOn": "2026-10-29",
       "expiresAt": "2026-11-03T00:00:00.000Z",
-      "cliVersion": "0.8.2",
-      "validationVersion": "0.8.1",
-      "reason": "Maintainer explicitly approved the eight reviewed Undici advisories for validation of 0.8.1 and publication of 0.8.2 only. Predominant local developer/testing use reduces exposure but does not remove HTTP client risk. Exact Pi/Undici pins and the 3 November 2026 expiry remain unchanged. This does not patch the dependency or make installed-user audits clean.",
+      "cliVersion": "0.9.0",
+      "validationVersion": "0.8.2",
+      "reason": "Maintainer explicitly approved carrying the eight reviewed Undici advisories forward for validation of 0.8.2 and publication of 0.9.0 only on 29 October 2026. Predominant local developer/testing use reduces exposure but does not remove HTTP client risk. Exact Pi/Undici pins, advisory identities, severity limits and the 3 November 2026 expiry remain unchanged. This replaces the active 0.8.2 release allowance. This does not patch the dependency or make installed-user audits clean.",
       "packages": {
         "@earendil-works/pi-coding-agent": {
           "version": "1.0.4",

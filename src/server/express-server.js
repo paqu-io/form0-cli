@@ -1,6 +1,7 @@
 import { createRecordBackend, hasRecordCollections } from './preview-events/record-coordinator.js';
 import { validatePreviewStorageOptions } from './preview-events/storage.js';
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 import { createPreviewSessionManager } from './preview-events/editor.js';
 import path from 'path';
 import {
@@ -744,9 +745,15 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
 
   // Serve static files
   // Only the two dependency-free value modules are exposed to preview's browser adapter.
+  const coreValueAssetLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 120,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+  });
   for (const asset of ['field-value-normalization.js', 'record-data.js']) {
     const file = fileURLToPath(new URL(`./utilities/${asset}`, import.meta.resolve('form0-core')));
-    app.get(`/form0-core/${asset}`, (_req, res) =>
+    app.get(`/form0-core/${asset}`, coreValueAssetLimiter, (_req, res) =>
       res.sendFile(asset, { root: path.dirname(file) })
     );
   }
