@@ -129,6 +129,23 @@ export class FormRenderer {
     this.formStateManager = stateManager;
   }
 
+  syncBuildingPlanControllers(request = {}) {
+    for (const { controller, canvas } of this.buildingPlanRegistry.values()) {
+      const path = request.instancePath || [];
+      if (
+        (request.action === 'update' && !path.length) ||
+        (request.action === 'dispatch' &&
+          ['focus', 'blur', 'validate-record'].includes(request.type)) ||
+        (path.length && !path.some((part) => part.repeatableKey === controller.floorKey))
+      ) {
+        canvas?.updateButtonStates();
+        continue;
+      }
+      controller?.syncFromState();
+      controller?.emitUpdate();
+    }
+  }
+
   setLabelVisibilitySettings(settings = {}) {
     this.labelVisibilitySettings = {
       ...DEFAULT_LABEL_VISIBILITY,
@@ -1457,7 +1474,7 @@ export class FormRenderer {
       );
       canvas = new BuildingPlanCanvas({
         container: canvasContainer,
-        controller,
+        controller: this.managedPreview?.canvasController?.(controller) || controller,
         labelSettings: this.labelVisibilitySettings,
       });
     } else {
@@ -1876,6 +1893,7 @@ export class FormRenderer {
             if (isUpdating) return;
 
             const selectedRadio = container.querySelector('input[type="radio"]:checked');
+            const hasOther = selectedRadio?.value === '__other__';
             let choiceValue = '';
             let otherValue = '';
 
@@ -1890,7 +1908,7 @@ export class FormRenderer {
 
             const value = {
               choice: choiceValue ? [{ value: choiceValue }] : [],
-              other: otherValue ? [{ label: otherValue }] : [],
+              other: hasOther ? [{ label: otherValue }] : [],
             };
 
             hiddenInput.value = JSON.stringify(value);
@@ -2041,12 +2059,13 @@ export class FormRenderer {
             function updateHiddenValue() {
               if (isUpdating) return;
 
-              const choiceValue = select.value === '__other__' ? '' : select.value;
-              const otherValue = select.value === '__other__' ? otherInput.value.trim() : '';
+              const hasOther = select.value === '__other__';
+              const choiceValue = hasOther ? '' : select.value;
+              const otherValue = hasOther ? otherInput.value.trim() : '';
 
               const value = {
                 choice: choiceValue ? [{ value: choiceValue }] : [],
-                other: otherValue ? [{ label: otherValue }] : [],
+                other: hasOther ? [{ label: otherValue }] : [],
               };
 
               hiddenInput.value = JSON.stringify(value);
@@ -2193,7 +2212,7 @@ export class FormRenderer {
 
             const value = {
               choices: choiceValues,
-              other: otherValue ? [{ label: otherValue }] : [],
+              other: hasOther ? [{ label: otherValue }] : [],
             };
 
             hiddenInput.value = JSON.stringify(value);
@@ -2356,12 +2375,12 @@ export class FormRenderer {
                 .filter((option) => option.value !== '__other__')
                 .map((option) => ({ value: option.value }));
 
-              // Get other value if selected - only include if there's text (same as SingleChoiceField)
+              // Keep explicit Other selection while its text is still being edited.
               const otherValue = hasOther ? otherInput.value.trim() : '';
 
               const value = {
                 choices: choiceValues,
-                other: otherValue ? [{ label: otherValue }] : [],
+                other: hasOther ? [{ label: otherValue }] : [],
               };
 
               hiddenInput.value = JSON.stringify(value);

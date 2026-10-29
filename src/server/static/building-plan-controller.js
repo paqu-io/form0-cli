@@ -416,6 +416,8 @@ export class BuildingPlanController {
     this.windows = new Map();
     this.roomColors = new Map();
     this.listeners = new Set();
+    this.pendingFieldUpdates = new Set();
+    this.disposed = false;
     this.floorCount = 0;
     this.floors = [];
     this.activeFloorIndex = 0;
@@ -428,6 +430,8 @@ export class BuildingPlanController {
   }
 
   dispose() {
+    this.disposed = true;
+    for (const complete of this.pendingFieldUpdates) complete();
     document.removeEventListener('form0:repeatable-change', this.handleRepeatableChange);
     this.listeners.clear();
   }
@@ -1625,10 +1629,17 @@ export class BuildingPlanController {
       this.formStateManager.suspendEngineUpdates();
     }
 
+    let resolveUpdate;
+    const pending = new Promise((resolve) => {
+      resolveUpdate = resolve;
+    });
+    let completed = false;
     const completeUpdate = () => {
+      if (completed) return;
+      completed = true;
       let resumeNeeded = shouldSuspend;
       try {
-        if (typeof afterUpdate === 'function') {
+        if (!this.disposed && typeof afterUpdate === 'function') {
           afterUpdate();
         }
       } finally {
@@ -1636,10 +1647,18 @@ export class BuildingPlanController {
           this.formStateManager.resumeEngineUpdates();
           resumeNeeded = false;
         }
+        this.pendingFieldUpdates.delete(completeUpdate);
+        resolveUpdate();
       }
     };
+    completeUpdate.pending = pending;
+    this.pendingFieldUpdates.add(completeUpdate);
 
     this.runAfterRender(() => {
+      if (this.disposed) {
+        completeUpdate();
+        return;
+      }
       const success = this.formStateManager.setFieldValueAtContext(fieldName, path, value, {
         suppressLogging: true,
         skipStateUpdate: true,
@@ -1666,6 +1685,11 @@ export class BuildingPlanController {
 
       completeUpdate();
     });
+  }
+
+  async settleFieldUpdates() {
+    while (this.pendingFieldUpdates.size)
+      await Promise.all([...this.pendingFieldUpdates].map((complete) => complete.pending));
   }
 
   setFieldValueWithoutState(fieldName, path, value) {

@@ -300,6 +300,19 @@ restores accepted data, including staged nested edits. Collapsing a row is prese
 Accepted row membership changes notify the owner; failures in that later notification are reported
 without undoing acceptance. Closed rows use shared submission preparation without replaying their editing lifecycle.
 
+Set `form.repeatable_recalculation` to `"confirm"` in the schema to review changes to saved child
+calculations at root submission; omission or `"automatic"` refreshes them automatically. This is a
+schema setting, with no separate preview-settings switch. An open child editor still recalculates
+against current ancestor values. Accept or cancel that editor before submitting the root record.
+Keeping previous child values additionally requires explicit host permission and companion storage.
+
+BuildingPlan canvas drawing automatically opens the owning floor's Edit draft. Rooms, perimeter
+walls and other geometry appear immediately as child rows in that draft. **Save row** validates and
+accepts the floor; **Cancel row** restores its geometry and children together. Required survey fields
+still need answers before Save. Accept or cancel an open room/wall editor before drawing again.
+Root submission waits for the floor draft. Read-only records and read-only BuildingPlan sections
+disable drawing. Canvas editing does not grant `SETVALUE()` permission to write across records.
+
 **Advanced preview actions** also contains **Cancel record** and **Close record** for lifecycle
 inspection. These controls do not persist a draft. Submit remains the primary action. Submission
 console output shows the expandable final record, each connector result and failures. With no
@@ -368,3 +381,16 @@ See [SUPPORT.md](https://github.com/paqu-io/form0-cli/blob/main/SUPPORT.md) for 
 ## 📄 License
 
 [MIT](./LICENSE)
+
+## Programmatic value updates
+
+Official setters and default SETVALUE operation application share core normalization. SingleChoice
+and Boolean accept a string choice ID or `{ choice, other }`; MultiChoice accepts string IDs in an
+array or `{ choices, other }`. Full live objects preserve labels and metadata. Schema choices and
+submitted record formats remain unchanged. Updates do not implicitly dispatch form events.
+
+Malformed calls reject before applying a value batch. Input aliases and numeric/boolean choice-ID
+coercion are intentionally no longer supported. Calculated/display/container targets, cross-scope
+writes and setter/event writes in record readonly mode are rejected. Host restoration and
+authoritative overrides remain separate loading paths. See the
+[value-update contract](https://docs.form0.dev/core/engine/value-updates).

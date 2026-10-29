@@ -2,6 +2,74 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FormStateManager } from '../src/server/static/form-state-manager.js';
 
+test('checkbox synchronization preserves an explicit empty Other beside regular selections', () => {
+  const boxes = [{ value: 'red' }, { value: '__other__' }];
+  const other = { value: '', style: {} };
+  const hidden = { value: '' };
+  const checkboxContainer = {
+    classList: { contains: (name) => name === 'multi-choice-field-checkbox-container' },
+    querySelectorAll: () => boxes,
+    querySelector: (selector) => (selector === '.multi-choice-field-other' ? other : hidden),
+  };
+  const manager = new FormStateManager({});
+  const apply = (value) =>
+    manager.setMultiChoiceValue(
+      { type: 'MultiChoiceField', allow_other: true },
+      { querySelector: () => checkboxContainer },
+      value
+    );
+  const choices = [{ value: 'red', label: 'Red' }];
+  apply({ choices, other: [{ label: '' }] });
+  assert.equal(boxes[0].checked, true);
+  assert.equal(boxes[1].checked, true);
+  assert.equal(other.style.display, 'block');
+  assert.equal(other.value, '');
+  assert.deepEqual(JSON.parse(hidden.value), { choices, other: [{ label: '' }] });
+  apply({ choices, other: [{ label: 'Teal' }] });
+  assert.equal(other.value, 'Teal');
+  apply({ choices, other: [] });
+  assert.equal(boxes[0].checked, true);
+  assert.equal(boxes[1].checked, false);
+  assert.equal(other.style.display, 'none');
+  assert.equal(other.value, '');
+});
+
+test('initial root hydration accepts calculated results without editable writes or evaluation', () => {
+  const definitions = new Map();
+  const registry = new Map();
+  const inputs = {};
+  for (const [name, type, contextPath] of [
+    ['city_calc', 'CalculatedField', []],
+    ['after_calculation', 'TextField', []],
+    ['quantity', 'NumericField', []],
+    ['row_note', 'TextField', [{ key: 'rows', index: 0 }]],
+  ]) {
+    const field = { data_name: name, type };
+    const input = { value: '', readOnly: type === 'CalculatedField' };
+    definitions.set(name, field);
+    inputs[name] = input;
+    registry.set(name, { field, contextPath, container: { querySelector: () => input } });
+  }
+  const manager = new FormStateManager({
+    getFieldInstanceRegistry: () => registry,
+    findFieldByDataName: (name) => definitions.get(name),
+  });
+  manager.updateFormState = () => assert.fail('Initial hydration must not evaluate.');
+  manager.applyInitialValues({
+    city_calc: 'Rome',
+    after_calculation: 'Ready',
+    quantity: 0,
+    row_note: 'Must not reach an owned row',
+    unknown: 'Ignored metadata',
+  });
+  assert.equal(inputs.city_calc.value, 'Rome');
+  assert.equal(inputs.after_calculation.value, 'Ready');
+  assert.equal(inputs.quantity.value, '0');
+  assert.equal(inputs.row_note.value, '');
+  assert.throws(() => manager.setFieldValue('city_calc', 'Milan'), TypeError);
+  assert.equal(inputs.city_calc.value, 'Rome');
+});
+
 function feedbackManager() {
   const manager = new FormStateManager({});
   manager.clearFieldInstanceError = (container) => (container.error = null);

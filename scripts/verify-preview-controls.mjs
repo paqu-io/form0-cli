@@ -49,6 +49,15 @@ const schema = {
 `,
     },
     elements: [
+      field('CalculatedField', 'city_calc', { calculate: "'Rome'" }),
+      field('TextField', 'default_after_calculation', { default_value: 'Ready' }),
+      choice('SingleChoiceField', 'single_default', { default_value: 'blue' }),
+      choice('MultiChoiceField', 'multi_default', { default_value: ['blue', 'red'] }),
+      field('BooleanField', 'boolean_default', {
+        choices,
+        default_value: 'blue',
+        third_option_enabled: false,
+      }),
       field('NumericField', 'trigger'),
       field('NumericField', 'constrained', { min: 16 }),
       field('NumericField', 'signature_events', { default_value: 0 }),
@@ -116,6 +125,13 @@ async function scenario(lifecycle, name, run, values = {}) {
   evidence.push(result);
   page.setDefaultTimeout(5000);
   page.on('pageerror', (error) => result.errors.push(error.message));
+  page.on('console', (message) => {
+    if (
+      message.type() === 'error' &&
+      /Error loading default values|Error loading schema/.test(message.text())
+    )
+      result.errors.push(message.text());
+  });
   await page.addInitScript(
     (enabled) =>
       localStorage.setItem(
@@ -131,6 +147,7 @@ async function scenario(lifecycle, name, run, values = {}) {
   );
   await page.route('**/api/preview-session', async (route) => {
     const data = route.request().postDataJSON();
+    result.initialValues = data.state?.values;
     data.state = {
       values,
       repeatable: { rows: [{ id: 0, values: { row_trigger: 0 }, repeatable: {} }] },
@@ -140,7 +157,7 @@ async function scenario(lifecycle, name, run, values = {}) {
   try {
     await page.goto(base);
     await page.waitForFunction(() => window.form0PreviewEvents);
-    await run(page);
+    await run(page, result);
     assert.deepEqual(result.errors, []);
     result.passed = true;
   } catch (error) {
@@ -152,6 +169,22 @@ async function scenario(lifecycle, name, run, values = {}) {
 }
 try {
   for (const lifecycle of [false, true]) {
+    await scenario(
+      lifecycle,
+      'calculated defaults load without editable writes',
+      async (page, result) => {
+        await settle(page);
+        assert.equal(result.initialValues.city_calc, 'Rome');
+        assert.equal(result.initialValues.default_after_calculation, 'Ready');
+        assert.equal(result.initialValues.single_default.choice[0].value, 'blue');
+        assert.deepEqual(
+          result.initialValues.multi_default.choices.map((item) => item.value),
+          ['red', 'blue']
+        );
+        assert.equal(result.initialValues.boolean_default.choice[0].value, 'blue');
+        assert.equal(await page.locator('[data-name="city_calc"] input').inputValue(), 'Rome');
+      }
+    );
     await scenario(
       lifecycle,
       'SETVALUE shorthand updates controls and the selected submission',
@@ -180,8 +213,20 @@ try {
         `${name}: empty Other draft survives evaluation, typing and clearing`,
         async (page) => {
           const control = page.locator(`[data-name="${name}"] ${selector}`);
-          if (selector === 'select') await control.selectOption('__other__');
-          else await control.check();
+          if (selector === 'select') {
+            await control.selectOption('red');
+            await settle(page);
+            if (type === 'multi')
+              await control.locator('option[value="__other__"]').click({ modifiers: ['Control'] });
+            else await control.selectOption('__other__');
+          } else {
+            if (type === 'multi')
+              await page.locator(`[data-name="${name}"] input[value="red"]`).check();
+            await control.check();
+          }
+          const hidden = page.locator(`[data-name="${name}"] input[type="hidden"][name="${name}"]`);
+          assert.deepEqual(JSON.parse(await hidden.inputValue()).other, [{ label: '' }]);
+          await page.locator('[data-name="note"] input').click();
           await settle(page);
           const other = page.locator(
             `[data-name="${name}"] .${type === 'single' ? 'single' : 'multi'}-choice-field-other`
@@ -191,10 +236,19 @@ try {
             true,
             'Other must stay visible before any custom text'
           );
+          if (selector === 'select')
+            assert.equal(
+              await control.evaluate((select) =>
+                [...select.selectedOptions].some((option) => option.value === '__other__')
+              ),
+              true
+            );
+          else assert.equal(await control.isChecked(), true);
           await other.fill('Teal');
           await settle(page);
           assert.equal(await other.inputValue(), 'Teal');
           await other.fill('');
+          await page.locator('[data-name="note"] input').click();
           await settle(page);
           assert.equal(await other.isVisible(), true, 'Other must stay visible after clearing');
           await other.fill('Turquoise');

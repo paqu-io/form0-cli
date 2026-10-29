@@ -869,8 +869,16 @@ export class FormStateManager {
       if (mcContainer._setUpdating) mcContainer._setUpdating(true);
       const checkboxes = mcContainer.querySelectorAll('input[type="checkbox"]');
       checkboxes.forEach((checkbox) => {
-        checkbox.checked = parsedValue.choices?.some((choice) => choice.value === checkbox.value);
+        checkbox.checked =
+          checkbox.value === '__other__'
+            ? Boolean(parsedValue.other?.length)
+            : parsedValue.choices?.some((choice) => choice.value === checkbox.value);
       });
+      const otherInput = mcContainer.querySelector('.multi-choice-field-other');
+      if (otherInput) {
+        otherInput.style.display = parsedValue.other?.length ? 'block' : 'none';
+        otherInput.value = parsedValue.other?.[0]?.label ?? parsedValue.other?.[0]?.value ?? '';
+      }
       hiddenInput.value = JSON.stringify(parsedValue);
       if (mcContainer._setUpdating) mcContainer._setUpdating(false);
     } else if (field.allow_other) {
@@ -1063,7 +1071,13 @@ export class FormStateManager {
    * Update form engine and get new state
    */
   async updateFormState() {
-    if (this.managedUpdate) return this.managedUpdate(this.getCurrentFormState());
+    if (this.managedUpdate) {
+      if (this.engineUpdateDepth > 0) {
+        this.pendingEngineUpdate = true;
+        return;
+      }
+      return this.managedUpdate(this.getCurrentFormState());
+    }
     const intentId = ++this.engineUpdateIntent;
     const diagnosticIntent = this.diagnostics?.beginEvaluation();
 
@@ -1645,6 +1659,20 @@ export class FormStateManager {
   }
 
   /**
+   * Display server-evaluated initial root values, including calculated results.
+   * Loading does not perform editable writes, dispatch events or request another evaluation.
+   */
+  applyInitialValues(values = {}) {
+    this.getFieldInstanceRegistry()?.forEach(({ field, contextPath, container }) => {
+      if (!field || !container || contextPath?.length) return;
+      if (!Object.hasOwn(values, field.data_name)) return;
+      const value = values[field.data_name];
+      if (value !== null && value !== undefined)
+        this.updateFieldValue(field, container, value, true);
+    });
+  }
+
+  /**
    * Programmatically set a field value
    * This method is used by operation handlers to set field values
    * @param {string} fieldDataName - The field data name to set
@@ -1655,12 +1683,9 @@ export class FormStateManager {
   setFieldValue(fieldDataName, valueToSet, suppressLogging = false, skipStateUpdate = false) {
     const field = this.formRenderer.findFieldByDataName(fieldDataName);
 
-    if (!field) {
-      if (!suppressLogging) {
-        console.warn(`[SETVALUE] Field "${fieldDataName}" not found in form`);
-      }
-      return;
-    }
+    if (!field) throw new TypeError(`Unknown value-update field "${fieldDataName}".`);
+
+    valueToSet = normalizeChoiceOperationValue(field, valueToSet);
 
     if (!suppressLogging) {
       console.log('[SETVALUE] Setting field "%s" (%s) to:', fieldDataName, field.type, valueToSet);
@@ -1873,7 +1898,10 @@ export class FormStateManager {
     }
 
     // Convert string value to proper SingleChoiceField format
-    const choiceValue = normalizeChoiceOperationValue('SingleChoiceField', valueToSet);
+    const choiceValue = normalizeChoiceOperationValue(
+      this.formRenderer.findFieldByDataName(fieldDataName),
+      valueToSet
+    );
 
     // Set updating flag to prevent event conflicts
     if (container._setUpdating) container._setUpdating(true);
@@ -1942,7 +1970,10 @@ export class FormStateManager {
     }
 
     // Convert array of strings to proper MultiChoiceField format
-    const choiceValue = normalizeChoiceOperationValue('MultiChoiceField', valueToSet);
+    const choiceValue = normalizeChoiceOperationValue(
+      this.formRenderer.findFieldByDataName(fieldDataName),
+      valueToSet
+    );
 
     // Apply DOM updates synchronously first
     this.applySyncMultiChoiceDOM(container, hiddenInput, choiceValue);
@@ -2051,7 +2082,10 @@ export class FormStateManager {
     }
 
     // Convert string value to proper BooleanField format
-    const booleanValue = normalizeChoiceOperationValue('BooleanField', valueToSet);
+    const booleanValue = normalizeChoiceOperationValue(
+      this.formRenderer.findFieldByDataName(fieldDataName),
+      valueToSet
+    );
 
     // Set updating flag to prevent event conflicts
     if (container._setUpdating) container._setUpdating(true);

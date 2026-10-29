@@ -12,6 +12,7 @@ import { restorePreviewRecord } from './storage.js';
 import { createChangeLabels } from './submission-presentation.js';
 import { createRecordCoordinator, applyRecordState } from './record-coordinator.js';
 import { normalizeChoiceOperationValue } from '../static/choice-operation-values.js';
+import { createCanvasFloorStager } from './building-plan-updates.js';
 
 const maps = ['values', 'errors', 'visible', 'required', 'read_only'];
 function savedRows(repeatable) {
@@ -92,6 +93,7 @@ export function createPreviewEditor({
     seed: initialState,
   });
   const metadata = buildRepeatableMetadata(schema.form?.elements || []);
+  const stageCanvasFloor = createCanvasFloorStager(schema, metadata);
   const rootNames = [...metadata.fieldOwnership]
     .filter(([, field]) => field.parentPath.length === 0)
     .map(([name]) => name);
@@ -254,6 +256,7 @@ export function createPreviewEditor({
     entry.engine = createEngine({
       schema,
       ...evaluationOptions,
+      mode: configuration.readonly ? 'readonly' : 'edit',
       initialValues: { ...ancestors, ...entry.row.values },
       eventScope: { instancePath: entry.path },
       diagnostics: { console: false },
@@ -312,23 +315,30 @@ export function createPreviewEditor({
           : { operations: [], validationIssues: [], issues: [] },
       async process(operations, _meta, isCurrent) {
         if (!isCurrent()) throw new Error('Editor has ended.');
-        let changed = false;
+        const updates = {};
         for (const operation of operations) {
-          if (operation.operation === 'SETVALUE') {
-            const { fieldDataName, valueToSet } = operation.params;
-            if (!names.includes(fieldDataName)) throw new Error('Operation targets another scope.');
-            const field = metadata.fieldOwnership.get(fieldDataName)?.field;
-            entry.engine.getState().values[fieldDataName] = clone(
-              normalizeChoiceOperationValue(field?.type, valueToSet)
-            );
-            changed = true;
-          } else if (operation.operation === 'ALERT') presentations.push(clone(operation));
-          else throw new Error('Unsupported preview operation: ' + operation.operation);
+          if (operation.operation !== 'SETVALUE') continue;
+          const { fieldDataName, valueToSet } = operation.params;
+          if (!names.includes(fieldDataName))
+            throw new TypeError('Operation targets another scope.');
+          const field =
+            metadata.fieldOwnership.get(fieldDataName)?.field ||
+            (fieldDataName === schema.form.status_field?.data_name
+              ? schema.form.status_field
+              : null);
+          updates[fieldDataName] = normalizeChoiceOperationValue(field, valueToSet);
         }
-        if (changed) {
-          await entry.engine.eval();
+        if (Object.keys(updates).length) {
+          // Core commits the complete preflighted batch and calls this entry's scoped evaluator.
+          entry.engine.setValues(updates);
+          await entry.pending;
           entry.handle?.dataChanged();
-          if (!entry.path.length) await refreshCommitted();
+          if (!entry.path.length) coordinator.changed();
+        }
+        for (const operation of operations) {
+          if (operation.operation === 'ALERT') presentations.push(clone(operation));
+          else if (operation.operation !== 'SETVALUE')
+            throw new Error('Unsupported preview operation: ' + operation.operation);
         }
       },
       validate: (snapshot) => summary(entry, snapshot),
@@ -567,20 +577,68 @@ export function createPreviewEditor({
       }
       if (!entry)
         return response(failed('invalid_target', 'No active editor matches this target.'));
+      if (request.action === 'canvas-update') {
+        if (
+          configuration.readonly ||
+          stageCanvasFloor.readOnly(path, state(owner(parentPath(path)) || root))
+        )
+          return response(failed('readonly_scope', 'The editor is read-only.'));
+        if (
+          [...entries.values()].some(
+            (child) =>
+              child.path.length > path.length && samePath(path, child.path.slice(0, path.length))
+          )
+        )
+          return response(
+            failed('pending_editor', 'Accept or cancel the open child editor before drawing.')
+          );
+        let staged;
+        try {
+          staged = stageCanvasFloor(path, { ...entry.row, ...state(entry) }, request.row);
+        } catch (error) {
+          if (!(error instanceof TypeError)) throw error;
+          return response(failed('invalid_request', error.message));
+        }
+        const before = state(entry),
+          oldRow = clone(entry.row);
+        try {
+          // All fields and descendants have been preflighted. Evaluate changed records from leaves
+          // to their owning floor; accepted siblings and the root snapshot remain untouched.
+          Object.assign(entry.engine.getState().values, clone(staged.updates));
+          entry.row.repeatable = staged.row.repeatable;
+          for (const node of staged.nodes) {
+            if (node.path.length === path.length) continue;
+            const evaluated = await coordinator.evaluate(node.path);
+            if (evaluated.status !== 'evaluated')
+              throw new Error(evaluated.issues?.[0]?.message || 'Canvas scope evaluation failed.');
+            Object.assign(node.row, clone(evaluated.state));
+          }
+          await entry.engine.eval();
+          entry.handle.dataChanged();
+          coordinator.changed();
+          return response();
+        } catch (error) {
+          entry.row = oldRow;
+          applyRecordState(entry.engine, before);
+          return response(failed('canvas_update_failed', error.message));
+        }
+      }
       if (request.action === 'update') {
         if (request.fieldKey && !entry.names.includes(request.fieldKey))
           return response(failed('invalid_request', 'Field changes use an owned data_name.'));
         if (configuration.readonly)
           return response(failed('readonly_scope', 'The editor is read-only.'));
-        const before = eventDataSignature(state(entry).values);
-        Object.assign(
-          entry.engine.getState().values,
-          pick(clone(request.values || {}), entry.names)
-        );
-        if (before !== eventDataSignature(state(entry).values)) {
-          await entry.engine.eval();
+        const updates = Object.hasOwn(request, 'values') ? request.values : {};
+        try {
+          entry.engine.setValues(updates);
+        } catch (error) {
+          if (!(error instanceof TypeError)) throw error;
+          return response(failed('invalid_request', error.message));
+        }
+        await entry.pending;
+        if (Object.keys(updates).length) {
           entry.handle.dataChanged();
-          if (!entry.path.length) await refreshCommitted();
+          if (!entry.path.length) coordinator.changed();
         }
         if (request.fieldKey) {
           const field =

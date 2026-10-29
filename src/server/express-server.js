@@ -743,6 +743,13 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
   }
 
   // Serve static files
+  // Only the two dependency-free value modules are exposed to preview's browser adapter.
+  for (const asset of ['field-value-normalization.js', 'record-data.js']) {
+    const file = fileURLToPath(new URL(`./utilities/${asset}`, import.meta.resolve('form0-core')));
+    app.get(`/form0-core/${asset}`, (_req, res) =>
+      res.sendFile(asset, { root: path.dirname(file) })
+    );
+  }
   app.use(express.static(path.join(__dirname, 'static')));
 
   // Serve supporting images from the current project directory
