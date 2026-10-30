@@ -318,3 +318,52 @@ test('CLI HTTP preview accepts large records and returns shared selected values 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('CLI clears closed row inputs immediately and validates preserved hidden values when requested', async () => {
+  const schema = {
+    form: {
+      name: 'Retention',
+      elements: [
+        field('NumericField', 'show_rows'),
+        {
+          ...repeatable('rows', [field('TextField', 'secret', { visible_preserve_value: false })]),
+          visible: false,
+          visible_conditions: { field_id: 'show_rows', operator: 'equal_to', value: 1 },
+        },
+        field('TextField', 'hidden', { visible: false }),
+      ],
+    },
+  };
+  const manager = createPreviewSessionManager({
+    getSchema: () => schema,
+    submissionOptions: { validateHiddenValues: true },
+    serializeRecord: (schema, state) => serializePreviewRecord(schema, state, {}, true),
+  });
+  try {
+    const opened = await manager.create({
+      state: {
+        values: { show_rows: 1, hidden: 9 },
+        repeatable: { rows: [{ id: 0, values: { secret: 'secret' } }] },
+      },
+      configuration: { lifecycle: false, recordKind: 'existing' },
+    });
+    const updated = await manager.command({
+      sessionId: opened.sessionId,
+      sequence: 1,
+      action: 'update',
+      fieldKey: 'show_rows',
+      values: { show_rows: 0 },
+    });
+    assert.equal(updated.state.repeatable.rows[0].values.secret, null);
+    const blocked = await manager.command({
+      sessionId: opened.sessionId,
+      sequence: 2,
+      action: 'prepare',
+      intent: 'submit',
+    });
+    assert.equal(blocked.eligible, false);
+    assert.equal(blocked.validationSummary.generalErrors[0].fieldName, 'hidden');
+  } finally {
+    manager.dispose();
+  }
+});

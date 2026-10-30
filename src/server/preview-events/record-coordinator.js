@@ -8,7 +8,9 @@ export const hasRecordCollections = (schema) => {
   const visit = (fields) =>
     (fields || []).some(
       (field) =>
-        /\bREPEATABLE(?:VALUES|SUM)\s*\(/.test(field.calculate || '') || visit(field.elements)
+        field.visible_preserve_value === false ||
+        /\bREPEATABLE(?:VALUES|SUM)\s*\(/.test(field.calculate || '') ||
+        visit(field.elements)
     );
   const result = visit(schema?.form?.elements);
   collectionSchemas.set(schema, result);
@@ -189,7 +191,11 @@ export function createRecordCoordinator({
   const signature = () =>
     eventDataSignature({
       snapshot: capture(),
-      policy: { mode: options().mode ?? 'automatic', allowRetain: options().allowRetain === true },
+      policy: {
+        mode: options().mode ?? 'automatic',
+        allowRetain: options().allowRetain === true,
+        validateHiddenValues: options().validateHiddenValues === true,
+      },
     });
   const selection = async (result) => {
     if (result.snapshot && ['ready', 'blocked'].includes(result.status)) {
@@ -263,6 +269,7 @@ export function createRecordCoordinator({
         intent: request.intent,
         mode: policy.mode,
         allowRetain: policy.allowRetain === true,
+        validateHiddenValues: policy.validateHiddenValues === true,
         managedEvents,
         signal: request.signal,
       };
@@ -449,4 +456,29 @@ export function applyRecordState(engine, state) {
     for (const key of Object.keys(target[name] || {})) delete target[name][key];
     Object.assign(target[name], state[name] || {});
   }
+}
+
+/** Apply engine-owned clearing markers without changing row identities or unrelated metadata. */
+export function applyClearedFieldUpdates(snapshot, clearedFields = [], basePath = []) {
+  let result = snapshot;
+  for (const field of clearedFields) {
+    if (
+      field.instancePath.length < basePath.length ||
+      !samePath(field.instancePath.slice(0, basePath.length), basePath)
+    )
+      continue;
+    const path = field.instancePath.slice(basePath.length);
+    let row = result;
+    for (const part of path) {
+      const rows = row.repeatable?.[part.repeatableKey] || [];
+      row =
+        part.identity === 'id'
+          ? rows.find((entry) => (entry.id ?? entry.record_id) === part.instanceId)
+          : rows[part.index];
+      if (!row) throw new Error('The cleared record scope no longer exists.');
+    }
+    if (row.values?.[field.fieldName] === null) continue;
+    result = overlay(result, path, { values: { ...row.values, [field.fieldName]: null } });
+  }
+  return result;
 }

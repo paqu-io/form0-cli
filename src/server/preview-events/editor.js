@@ -10,7 +10,11 @@ import {
 
 import { restorePreviewRecord } from './storage.js';
 import { createChangeLabels } from './submission-presentation.js';
-import { createRecordCoordinator, applyRecordState } from './record-coordinator.js';
+import {
+  createRecordCoordinator,
+  applyRecordState,
+  applyClearedFieldUpdates,
+} from './record-coordinator.js';
 import { normalizeChoiceOperationValue } from '../static/choice-operation-values.js';
 import { createCanvasFloorStager } from './building-plan-updates.js';
 
@@ -287,13 +291,27 @@ export function createPreviewEditor({
         entry.pending = Promise.resolve();
         return entry.pending;
       }
-      const pending = coordinator.evaluate(path).then((result) => {
-        if (!entry.active) return;
-        if (result.status !== 'evaluated')
-          throw new Error(result.issues?.[0]?.message || 'Scope evaluation failed.');
-        applyRecordState(entry.engine, result.state);
-        entry.diagnostics = result.diagnostics || [];
-      });
+      const capturedRepeatable = entry.row.repeatable;
+      const pending = coordinator
+        .evaluate(path, { interactionMode: configuration.readonly ? 'readonly' : 'edit' })
+        .then((result) => {
+          if (
+            !entry.active ||
+            entry.pending !== pending ||
+            (result.clearedFields?.length && entry.row.repeatable !== capturedRepeatable)
+          )
+            return;
+          if (result.status !== 'evaluated')
+            throw new Error(result.issues?.[0]?.message || 'Scope evaluation failed.');
+          const updated = applyClearedFieldUpdates(
+            { ...result.state, repeatable: entry.row.repeatable || {} },
+            result.clearedFields,
+            path
+          );
+          applyRecordState(entry.engine, updated);
+          entry.row.repeatable = updated.repeatable;
+          entry.diagnostics = result.diagnostics || [];
+        });
       entry.pending = pending;
       return pending;
     };

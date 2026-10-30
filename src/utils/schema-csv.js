@@ -83,6 +83,7 @@ const DESIRED_FIELD_COLUMNS = [
   'default_value',
   'visible',
   'visible_conditions',
+  'visible_preserve_value',
   'read_only',
   'read_only_conditions',
   'required',
@@ -470,6 +471,12 @@ function buildFieldFromRow(row) {
     if (!columnName) continue;
     const attributeSpec = spec.attributes[attributeName];
     const rawValue = row[columnName];
+    if (
+      !attributeSpec.required &&
+      attributeSpec.nullable === false &&
+      (rawValue == null || rawValue.trim() === '')
+    )
+      continue;
     const parsedValue = parseAttributeValue(rawValue, attributeName, attributeSpec, typeName);
     if (parsedValue !== undefined) {
       if (attributeName === 'ai' && parsedValue == null) {
