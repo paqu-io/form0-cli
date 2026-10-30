@@ -441,6 +441,54 @@ test('preview SETVALUE cannot partially apply a batch containing a calculated ta
     );
 });
 
+for (const lifecycle of [false, true]) {
+  test(`preview exposes numeric choice SETVALUE failures in the UI and preserves numeric inputs; lifecycle=${lifecycle}`, async (context) => {
+    const previousDocument = globalThis.document;
+    globalThis.document = { getElementById: () => null };
+    context.after(() => {
+      if (previousDocument === undefined) delete globalThis.document;
+      else globalThis.document = previousDocument;
+    });
+    const schema = fixture(
+      "ON('change', 'input', function() { SETVALUE('trace', 'accepted'); SETVALUE('rating', $input === 1 ? 1 : '1'); SETVALUE('numeric_target', 1); });"
+    );
+    schema.form.elements.push(
+      field('NumericField', 'numeric_target', { default_value: 3 }),
+      field('SingleChoiceField', 'rating', {
+        choices: [{ value: '1', label: 'One' }],
+        allow_other: false,
+        is_searchable: false,
+        is_searchable_mode: null,
+      })
+    );
+    await withPreview(
+      schema,
+      async ({ started, command }) => {
+        const messages = [];
+        const ui = createPreviewEventUI({
+          client: { resolvePath: () => [], getScopes: () => started.scopes, request: command },
+          renderer: { getFieldInstanceRegistry: () => new Map(), formatContextPath: () => 'root' },
+          stateManager: {},
+          showError: (message) => messages.push(message),
+        });
+        const rejected = await ui.update({ values: { input: 1 }, repeatable: {} }, 'input');
+        assert.equal(rejected.status, 'failed');
+        assert.match(messages[0], /rating.*string ID/);
+        assert.deepEqual(rejected.state.values.rating.choice, []);
+        assert.equal(rejected.state.values.trace, '');
+        const accepted = await ui.update({ values: { input: 2 }, repeatable: {} }, 'input');
+        assert.equal(accepted.state.values.rating.choice[0].value, '1');
+        assert.equal(accepted.state.values.trace, 'accepted');
+        assert.equal(rejected.state.values.numeric_target, 3);
+        assert.equal(accepted.state.values.numeric_target, 1);
+        assert.deepEqual(accepted.issues, []);
+        assert.equal(messages.length, 1);
+      },
+      { lifecycle, recordKind: 'existing' }
+    );
+  });
+}
+
 test('pre-save runs once, revalidates changed values and retains a failed prepared edit for correction', async () => {
   const schema = fixture(
     "ON('validate-record', function(){ if($input<4) INVALID('Reach four.'); }); ON('save-record', function(){ SETVALUE('input',$target); SETVALUE('trace',$trace+'s'); });"
