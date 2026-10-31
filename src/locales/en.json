@@ -735,6 +735,8 @@
     "freshness.previous": "Previous",
     "freshness.next": "Next",
     "freshness.pending": "Some saved child calculations still need updating.",
+    "freshness.hiddenValueHelp": "This value is hidden. Make the field visible to correct it, or ask the application to resolve it.",
+    "freshness.resolveHiddenValue": "Resolve hidden value",
     "freshness.validationCount": "Validation findings: {count}",
     "freshness.record": "Record",
     "previewEvents.settingsHelp": "Classification chooses new-record or edit-record; it does not load a database record.",

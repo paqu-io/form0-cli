@@ -2909,6 +2909,15 @@ export class FormRenderer {
 
         // Drawing logic (vanilla JS, modular for future swap)
         let drawing = false;
+        let signatureReadOnly = field.read_only === true;
+        container._setReadOnly = (readOnly) => {
+          signatureReadOnly = Boolean(readOnly);
+          if (signatureReadOnly) drawing = false;
+          clearBtn.disabled = signatureReadOnly;
+          canvas.tabIndex = signatureReadOnly ? -1 : 0;
+          canvas.setAttribute('aria-disabled', String(signatureReadOnly));
+        };
+        container._setReadOnly(signatureReadOnly);
         let lastX = 0,
           lastY = 0;
         const ctx = canvas.getContext('2d');
@@ -2933,13 +2942,14 @@ export class FormRenderer {
         }
 
         function startDraw(e) {
+          if (signatureReadOnly) return;
           drawing = true;
           const pos = getPos(e);
           lastX = pos.x;
           lastY = pos.y;
         }
         function draw(e) {
-          if (!drawing) return;
+          if (signatureReadOnly || !drawing) return;
           e.preventDefault();
           const pos = getPos(e);
           ctx.beginPath();
@@ -2951,10 +2961,12 @@ export class FormRenderer {
           updateHiddenInput();
         }
         function endDraw() {
+          if (signatureReadOnly || !drawing) return;
           drawing = false;
           updateHiddenInput();
         }
         function clearCanvas() {
+          if (signatureReadOnly) return;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           signatureMeta = null;
           updateHiddenInput();

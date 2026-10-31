@@ -620,6 +620,15 @@ export function createPreviewEventUI({
         renderValidationFindings(result.validationSummary, {
           translate,
           onSelect: navigateFinding,
+          onResolve: result.hiddenValueRecoveryAvailable
+            ? async (issue) => {
+                const resolved = await action({
+                  action: 'resolve-hidden-value',
+                  finding: { fieldName: issue.fieldName, instancePath: issue.instancePath || [] },
+                });
+                if (resolved.issues?.length) throw new Error(resolved.issues[0].message);
+              }
+            : undefined,
         });
       onWarnings(result.warnings || []);
       if (result.retiredScopes?.length) diagnostics?.retireScopes?.(result.retiredScopes);

@@ -86,6 +86,7 @@ export function createPreviewEditor({
   recordOptions = {},
   createEngine = createFormEngine,
   submissionOptions = {},
+  onResolveHiddenValue,
   initialFreshness = null,
   evaluationOptions = {},
 }) {
@@ -276,6 +277,7 @@ export function createPreviewEditor({
     });
     entries.set(entry.scopeId, entry);
     entry.release = coordinator.bind(path, {
+      canEdit: () => !configuration.readonly,
       read: () => ({ ...entry.row, ...state(entry) }),
       apply: async (snapshot) => {
         applyRecordState(entry.engine, snapshot);
@@ -484,6 +486,8 @@ export function createPreviewEditor({
     return {
       ...clone(result),
       persistedFreshness: coordinator.freshness(),
+      hiddenValueRecoveryAvailable:
+        typeof onResolveHiddenValue === 'function' && !configuration.readonly,
       state: visible,
       ...(drafts.length ? { committedState: state(root) } : {}),
       diagnostics: [
@@ -641,6 +645,22 @@ export function createPreviewEditor({
           return response(failed('canvas_update_failed', error.message));
         }
       }
+      if (request.action === 'resolve-hidden-value') {
+        if (configuration.readonly || path.length)
+          return response(
+            failed('readonly_scope', 'Resolve hidden values from the editable root record.')
+          );
+        try {
+          const result = await coordinator.resolveHiddenValue(
+            request.finding || {},
+            onResolveHiddenValue
+          );
+          root.handle.dataChanged();
+          return response(result);
+        } catch (error) {
+          return response(failed('hidden_value_recovery_failed', error.message));
+        }
+      }
       if (request.action === 'update') {
         if (request.fieldKey && !entry.names.includes(request.fieldKey))
           return response(failed('invalid_request', 'Field changes use an owned data_name.'));
@@ -648,6 +668,11 @@ export function createPreviewEditor({
           return response(failed('readonly_scope', 'The editor is read-only.'));
         const updates = Object.hasOwn(request, 'values') ? request.values : {};
         try {
+          if (
+            updates &&
+            Object.keys(updates).some((name) => entry.engine.getState().read_only?.[name] === true)
+          )
+            return response(failed('readonly_field', 'The field is read-only.'));
           entry.engine.setValues(updates);
         } catch (error) {
           if (!(error instanceof TypeError)) throw error;
@@ -861,6 +886,7 @@ export function createPreviewSessionManager({
   ttlMs = 30 * 60 * 1000,
   createEngine,
   submissionOptions,
+  onResolveHiddenValue,
   storageAdapter,
   evaluationOptions,
 }) {
@@ -891,6 +917,7 @@ export function createPreviewSessionManager({
         initialState: stored?.record ? restorePreviewRecord(schema, stored.record) : request.state,
         initialFreshness: stored?.freshness,
         submissionOptions,
+        onResolveHiddenValue,
         evaluationOptions,
         configuration: request.configuration,
         recordOptions: {

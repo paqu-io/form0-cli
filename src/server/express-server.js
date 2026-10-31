@@ -808,6 +808,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
   const previewSessions = createPreviewSessionManager({
     getSchema: () => getPreparedSchemaPayload()?.schema,
     submissionOptions: options.submissionOptions,
+    onResolveHiddenValue: options.onResolveHiddenValue,
     storageAdapter: options.storageAdapter,
     evaluationOptions: options.engineOptions,
     serializeRecord: (schema, state, recordOptions) =>

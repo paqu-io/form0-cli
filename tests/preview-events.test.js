@@ -4,7 +4,8 @@ import http from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createFormEngine } from 'form0-core';
+import { createFormEngine, FIELD_SPECS } from 'form0-core';
+import { auditField } from './fixtures/consumer-compatibility.js';
 import { createApp, serializePreviewRecord } from '../src/server/express-server.js';
 import { createPreviewEditor } from '../src/server/preview-events/editor.js';
 import { eventSchema } from './fixtures/preview-event-conformance.js';
@@ -15,6 +16,73 @@ import { ensureKeysForSchema } from '../src/utils/ensure-keys.js';
 import { createPreviewEventUI } from '../src/server/static/preview-event-ui.js';
 
 const rootValues = { input: 4, trace: '' };
+
+test('preview rejects user updates to a read-only signature, including batch requests', async () => {
+  await withPreview(
+    {
+      form: {
+        name: 'Read-only signature',
+        elements: [auditField(FIELD_SPECS, 'SignatureField', 'signature', { read_only: true })],
+      },
+    },
+    async ({ started, command }) => {
+      assert.ok(started.sessionId, JSON.stringify(started.issues));
+      for (const change of [
+        { fieldKey: 'signature', values: { signature: { signature_id: 'test', data: 'drawn' } } },
+        { values: { signature: { signature_id: 'test', data: 'drawn' } } },
+      ]) {
+        const result = await command({ action: 'update', ...change });
+        assert.equal(result.issues[0]?.code, 'readonly_field');
+        assert.equal(result.state.values.signature, null);
+      }
+    },
+    { lifecycle: false, recordKind: 'existing' },
+    { values: { signature: null }, repeatable: {} }
+  );
+});
+
+test('conditional signature read-only policy is enforced from current server state', async () => {
+  const schema = {
+    form: {
+      name: 'Conditional signature',
+      elements: [
+        field('NumericField', 'lock'),
+        auditField(FIELD_SPECS, 'SignatureField', 'signature', {
+          read_only_conditions: { field_id: 'lock', operator: 'equal_to', value: 1 },
+        }),
+      ],
+    },
+  };
+  await withPreview(
+    schema,
+    async ({ started, command }) => {
+      assert.ok(started.sessionId);
+      const signature = { signature_id: 'test', data: 'drawn' };
+      assert.deepEqual(
+        (await command({ action: 'update', fieldKey: 'signature', values: { signature } })).issues,
+        []
+      );
+      await command({ action: 'update', fieldKey: 'lock', values: { lock: 1 } });
+      const rejected = await command({
+        action: 'update',
+        fieldKey: 'signature',
+        values: { signature: null },
+      });
+      assert.equal(rejected.issues[0]?.code, 'readonly_field');
+      assert.equal(rejected.state.values.signature.data, 'drawn');
+      await command({ action: 'update', fieldKey: 'lock', values: { lock: 0 } });
+      const editable = await command({
+        action: 'update',
+        fieldKey: 'signature',
+        values: { signature: null },
+      });
+      assert.deepEqual(editable.issues, []);
+      assert.equal(editable.state.values.signature, null);
+    },
+    { lifecycle: false },
+    { values: { lock: 0, signature: null } }
+  );
+});
 const rowPath = (id, index = 0) => [
   { repeatableKey: 'rows', instanceId: id, index, identity: id == null ? 'position' : 'id' },
 ];

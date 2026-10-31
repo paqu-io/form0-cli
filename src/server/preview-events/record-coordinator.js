@@ -79,6 +79,8 @@ export function createRecordBackend(config) {
   return {
     evaluateScope: (snapshot, options) =>
       get().evaluateScope(snapshot, { ...hostScheduling(), ...options }),
+    inspectHiddenValue: (snapshot, options) => get().inspectHiddenValue(snapshot, options),
+    correctHiddenValue: (snapshot, options) => get().correctHiddenValue(snapshot, options),
     async prepare(snapshot, options) {
       const attempt = ++generation;
       const result = await get().prepareSubmission(snapshot, { ...hostScheduling(), ...options });
@@ -244,6 +246,48 @@ export function createRecordCoordinator({
       return () => listeners.delete(listener);
     },
     freshness: () => copyEventData(savedFreshness),
+    async resolveHiddenValue(finding, resolver) {
+      if (typeof resolver !== 'function')
+        throw new Error('The application has not configured hidden-value recovery.');
+      const adapter = root();
+      if (!adapter || adapter.canEdit?.() === false)
+        throw new Error('A read-only record cannot be corrected.');
+      if ([...editors.values()].some((entry) => entry.path.length))
+        throw new Error('Accept or cancel the open child editor before correcting a hidden value.');
+      const capturedSignature = signature();
+      const capturedSchema = configuration;
+      const isCurrent = () =>
+        signature() === capturedSignature &&
+        configuration === capturedSchema &&
+        root() === adapter &&
+        adapter.canEdit?.() !== false &&
+        ![...editors.values()].some((entry) => entry.path.length);
+      const source = capture();
+      const options = { fieldName: finding.fieldName, instancePath: finding.instancePath || [] };
+      const evaluator = backend || local();
+      const checked = await evaluator.inspectHiddenValue(source, options);
+      if (checked.status !== 'inspected')
+        throw new Error(checked.issues?.[0]?.message || 'The hidden finding is no longer current.');
+      if (!isCurrent())
+        throw new Error('The record changed. Submit again before resolving this value.');
+      const decision = await resolver(copyEventData({ ...checked.finding, value: checked.value }));
+      if (decision == null) return { status: 'cancelled' };
+      if (typeof decision !== 'object' || !Object.hasOwn(decision, 'value'))
+        throw new Error('Hidden-value recovery must return { value } or cancel.');
+      if (!isCurrent())
+        throw new Error('The record changed while resolving the value. Submit again.');
+      const result = await evaluator.correctHiddenValue(source, {
+        ...options,
+        value: decision.value,
+      });
+      if (result.status !== 'evaluated')
+        throw new Error(result.issues?.[0]?.message || 'The replacement value is invalid.');
+      if (!isCurrent())
+        throw new Error('The record changed while resolving the value. Submit again.');
+      await adapter.apply(result.snapshot);
+      this.changed();
+      return { status: 'resolved', validationSummary: result.validationSummary };
+    },
     capture,
     signature,
     preparedSignature: () => attempt?.signature || null,

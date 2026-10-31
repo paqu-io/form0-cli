@@ -100,7 +100,7 @@ export function clearValidationFindings() {
 }
 
 /** Keep complete findings; render only one bounded page. */
-export function renderValidationFindings(summary, { translate, onSelect }) {
+export function renderValidationFindings(summary, { translate, onSelect, onResolve }) {
   clearValidationFindings();
   const findings = summary?.orderedIssues || [
     ...(summary?.requiredFieldErrors || []),
@@ -138,8 +138,8 @@ export function renderValidationFindings(summary, { translate, onSelect }) {
       const path = (issue.instancePath || [])
         .map((part) => part.repeatableKey + '[' + (part.instanceId ?? part.index + 1) + ']')
         .join(' / ');
-      const action = document.createElement('button');
-      action.type = 'button';
+      const action = document.createElement(issue.hidden ? 'div' : 'button');
+      if (!issue.hidden) action.type = 'button';
       action.textContent = [
         path,
         issue.field?.label || issue.fieldName || translate('freshness.record'),
@@ -147,9 +147,32 @@ export function renderValidationFindings(summary, { translate, onSelect }) {
       ]
         .filter(Boolean)
         .join(': ');
-      action.onclick = () => {
-        void onSelect(issue);
-      };
+      if (!issue.hidden)
+        action.onclick = () => {
+          void onSelect(issue);
+        };
+      else {
+        const help = document.createElement('p');
+        help.textContent = translate('freshness.hiddenValueHelp');
+        action.append(help);
+        if (onResolve) {
+          const resolve = document.createElement('button');
+          resolve.type = 'button';
+          resolve.textContent = translate('freshness.resolveHiddenValue');
+          resolve.onclick = async () => {
+            resolve.disabled = true;
+            try {
+              await onResolve(issue);
+            } catch (error) {
+              help.textContent = error.message;
+              help.setAttribute('role', 'alert');
+            } finally {
+              resolve.disabled = false;
+            }
+          };
+          action.append(resolve);
+        }
+      }
       item.append(action);
       list.append(item);
     }
