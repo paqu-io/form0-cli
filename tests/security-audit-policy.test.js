@@ -8,13 +8,13 @@ const report = JSON.parse(
 const policy = JSON.parse(
   readFileSync(new URL('../scripts/security-exceptions.json', import.meta.url))
 );
-const now = Date.parse('2026-10-29T12:00:00Z');
+const now = Date.parse('2026-10-31T12:00:00Z');
 const pi = '@earendil-works/pi-coding-agent';
 const graph = {
-  manifest: { version: '0.9.0', dependencies: { [pi]: '1.0.4' } },
+  manifest: { version: '0.10.0', dependencies: { [pi]: '1.0.4' } },
   lock: {
-    version: '0.9.0',
-    packages: { '': { version: '0.9.0', dependencies: { [pi]: '1.0.4' } } },
+    version: '0.10.0',
+    packages: { '': { version: '0.10.0', dependencies: { [pi]: '1.0.4' } } },
   },
   installed: {},
 };
@@ -22,7 +22,7 @@ for (const [name, entry] of Object.entries(policy.exceptions[0].packages)) {
   const dependency = {
     name,
     version: entry.version,
-    ...(name === pi ? { dependencies: { undici: '8.10.2' } } : {}),
+    ...(name === pi ? { dependencies: { undici: '8.10.2', minimatch: '10.2.6' } } : {}),
   };
   graph.lock.packages[entry.path] = structuredClone(dependency);
   graph.installed[entry.path] = structuredClone(dependency);
@@ -49,35 +49,35 @@ function setVersion(data, version) {
 
 test('the approved carry-forward keeps its exact release, validation and expiry boundaries', () => {
   const entry = policy.exceptions[0];
-  assert.equal(entry.cliVersion, '0.9.0');
-  assert.equal(entry.validationVersion, '0.8.2');
-  assert.equal(entry.approvedOn, '2026-10-29');
+  assert.equal(entry.cliVersion, '0.10.0');
+  assert.equal(entry.validationVersion, '0.9.0');
+  assert.equal(entry.approvedOn, '2026-10-31');
   assert.equal(entry.expiresAt, '2026-11-03T00:00:00.000Z');
 });
 
-test('the approved 0.8.2 working tree passes validation but cannot pass release checks', () => {
+test('the approved 0.9.0 working tree passes validation but cannot pass release checks', () => {
   const data = input();
-  data.policy.exceptions[0].validationVersion = '0.8.2';
-  setVersion(data, '0.8.2');
+  data.policy.exceptions[0].validationVersion = '0.9.0';
+  setVersion(data, '0.9.0');
   assert.equal(assessAudit(data).ok, false, 'default must remain publication-strict');
   assert.equal(assessAudit({ ...data, purpose: 'release' }).ok, false);
   const result = assessAudit({ ...data, purpose: 'validation' });
   assert.equal(result.ok, true, JSON.stringify(result.errors));
-  assert.equal(result.accepted.length, 2);
+  assert.equal(result.accepted.length, 3);
 });
 
 test('validation needs explicit approval and keeps manifest and lock versions consistent', () => {
   const data = input();
   data.purpose = 'validation';
-  setVersion(data, '0.8.2');
+  setVersion(data, '0.9.0');
   delete data.policy.exceptions[0].validationVersion;
   assert.equal(assessAudit(data).ok, false);
-  data.policy.exceptions[0].validationVersion = '0.8.2';
+  data.policy.exceptions[0].validationVersion = '0.9.0';
   assert.equal(assessAudit(data).ok, true);
   for (const mutate of [
-    (x) => (x.graph.manifest.version = '0.9.0'),
-    (x) => (x.graph.lock.version = '0.9.0'),
-    (x) => (x.graph.lock.packages[''].version = '0.9.0'),
+    (x) => (x.graph.manifest.version = '0.10.0'),
+    (x) => (x.graph.lock.version = '0.10.0'),
+    (x) => (x.graph.lock.packages[''].version = '0.10.0'),
   ]) {
     const mixed = structuredClone(data);
     mutate(mixed);
@@ -86,19 +86,19 @@ test('validation needs explicit approval and keeps manifest and lock versions co
 });
 
 test('both contexts reject unapproved versions, invalid purposes and broadened validation approval', () => {
-  for (const version of ['0.7.0', '0.8.0', '0.8.3', '0.9.1', '0.8.2-beta.1'])
+  for (const version of ['0.7.0', '0.8.0', '0.8.3', '0.9.1', '0.9.0-beta.1'])
     reject((data) => setVersion(data, version));
   for (const purpose of [null, '', 'ci', 'publish', 'anything'])
     assert.equal(assessAudit({ ...input(), purpose }).ok, false);
-  for (const validationVersion of [null, '*', '^0.8.2', ['0.8.2'], '0.9.0'])
+  for (const validationVersion of [null, '*', '^0.9.0', ['0.9.0'], '0.10.0'])
     reject((data) => (data.policy.exceptions[0].validationVersion = validationVersion));
 });
 
-test('0.8.2 validation still rejects new findings, changed pins, revoked approval and expiry', () => {
+test('0.9.0 validation still rejects new findings, changed pins, revoked approval and expiry', () => {
   const baseline = input();
-  baseline.policy.exceptions[0].validationVersion = '0.8.2';
+  baseline.policy.exceptions[0].validationVersion = '0.9.0';
   baseline.purpose = 'validation';
-  setVersion(baseline, '0.8.2');
+  setVersion(baseline, '0.9.0');
   for (const mutate of [
     (x) => (x.now = Date.parse('2026-11-03T00:00:00Z')),
     (x) => (x.policy.exceptions[0].approved = false),
@@ -119,7 +119,7 @@ test('the actual known report is accepted only within its exact approved release
   const original = structuredClone(data);
   const result = assessAudit(data);
   assert.equal(result.ok, true, JSON.stringify(result.errors));
-  assert.equal(result.accepted.length, 2);
+  assert.equal(result.accepted.length, 3);
   assert.deepEqual(data, original);
 });
 
@@ -142,6 +142,22 @@ test('all eight advisory identities require their own explicit approval', () => 
   for (const id of Object.keys(expected)) {
     reject((data) => delete data.policy.exceptions[0].packages.undici.advisories[id]);
   }
+});
+
+test('the new minimatch allowance is exact and inherited findings cannot broaden it', () => {
+  for (const mutate of [
+    (x) => delete x.policy.exceptions[0].packages.minimatch.advisories['GHSA-g3hv-75wg-m249'],
+    (x) => (x.graph.installed[x.policy.exceptions[0].packages.minimatch.path].version = '10.2.7'),
+    (x) =>
+      (x.graph.installed[x.policy.exceptions[0].packages[pi].path].dependencies.minimatch =
+        '^10.2.6'),
+    (x) => (x.report.vulnerabilities[pi].via = ['undici', 'undici']),
+    (x) => (x.report.vulnerabilities[pi].via = ['undici', 'minimatch', 'other']),
+    (x) => (x.policy.exceptions[0].packages[pi].inheritedVia = []),
+    (x) => (x.policy.exceptions[0].packages[pi].inheritedVia = ['undici', 'undici']),
+    (x) => (x.policy.exceptions[0].packages.minimatch.maxSeverity = 'low'),
+  ])
+    reject(mutate);
 });
 
 test('a version-only amendment of the historical three-advisory approval still fails', () => {
@@ -174,16 +190,16 @@ test('absent/revoked approval, expiry and invalid clocks fail closed', () => {
     (x) => (x.policy.exceptions[0].expiresAt = 'invalid'),
     (x) => (x.now = Date.parse('2026-11-03T00:00:00Z')),
     (x) => (x.now = NaN),
-    (x) => (x.now = Date.parse('2026-10-28T23:59:59.999Z')),
+    (x) => (x.now = Date.parse('2026-10-30T23:59:59.999Z')),
   ])
     reject(mutate);
 });
 test('unapproved CLI versions and mismatched root lock versions fail', () => {
   for (const mutate of [
     (x) => (x.graph.manifest.version = '0.8.0'),
-    (x) => (x.graph.manifest.version = '0.8.2'),
-    (x) => (x.graph.lock.version = '0.8.2'),
-    (x) => (x.graph.lock.packages[''].version = '0.8.2'),
+    (x) => (x.graph.manifest.version = '0.9.0'),
+    (x) => (x.graph.lock.version = '0.9.0'),
+    (x) => (x.graph.lock.packages[''].version = '0.9.0'),
   ])
     reject(mutate);
 });
@@ -298,7 +314,7 @@ test('unsafe policy paths, unsupported policy versions and broadened approval wi
     (x) => (x.policy.version = 2),
     (x) => (x.policy.exceptions[0].packages.undici.path = 'node_modules/../outside'),
     (x) => (x.policy.exceptions[0].packages.undici.path = 'node_modules\\undici'),
-    (x) => (x.policy.exceptions[0].expiresAt = '2026-11-06T00:00:00.000Z'),
+    (x) => (x.policy.exceptions[0].expiresAt = '2026-11-08T00:00:00.000Z'),
   ])
     reject(mutate);
 });

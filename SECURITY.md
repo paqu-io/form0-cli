@@ -28,14 +28,15 @@ after a fix or mitigation is available. Please keep the report private during th
 For ordinary usage questions, see
 [SUPPORT.md](https://github.com/paqu-io/form0-cli/blob/main/SUPPORT.md).
 
-## Temporary dependency risk accepted for CLI 0.9.0
+## Temporary dependency risk accepted for CLI 0.10.0
 
-The maintainer explicitly approved carrying the exception forward on 29 October 2026, retaining
-its expiry of **3 November 2026, 00:00 UTC (01:00 Europe/Paris)**. CLI **0.9.0 only** may ship Pi
-coding-agent 1.0.4 with its nested Undici 8.10.2. These dependencies remain vulnerable; this exception
-is not a patch and does not make installed users' raw npm audit reports clean. This replaces the
-active 0.8.2 release allowance; the earlier 0.8.0 and 0.8.2 approvals and evidence remain historical.
-Dependency pins, the eight advisory identities and severity limits are unchanged.
+The maintainer explicitly approved this carry-forward on 31 October 2026, retaining the expiry
+of **3 November 2026, 00:00 UTC (01:00 Europe/Paris)**. CLI **0.10.0 only** may ship Pi coding-agent
+1.0.4 with its nested Undici 8.10.2 and minimatch 10.2.6. The eight previously reviewed Undici
+advisories remain accepted, and the newly reported moderate minimatch advisory below is now
+explicitly accepted. Exact pins and paths remain enforced. These dependencies remain vulnerable;
+this exception is not a patch and does not make installed users' raw npm audit reports clean.
+This replaces the active 0.9.0 release allowance; previous approvals and evidence remain historical.
 
 The exact accepted Undici advisories are:
 
@@ -48,6 +49,10 @@ The exact accepted Undici advisories are:
 - [GHSA-9fm3-97px-rjf6](https://github.com/nodejs/undici/security/advisories/GHSA-9fm3-97px-rjf6), moderate: Undici WebSocket PONG buffering can exhaust memory.
 - [GHSA-55wc-3pg8-jfw6](https://github.com/nodejs/undici/security/advisories/GHSA-55wc-3pg8-jfw6), moderate: an asynchronous decompression-handler exception can crash the process.
 
+The additional accepted minimatch advisory is:
+
+- [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), moderate: CPU/memory exhaustion from glob-pattern amplification. The upstream fix is minimatch 11.0.1; the pinned Pi dependency is still 10.2.6.
+
 Pi's finding is accepted only through those exact nested dependencies. The CLI is intended mainly
 for local developer testing, which reduces exposure compared with an unattended public service.
 It does not protect local work or data from affected HTTP paths, malicious/compromised endpoints,
@@ -55,9 +60,9 @@ redirects or proxies. Some advisories require specific API/options; this allowan
 that every advisory is reachable or unreachable. Importing Pi can affect Node HTTP dispatch before
 entering AI mode. Form expression SAFE mode does not patch an HTTP library.
 
-The maintainer also approved **0.8.2 for pre-release validation**, preserving version bumps on main.
-`npm run ci:check` explicitly selects validation and accepts 0.8.2 or 0.9.0.
-`npm run release:check` and the publication workflow remain restricted to **0.9.0 only**. No other
+The maintainer also approved **0.9.0 for pre-release validation**, preserving version bumps on main.
+`npm run ci:check` explicitly selects validation and accepts 0.9.0 or 0.10.0.
+`npm run release:check` and the publication workflow remain restricted to **0.10.0 only**. No other
 release is approved by the validation allowance. CI environment flags do not select this allowance.
 
 Both paths run a real production-dependency audit. The exception-aware gate verifies the exact
