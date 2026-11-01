@@ -309,7 +309,10 @@ Keeping previous child values additionally requires explicit host permission and
 BuildingPlan canvas drawing automatically opens the owning floor's Edit draft. Rooms, perimeter
 walls and other geometry appear immediately as child rows in that draft. **Save row** validates and
 accepts the floor; **Cancel row** restores its geometry and children together. Required survey fields
-still need answers before Save. Accept or cancel an open room/wall editor before drawing again.
+still need answers before Save. Form Add buttons open child editors with default geometry. Canvas
+gestures update those active drafts while preserving typed details: **Save row** accepts both form
+and geometry changes, and **Cancel row** restores the row's previous state. Open child editors must
+be accepted or cancelled before saving their parent; they do not block drawing, moving or resizing.
 Root submission waits for the floor draft. Read-only records and read-only BuildingPlan sections
 disable drawing. Canvas editing does not grant `SETVALUE()` permission to write across records.
 
@@ -394,3 +397,9 @@ coercion are intentionally no longer supported. Calculated/display/container tar
 writes and setter/event writes in record readonly mode are rejected. Host restoration and
 authoritative overrides remain separate loading paths. See the
 [value-update contract](https://docs.form0.dev/core/engine/value-updates).
+
+## Starter schema review
+
+Standard projects include **Building Inspection & Maintenance Plan**, a self-contained field and feature showcase. See the [manual walkthrough](docs/starter-schema-review.md) to review its calculations, events, repeatables, building layout, and media.
+
+Original schemas and their assets remain under `archive/starter-schemas/2026-10-31/` for reference and are excluded from npm packages and CLI-generated projects.

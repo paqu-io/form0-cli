@@ -605,43 +605,61 @@ export function createPreviewEditor({
           stageCanvasFloor.readOnly(path, state(owner(parentPath(path)) || root))
         )
           return response(failed('readonly_scope', 'The editor is read-only.'));
-        if (
-          [...entries.values()].some(
-            (child) =>
-              child.path.length > path.length && samePath(path, child.path.slice(0, path.length))
-          )
-        )
-          return response(
-            failed('pending_editor', 'Accept or cancel the open child editor before drawing.')
-          );
+        const affected = [...entries.values()].filter(
+          (child) =>
+            child.path.length >= path.length && samePath(path, child.path.slice(0, path.length))
+        );
+        const before = affected.map((child) => ({
+          entry: child,
+          state: clone(child.engine.getState()),
+          row: clone(child.row),
+          diagnostics: clone(child.diagnostics),
+        }));
         let staged;
         try {
-          staged = stageCanvasFloor(path, { ...entry.row, ...state(entry) }, request.row);
+          staged = stageCanvasFloor(
+            path,
+            { ...entry.row, ...state(entry) },
+            request.row,
+            affected
+              .filter((child) => child !== entry)
+              .map((child) => ({ path: child.path, row: { ...child.row, ...state(child) } }))
+          );
         } catch (error) {
           if (!(error instanceof TypeError)) throw error;
           return response(failed('invalid_request', error.message));
         }
-        const before = state(entry),
-          oldRow = clone(entry.row);
         try {
-          // All fields and descendants have been preflighted. Evaluate changed records from leaves
-          // to their owning floor; accepted siblings and the root snapshot remain untouched.
-          Object.assign(entry.engine.getState().values, clone(staged.updates));
-          entry.row.repeatable = staged.row.repeatable;
-          for (const node of staged.nodes) {
-            if (node.path.length === path.length) continue;
-            const evaluated = await coordinator.evaluate(node.path);
-            if (evaluated.status !== 'evaluated')
-              throw new Error(evaluated.issues?.[0]?.message || 'Canvas scope evaluation failed.');
-            Object.assign(node.row, clone(evaluated.state));
+          // Preflight the complete visible floor, then distribute writes to their existing editors.
+          // Open children retain their own lifetimes and never enter an accepted parent snapshot.
+          for (const planned of staged.editors) {
+            const child = affected.find((item) => samePath(item.path, planned.path));
+            Object.assign(child.engine.getState().values, clone(planned.row.values));
+            child.row.repeatable = planned.row.repeatable;
           }
-          await entry.engine.eval();
-          entry.handle.dataChanged();
+          // Evaluate changed records from leaves to their owning floor, using the same engines
+          // for open rows so calculations and validation do not replay lifecycle events.
+          for (const node of staged.nodes) {
+            const child = affected.find((item) => samePath(item.path, node.path));
+            if (child) await child.engine.eval();
+            else {
+              const evaluated = await coordinator.evaluate(node.path);
+              if (evaluated.status !== 'evaluated')
+                throw new Error(
+                  evaluated.issues?.[0]?.message || 'Canvas scope evaluation failed.'
+                );
+              Object.assign(node.row, clone(evaluated.state));
+            }
+          }
+          for (const child of affected) child.handle.dataChanged();
           coordinator.changed();
           return response();
         } catch (error) {
-          entry.row = oldRow;
-          applyRecordState(entry.engine, before);
+          for (const previous of before) {
+            previous.entry.row = previous.row;
+            previous.entry.diagnostics = previous.diagnostics;
+            applyRecordState(previous.entry.engine, previous.state);
+          }
           return response(failed('canvas_update_failed', error.message));
         }
       }

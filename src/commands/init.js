@@ -4,6 +4,8 @@ import path from 'path';
 import readline from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import * as tar from 'tar';
 import { ensureKeysForSchema } from '../utils/ensure-keys.js';
 import { defaultFormTemplate } from '../form0-forms/form-schema-template.js';
@@ -11,6 +13,8 @@ import { testScriptTemplate } from '../utils/test-template.js';
 import { createReadmeTemplate } from '../utils/test-readme.js';
 import { t } from '../utils/i18n.js';
 import { colors } from '../utils/theme.js';
+
+const coreVersion = createRequire(import.meta.url)('../../package.json').dependencies['form0-core'];
 
 // Update these if template repo names or owners change.
 const TEMPLATE_REPOS = {
@@ -42,6 +46,7 @@ const LOCAL_TEMPLATE_IGNORED = new Set([
   '.turbo',
   'build',
   'coverage',
+  'archive',
 ]);
 const PACKAGE_MANAGERS = ['npm', 'pnpm', 'yarn', 'bun'];
 
@@ -119,7 +124,7 @@ async function createFormProject(dir, showInstructions = true, options = {}) {
       test: 'node test.js',
     },
     dependencies: {
-      'form0-core': '^0.1.0-0',
+      'form0-core': coreVersion,
     },
   };
 
@@ -130,6 +135,10 @@ async function createFormProject(dir, showInstructions = true, options = {}) {
   await fs.writeFile(`${base}/test.js`, testScript);
   await fs.writeFile(`${base}/README.md`, createReadmeTemplate(dir));
   await fs.ensureDir(`${base}/supporting-images`);
+  await fs.copy(
+    fileURLToPath(new URL('../form0-forms/supporting-images/', import.meta.url)),
+    `${base}/supporting-images`
+  );
 
   showStandardInstructions(dir, showInstructions, { packageManager: options.packageManager });
 }
@@ -768,7 +777,7 @@ async function downloadTemplateTarball(template, targetDir) {
 
     await fs.ensureDir(extractDir);
     await tar.x({ file: tarPath, cwd: extractDir, strip: 1 });
-    await fs.copy(extractDir, targetDir, { overwrite: true });
+    await copyLocalTemplate(extractDir, targetDir);
   } finally {
     await fs.remove(tmpDir);
   }
@@ -810,7 +819,7 @@ async function cloneTemplateRepo(template, targetDir) {
 
   try {
     await fs.remove(path.join(repoDir, '.git'));
-    await fs.copy(repoDir, targetDir, { overwrite: true });
+    await copyLocalTemplate(repoDir, targetDir);
   } finally {
     await fs.remove(tmpDir);
   }

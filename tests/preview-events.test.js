@@ -11,7 +11,7 @@ import { createPreviewEditor } from '../src/server/preview-events/editor.js';
 import { eventSchema } from './fixtures/preview-event-conformance.js';
 import { field, repeatable } from './fixtures/preview-event-fields.js';
 import { setLocale } from '../src/utils/i18n.js';
-import { defaultFormTemplate } from '../src/form0-forms/form-schema-template.js';
+import { defaultFormTemplate } from '../archive/starter-schemas/2026-10-31/src/form0-forms/form-schema-template.js';
 import { ensureKeysForSchema } from '../src/utils/ensure-keys.js';
 import { createPreviewEventUI } from '../src/server/static/preview-event-ui.js';
 
@@ -344,7 +344,7 @@ test('preview SETVALUE normalizes row choices without mutating sibling or struct
   assert.deepEqual(initial, before);
 });
 
-test('standard project age handler reads root age and preserves numeric validation', async () => {
+test('archived starter age handler reads root age and preserves numeric validation', async () => {
   const schema = structuredClone(defaultFormTemplate);
   ensureKeysForSchema(schema.form.elements);
   await withPreview(schema, async ({ command }) => {

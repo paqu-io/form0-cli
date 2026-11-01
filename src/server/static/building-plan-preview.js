@@ -65,25 +65,6 @@ export function createManagedBuildingPlanController({
         chosen = target(path);
       }
       if (session() !== openedSession || controller.disposed || !chosen.scopeId) return null;
-      if (
-        client.getScopes().some(
-          (scope) =>
-            scope.instancePath.length > chosen.instancePath.length &&
-            chosen.instancePath.every((part, index) => {
-              const other = scope.instancePath[index];
-              return (
-                part.repeatableKey === other.repeatableKey &&
-                part.identity === other.identity &&
-                (part.identity === 'id'
-                  ? part.instanceId === other.instanceId
-                  : part.index === other.index)
-              );
-            })
-        )
-      ) {
-        report({ issues: [{ message: 'Accept or cancel the open child editor before drawing.' }] });
-        return null;
-      }
       stateManager.suspendEngineUpdates();
       try {
         const value = controller[name](...args);

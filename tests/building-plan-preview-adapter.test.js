@@ -6,6 +6,7 @@ function fixture() {
   let session = {},
     opened = false,
     readonly = false,
+    scopes = [],
     release;
   const pending = new Promise((resolve) => {
     release = resolve;
@@ -37,7 +38,7 @@ function fixture() {
   const proxy = createManagedBuildingPlanController({
     controller,
     client: {
-      getScopes: () => [],
+      getScopes: () => scopes,
       getState: () => state,
       request: async (request) => {
         calls.push(request);
@@ -79,6 +80,9 @@ function fixture() {
     depth: () => depth,
     setReadonly: (value) => {
       readonly = value;
+    },
+    setScopes: (value) => {
+      scopes = value;
     },
     replaceSchema: () => {
       session = {};
@@ -126,4 +130,21 @@ test('readonly canvas input does not open an editor or change local geometry', a
   assert.equal(await f.proxy.createRoom(), null);
   assert.deepEqual(f.calls, []);
   assert.equal(f.depth(), 0);
+});
+
+test('canvas gestures remain available while a form-created child editor is open', async () => {
+  const f = fixture();
+  f.setScopes([
+    {
+      scopeId: 'room',
+      instancePath: [
+        { repeatableKey: 'floors', instanceId: 0, index: 0, identity: 'id' },
+        { repeatableKey: 'rooms', instanceId: 'room', index: 0, identity: 'id' },
+      ],
+    },
+  ]);
+  f.release();
+  assert.deepEqual(await f.proxy.createRoom(), { id: 'room' });
+  assert.equal(f.calls.at(-1).action, 'canvas-update');
+  assert.deepEqual(f.errors, []);
 });

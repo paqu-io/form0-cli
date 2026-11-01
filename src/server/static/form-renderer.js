@@ -511,6 +511,14 @@ export class FormRenderer {
     return instance;
   }
 
+  initializeBuildingPlanRow(section, parentPath, row, state) {
+    for (const { controller } of this.buildingPlanRegistry.values()) {
+      const draft = controller.createRowDraft(section, parentPath, row, state);
+      if (draft) return draft;
+    }
+    return row;
+  }
+
   sanitizeRepeatableInstance(instance, { clearValues = false, clearNested = false } = {}) {
     if (!instance || typeof instance !== 'object') {
       return instance;

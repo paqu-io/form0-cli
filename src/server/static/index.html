@@ -10,7 +10,8 @@
       { "imports": { "form0-core": "/form0-core/field-value-normalization.js" } }
     </script>
 </head>
-<body>
+<!-- Opt out of 1Password autofill prompts in the schema preview. -->
+<body data-1p-ignore>
     <div class="container">
         <div class="header">
             <h1>🦙 form0 Development Server</h1>
@@ -30,4 +31,4 @@
 
     <script type="module" src="form-preview.js"></script>
 </body>
-</html> 
+</html>
