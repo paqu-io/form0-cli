@@ -203,7 +203,9 @@ export function createPreviewEventUI({
       for (const part of parentPath) node = node?.repeatable?.[part.key]?.[part.index];
       const key = renderer.getPreferredKey(section),
         index = node?.repeatable?.[key]?.length || 0;
-      const row = renderer.createEmptyRepeatableInstance(section);
+      const emptyRow = renderer.createEmptyRepeatableInstance(section);
+      const row =
+        renderer.initializeBuildingPlanRow?.(section, parentPath, emptyRow, data) || emptyRow;
       const instancePath = [
         ...parent.instancePath,
         {
@@ -334,8 +336,11 @@ export function createPreviewEventUI({
               : rows[part.index];
         }
         const key = renderer.getPreferredKey(section),
-          index = node?.repeatable?.[key]?.length || 0,
-          row = renderer.createEmptyRepeatableInstance(section);
+          index = node?.repeatable?.[key]?.length || 0;
+        const emptyRow = renderer.createEmptyRepeatableInstance(section);
+        const row =
+          renderer.initializeBuildingPlanRow?.(section, path, emptyRow, client.getState()) ||
+          emptyRow;
         return {
           action: 'open-row',
           recordKind: 'new',
@@ -620,6 +625,15 @@ export function createPreviewEventUI({
         renderValidationFindings(result.validationSummary, {
           translate,
           onSelect: navigateFinding,
+          onResolve: result.hiddenValueRecoveryAvailable
+            ? async (issue) => {
+                const resolved = await action({
+                  action: 'resolve-hidden-value',
+                  finding: { fieldName: issue.fieldName, instancePath: issue.instancePath || [] },
+                });
+                if (resolved.issues?.length) throw new Error(resolved.issues[0].message);
+              }
+            : undefined,
         });
       onWarnings(result.warnings || []);
       if (result.retiredScopes?.length) diagnostics?.retireScopes?.(result.retiredScopes);

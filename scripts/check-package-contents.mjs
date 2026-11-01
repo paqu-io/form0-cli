@@ -23,6 +23,7 @@ const forbiddenPatterns = [
   /^\.env(?:\.|$)/,
   /^\.github\//,
   /^analyses\//,
+  /^archive\//,
   /^coverage\//,
   /^tests?\//,
   /(?:^|\/)(?:AGENTS|CLAUDE|GEMINI)\.md$/,

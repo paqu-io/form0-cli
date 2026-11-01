@@ -2,21 +2,21 @@
   "version": 1,
   "exceptions": [
     {
-      "id": "pi-undici-cli-090-20261029",
+      "id": "pi-undici-minimatch-cli-0100-20261031",
       "approved": true,
       "approvedBy": "aragornii",
-      "approvedOn": "2026-10-29",
+      "approvedOn": "2026-10-31",
       "expiresAt": "2026-11-03T00:00:00.000Z",
-      "cliVersion": "0.9.0",
-      "validationVersion": "0.8.2",
-      "reason": "Maintainer explicitly approved carrying the eight reviewed Undici advisories forward for validation of 0.8.2 and publication of 0.9.0 only on 29 October 2026. Predominant local developer/testing use reduces exposure but does not remove HTTP client risk. Exact Pi/Undici pins, advisory identities, severity limits and the 3 November 2026 expiry remain unchanged. This replaces the active 0.8.2 release allowance. This does not patch the dependency or make installed-user audits clean.",
+      "cliVersion": "0.10.0",
+      "validationVersion": "0.9.0",
+      "reason": "Maintainer explicitly approved on 31 October 2026 carrying the eight previously reviewed Undici advisories plus moderate minimatch GHSA-g3hv-75wg-m249 for publication of 0.10.0 and validation of 0.9.0 only. Exact pins, dependency paths, advisory identities and severity limits remain enforced. The existing 3 November 2026 expiry is unchanged. This replaces the 0.9.0 release allowance. Both dependencies remain vulnerable; this does not patch them or make installed-user audits clean.",
       "packages": {
         "@earendil-works/pi-coding-agent": {
           "version": "1.0.4",
           "path": "node_modules/@earendil-works/pi-coding-agent",
           "direct": true,
           "maxSeverity": "moderate",
-          "inheritedVia": "undici"
+          "inheritedVia": ["undici", "minimatch"]
         },
         "undici": {
           "version": "8.10.2",
@@ -33,6 +33,16 @@
             "GHSA-qrxm-fqhp-jwvm": "high",
             "GHSA-9fm3-97px-rjf6": "moderate",
             "GHSA-55wc-3pg8-jfw6": "moderate"
+          }
+        },
+        "minimatch": {
+          "version": "10.2.6",
+          "path": "node_modules/@earendil-works/pi-coding-agent/node_modules/minimatch",
+          "direct": false,
+          "maxSeverity": "moderate",
+          "parent": "@earendil-works/pi-coding-agent",
+          "advisories": {
+            "GHSA-g3hv-75wg-m249": "moderate"
           }
         }
       }

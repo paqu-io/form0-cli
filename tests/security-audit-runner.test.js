@@ -13,13 +13,13 @@ const policy = JSON.parse(
 const report = JSON.parse(
   await readFile(new URL('./fixtures/pi-audit-report.json', import.meta.url), 'utf8')
 );
-const now = Date.parse('2026-10-29T12:00:00Z');
+const now = Date.parse('2026-10-31T12:00:00Z');
 const pi = '@earendil-works/pi-coding-agent';
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'form0-audit-policy-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const manifest = { name: 'form0-cli', version: '0.9.0', dependencies: { [pi]: '1.0.4' } };
-  const lock = { version: '0.9.0', packages: { '': manifest } };
+  const manifest = { name: 'form0-cli', version: '0.10.0', dependencies: { [pi]: '1.0.4' } };
+  const lock = { version: '0.10.0', packages: { '': manifest } };
   for (const [name, pkg] of Object.entries(policy.exceptions[0].packages)) {
     const folder = path.join(root, pkg.path);
     await mkdir(folder, { recursive: true });
@@ -27,7 +27,7 @@ async function fixture(t) {
       name,
       version: pkg.version,
       main: 'index.js',
-      ...(name === pi ? { dependencies: { undici: '8.10.2' } } : {}),
+      ...(name === pi ? { dependencies: { undici: '8.10.2', minimatch: '10.2.6' } } : {}),
     };
     await writeFile(path.join(folder, 'package.json'), JSON.stringify(installed));
     await writeFile(path.join(folder, 'index.js'), '');
@@ -46,14 +46,14 @@ test('validation is explicit; missing or unknown command arguments cannot widen 
     ['--ci'],
     ['--validation', '--validation'],
     ['--validation', '--other'],
-    ['--now', '2026-10-29'],
+    ['--now', '2026-10-31'],
   ])
     assert.throws(() => parseAuditArguments(args), /Usage:/);
 });
 
-test('installed 0.8.2 metadata permits validation only, including when CI environment flags are present', async (t) => {
+test('installed 0.9.0 metadata permits validation only, including when CI environment flags are present', async (t) => {
   const root = await fixture(t);
-  for (const version of ['0.8.0', '0.8.1', '0.8.2', '0.8.3', '0.9.0', '0.9.1']) {
+  for (const version of ['0.8.0', '0.8.1', '0.8.2', '0.8.3', '0.9.0', '0.10.0', '0.10.1']) {
     for (const file of ['package.json', 'package-lock.json']) {
       const location = path.join(root, file);
       const data = JSON.parse(await readFile(location, 'utf8'));
@@ -68,15 +68,15 @@ test('installed 0.8.2 metadata permits validation only, including when CI enviro
       run: child,
       env: { CI: 'true', GITHUB_ACTIONS: 'true', npm_lifecycle_event: 'ci:check' },
     };
-    assert.equal(auditProject(options).ok, version === '0.9.0', `default ${version}`);
+    assert.equal(auditProject(options).ok, version === '0.10.0', `default ${version}`);
     assert.equal(
       auditProject({ ...options, purpose: 'release' }).ok,
-      version === '0.9.0',
+      version === '0.10.0',
       `release ${version}`
     );
     assert.equal(
       auditProject({ ...options, purpose: 'validation' }).ok,
-      ['0.8.2', '0.9.0'].includes(version),
+      ['0.9.0', '0.10.0'].includes(version),
       `validation ${version}`
     );
   }
@@ -134,7 +134,7 @@ test('runner invokes a production npm audit and verifies real dependency resolut
   });
   assert.equal(called, 1);
   assert.equal(result.ok, true, JSON.stringify(result.errors));
-  assert.equal(result.accepted.length, 2);
+  assert.equal(result.accepted.length, 3);
 });
 test('network/command/timeout/JSON failures cannot be converted into accepted risk', async (t) => {
   const root = await fixture(t);

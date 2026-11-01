@@ -4,17 +4,85 @@ import http from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createFormEngine } from 'form0-core';
+import { createFormEngine, FIELD_SPECS } from 'form0-core';
+import { auditField } from './fixtures/consumer-compatibility.js';
 import { createApp, serializePreviewRecord } from '../src/server/express-server.js';
 import { createPreviewEditor } from '../src/server/preview-events/editor.js';
 import { eventSchema } from './fixtures/preview-event-conformance.js';
 import { field, repeatable } from './fixtures/preview-event-fields.js';
 import { setLocale } from '../src/utils/i18n.js';
-import { defaultFormTemplate } from '../src/form0-forms/form-schema-template.js';
+import { defaultFormTemplate } from '../archive/starter-schemas/2026-10-31/src/form0-forms/form-schema-template.js';
 import { ensureKeysForSchema } from '../src/utils/ensure-keys.js';
 import { createPreviewEventUI } from '../src/server/static/preview-event-ui.js';
 
 const rootValues = { input: 4, trace: '' };
+
+test('preview rejects user updates to a read-only signature, including batch requests', async () => {
+  await withPreview(
+    {
+      form: {
+        name: 'Read-only signature',
+        elements: [auditField(FIELD_SPECS, 'SignatureField', 'signature', { read_only: true })],
+      },
+    },
+    async ({ started, command }) => {
+      assert.ok(started.sessionId, JSON.stringify(started.issues));
+      for (const change of [
+        { fieldKey: 'signature', values: { signature: { signature_id: 'test', data: 'drawn' } } },
+        { values: { signature: { signature_id: 'test', data: 'drawn' } } },
+      ]) {
+        const result = await command({ action: 'update', ...change });
+        assert.equal(result.issues[0]?.code, 'readonly_field');
+        assert.equal(result.state.values.signature, null);
+      }
+    },
+    { lifecycle: false, recordKind: 'existing' },
+    { values: { signature: null }, repeatable: {} }
+  );
+});
+
+test('conditional signature read-only policy is enforced from current server state', async () => {
+  const schema = {
+    form: {
+      name: 'Conditional signature',
+      elements: [
+        field('NumericField', 'lock'),
+        auditField(FIELD_SPECS, 'SignatureField', 'signature', {
+          read_only_conditions: { field_id: 'lock', operator: 'equal_to', value: 1 },
+        }),
+      ],
+    },
+  };
+  await withPreview(
+    schema,
+    async ({ started, command }) => {
+      assert.ok(started.sessionId);
+      const signature = { signature_id: 'test', data: 'drawn' };
+      assert.deepEqual(
+        (await command({ action: 'update', fieldKey: 'signature', values: { signature } })).issues,
+        []
+      );
+      await command({ action: 'update', fieldKey: 'lock', values: { lock: 1 } });
+      const rejected = await command({
+        action: 'update',
+        fieldKey: 'signature',
+        values: { signature: null },
+      });
+      assert.equal(rejected.issues[0]?.code, 'readonly_field');
+      assert.equal(rejected.state.values.signature.data, 'drawn');
+      await command({ action: 'update', fieldKey: 'lock', values: { lock: 0 } });
+      const editable = await command({
+        action: 'update',
+        fieldKey: 'signature',
+        values: { signature: null },
+      });
+      assert.deepEqual(editable.issues, []);
+      assert.equal(editable.state.values.signature, null);
+    },
+    { lifecycle: false },
+    { values: { lock: 0, signature: null } }
+  );
+});
 const rowPath = (id, index = 0) => [
   { repeatableKey: 'rows', instanceId: id, index, identity: id == null ? 'position' : 'id' },
 ];
@@ -276,7 +344,7 @@ test('preview SETVALUE normalizes row choices without mutating sibling or struct
   assert.deepEqual(initial, before);
 });
 
-test('standard project age handler reads root age and preserves numeric validation', async () => {
+test('archived starter age handler reads root age and preserves numeric validation', async () => {
   const schema = structuredClone(defaultFormTemplate);
   ensureKeysForSchema(schema.form.elements);
   await withPreview(schema, async ({ command }) => {
@@ -440,6 +508,54 @@ test('preview SETVALUE cannot partially apply a batch containing a calculated ta
       { lifecycle, recordKind: 'existing' }
     );
 });
+
+for (const lifecycle of [false, true]) {
+  test(`preview exposes numeric choice SETVALUE failures in the UI and preserves numeric inputs; lifecycle=${lifecycle}`, async (context) => {
+    const previousDocument = globalThis.document;
+    globalThis.document = { getElementById: () => null };
+    context.after(() => {
+      if (previousDocument === undefined) delete globalThis.document;
+      else globalThis.document = previousDocument;
+    });
+    const schema = fixture(
+      "ON('change', 'input', function() { SETVALUE('trace', 'accepted'); SETVALUE('rating', $input === 1 ? 1 : '1'); SETVALUE('numeric_target', 1); });"
+    );
+    schema.form.elements.push(
+      field('NumericField', 'numeric_target', { default_value: 3 }),
+      field('SingleChoiceField', 'rating', {
+        choices: [{ value: '1', label: 'One' }],
+        allow_other: false,
+        is_searchable: false,
+        is_searchable_mode: null,
+      })
+    );
+    await withPreview(
+      schema,
+      async ({ started, command }) => {
+        const messages = [];
+        const ui = createPreviewEventUI({
+          client: { resolvePath: () => [], getScopes: () => started.scopes, request: command },
+          renderer: { getFieldInstanceRegistry: () => new Map(), formatContextPath: () => 'root' },
+          stateManager: {},
+          showError: (message) => messages.push(message),
+        });
+        const rejected = await ui.update({ values: { input: 1 }, repeatable: {} }, 'input');
+        assert.equal(rejected.status, 'failed');
+        assert.match(messages[0], /rating.*string ID/);
+        assert.deepEqual(rejected.state.values.rating.choice, []);
+        assert.equal(rejected.state.values.trace, '');
+        const accepted = await ui.update({ values: { input: 2 }, repeatable: {} }, 'input');
+        assert.equal(accepted.state.values.rating.choice[0].value, '1');
+        assert.equal(accepted.state.values.trace, 'accepted');
+        assert.equal(rejected.state.values.numeric_target, 3);
+        assert.equal(accepted.state.values.numeric_target, 1);
+        assert.deepEqual(accepted.issues, []);
+        assert.equal(messages.length, 1);
+      },
+      { lifecycle, recordKind: 'existing' }
+    );
+  });
+}
 
 test('pre-save runs once, revalidates changed values and retains a failed prepared edit for correction', async () => {
   const schema = fixture(

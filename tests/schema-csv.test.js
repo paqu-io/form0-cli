@@ -78,6 +78,7 @@ async function run() {
               required_conditions: null,
               visible: true,
               visible_conditions: null,
+              visible_preserve_value: false,
               read_only: false,
               read_only_conditions: null,
               default_value: null,
@@ -203,6 +204,7 @@ async function run() {
     'default_value',
     'visible',
     'visible_conditions',
+    'visible_preserve_value',
     'read_only',
     'read_only_conditions',
     'required',
@@ -296,6 +298,10 @@ async function run() {
 
   const section = imported.form.elements.find((el) => el.data_name === 'personal_section');
   assert.ok(section, 'Section should round-trip');
+  assert.equal(
+    section.elements.find((field) => field.type === 'TextField').visible_preserve_value,
+    false
+  );
   assert.equal(section.elements.length, 4, 'Section children preserved');
 
   const calcField = section.elements.find((el) => el.data_name === 'score');

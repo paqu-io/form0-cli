@@ -4,6 +4,25 @@ import { copyEventData } from './session-dispatcher.js';
 const object = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const identity = (row) => row?.id ?? row?.record_id;
+const samePath = (a, b) =>
+  a.length === b.length &&
+  a.every((part, index) => {
+    const other = b[index];
+    return (
+      part.repeatableKey === other.repeatableKey &&
+      part.identity === other.identity &&
+      (part.identity === 'id' ? part.instanceId === other.instanceId : part.index === other.index)
+    );
+  });
+const indexOf = (rows, part) =>
+  part.identity === 'id' ? rows.findIndex((row) => identity(row) === part.instanceId) : part.index;
+const rowAt = (row, path) => {
+  for (const part of path) {
+    const rows = row?.repeatable?.[part.repeatableKey] || [];
+    row = rows[indexOf(rows, part)];
+  }
+  return row;
+};
 const invalid = (message) => {
   throw new TypeError(message);
 };
@@ -33,11 +52,26 @@ export function createCanvasFloorStager(schema, metadata) {
         info.currentPath.every((key, index) => key === path[index].repeatableKey)
     );
 
-  const stage = (path, original, input) => {
+  const stage = (path, original, input, drafts = []) => {
     const floor = definition(path);
     if (!floor) invalid('Canvas updates require an owned BuildingPlan floor.');
     if (identity(input) !== identity(original))
       invalid('Canvas updates cannot change the floor identity.');
+    const sources = [{ path, row: original }, ...drafts].sort(
+      (a, b) => a.path.length - b.path.length
+    );
+    // Compare against the visible tree, including values typed in still-open row editors.
+    const visible = copyEventData(original);
+    for (const draft of sources.slice(1)) {
+      const parent = rowAt(visible, draft.path.slice(path.length, -1));
+      const part = draft.path.at(-1);
+      if (!parent) invalid('The parent building-plan editor no longer exists.');
+      const rows = (parent.repeatable[part.repeatableKey] ||= []);
+      let index = indexOf(rows, part);
+      if (index < 0) index = rows.length;
+      if (index > rows.length) invalid('The positional building-plan editor no longer exists.');
+      rows[index] = copyEventData(draft.row);
+    }
     const nodes = [];
     function prepare(info, previous, row, instancePath) {
       if (!object(row) || !object(row.values) || !object(row.repeatable))
@@ -105,11 +139,39 @@ export function createCanvasFloorStager(schema, metadata) {
         nodes.push({ path: instancePath, row: result });
       return result;
     }
-    const row = prepare(floor, original, input, path);
-    const updates = Object.fromEntries(
-      Object.entries(row.values).filter(([name, value]) => !equal(value, original.values?.[name]))
-    );
-    return { row, updates, nodes };
+    const row = prepare(floor, visible, input, path);
+    const editors = sources.map((source) => {
+      const updated = rowAt(row, source.path.slice(path.length));
+      if (!updated) invalid('Canvas updates cannot remove an open row editor.');
+      const part = source.path.at(-1);
+      if (part.identity === 'position' && identity(updated) != null)
+        invalid('Canvas updates cannot replace an open positional row editor.');
+      return { path: source.path, row: copyEventData(updated) };
+    });
+    // An open row owns its changes. Keep its previous accepted version (or absence, for a new row)
+    // in its parent's tree so Cancel still discards every edit made through either interface.
+    for (const source of sources.slice(1)) {
+      const parentPath = source.path.slice(0, -1);
+      const parent = editors.find((editor) => samePath(editor.path, parentPath));
+      const previous = sources.find((editor) => samePath(editor.path, parentPath));
+      if (!parent || !previous) invalid('Open the parent building-plan editor first.');
+      const part = source.path.at(-1);
+      const rows = parent.row.repeatable[part.repeatableKey];
+      const index = indexOf(rows, part);
+      const oldRows = previous.row.repeatable?.[part.repeatableKey] || [];
+      const old = oldRows[indexOf(oldRows, part)];
+      if (old) rows[index] = copyEventData(old);
+      else rows.splice(index, 1);
+    }
+    return {
+      editors,
+      nodes: nodes.map((node) => {
+        const owner = editors.findLast((editor) =>
+          samePath(editor.path, node.path.slice(0, editor.path.length))
+        );
+        return { path: node.path, row: rowAt(owner.row, node.path.slice(owner.path.length)) };
+      }),
+    };
   };
   stage.readOnly = (path, parentState) => {
     const info = definition(path);

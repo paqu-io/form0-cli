@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540">
+  <rect width="900" height="540" fill="#f0f5f3"/>
+  <g font-family="Arial, sans-serif" fill="#183b32">
+    <text x="48" y="62" font-size="32" font-weight="700">A useful evidence photo</text>
+    <text x="48" y="96" font-size="20">Capture context, detail, and a sense of size.</text>
+    <g transform="translate(48 132)">
+      <rect width="804" height="104" rx="14" fill="white"/>
+      <circle cx="50" cy="52" r="28" fill="#d9eee4"/>
+      <text x="42" y="61" font-size="28" font-weight="700">1</text>
+      <text x="100" y="42" font-size="23" font-weight="700">Show the surroundings</text>
+      <text x="100" y="75" font-size="19">Take a wider view so the subject can be located.</text>
+    </g>
+    <g transform="translate(48 254)">
+      <rect width="804" height="104" rx="14" fill="white"/>
+      <circle cx="50" cy="52" r="28" fill="#d9eee4"/>
+      <text x="42" y="61" font-size="28" font-weight="700">2</text>
+      <text x="100" y="42" font-size="23" font-weight="700">Make the detail clear</text>
+      <text x="100" y="75" font-size="19">Move closer and check focus, lighting, and framing.</text>
+    </g>
+    <g transform="translate(48 376)">
+      <rect width="804" height="104" rx="14" fill="white"/>
+      <circle cx="50" cy="52" r="28" fill="#d9eee4"/>
+      <text x="42" y="61" font-size="28" font-weight="700">3</text>
+      <text x="100" y="42" font-size="23" font-weight="700">Include scale and a note</text>
+      <text x="100" y="75" font-size="19">Use a reference where practical; describe what it shows.</text>
+    </g>
+    <text x="48" y="519" font-size="16" fill="#557267">form0 starter forms · Evidence checklist</text>
+  </g>
+</svg>

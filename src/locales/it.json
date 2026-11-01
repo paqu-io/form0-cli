@@ -66,6 +66,8 @@
     "freshness.previous": "Precedente",
     "freshness.next": "Successivo",
     "freshness.pending": "Alcuni calcoli salvati dei figli devono ancora essere aggiornati.",
+    "freshness.hiddenValueHelp": "Questo valore è nascosto. Mostra il campo per correggerlo o chiedi all’applicazione di risolverlo.",
+    "freshness.resolveHiddenValue": "Risolvi valore nascosto",
     "freshness.validationCount": "Esiti di validazione: {count}",
     "freshness.record": "Record",
     "previewEvents.settingsHelp": "La classificazione sceglie new-record o edit-record; non carica un record dal database.",

@@ -35,6 +35,139 @@ const initial = () => ({
   },
 });
 
+for (const recovery of [false, true])
+  test(`CLI accepts and submits an explicit empty row independently of recovery=${recovery}`, async () => {
+    const order = {
+      form: {
+        name: 'Order',
+        elements: [
+          repeatable('items', [field('TextField', 'product'), field('NumericField', 'quantity')]),
+        ],
+      },
+    };
+    const manager = createPreviewSessionManager({
+      getSchema: () => order,
+      onResolveHiddenValue: recovery
+        ? async () => {
+            throw new Error('Unexpected recovery');
+          }
+        : undefined,
+      serializeRecord: (schema, state, options) =>
+        serializePreviewRecord(schema, state, options, true),
+    });
+    try {
+      const opened = await manager.create({
+        configuration: { lifecycle: false },
+        state: { values: {} },
+      });
+      let sequence = 0;
+      const command = (request) =>
+        manager.command({ sessionId: opened.sessionId, sequence: ++sequence, ...request });
+      const rootScope = opened.scopes.find((scope) => !scope.instancePath.length).scopeId;
+      const instancePath = [
+        { repeatableKey: 'items', instanceId: 'new-item', index: 0, identity: 'id' },
+      ];
+      const child = await command({
+        action: 'open-row',
+        recordKind: 'new',
+        parentScopeId: rootScope,
+        instancePath,
+        row: { id: 'new-item', values: {} },
+      });
+      assert.equal(child.status, 'completed', JSON.stringify(child.issues));
+      const accepted = await command({ action: 'accept-row', intent: 'submit', instancePath });
+      assert.equal(accepted.eligible, true, JSON.stringify(accepted.issues));
+      const result = await command({ action: 'prepare', intent: 'submit' });
+      assert.equal(result.eligible, true, JSON.stringify(result.issues));
+      assert.equal(result.payload.form_values.items.length, 1);
+      assert.equal(result.payload.form_values.items[0].id, 'new-item');
+      assert.deepEqual(result.payload.form_values.items[0].form_values, {
+        product: null,
+        quantity: null,
+      });
+    } finally {
+      manager.dispose();
+    }
+  });
+
+test('server-owned hidden-value recovery repairs closed rows and cannot be granted by browser data', async () => {
+  const schema = {
+    form: {
+      name: 'Recovery',
+      elements: [
+        field('TextField', 'hidden', { visible: false }),
+        repeatable('rows', [field('TextField', 'nested', { visible: false })]),
+      ],
+    },
+  };
+  let calls = 0;
+  const manager = createPreviewSessionManager({
+    getSchema: () => schema,
+    submissionOptions: { validateHiddenValues: true },
+    onResolveHiddenValue: async (finding) => {
+      calls++;
+      assert.equal(finding.hidden, true);
+      return { value: null };
+    },
+    serializeRecord: (schema, state, options) =>
+      serializePreviewRecord(schema, state, { ...options, fieldKeyMode: 'data-name' }, true),
+  });
+  try {
+    const opened = await manager.create({
+      configuration: { lifecycle: false },
+      state: { values: { hidden: 9 }, repeatable: { rows: [{ id: 0, values: { nested: 8 } }] } },
+    });
+    assert.ok(opened.sessionId);
+    let sequence = 0;
+    const command = (data) =>
+      manager.command({ sessionId: opened.sessionId, sequence: ++sequence, ...data });
+    const blocked = await command({ action: 'prepare', intent: 'submit' });
+    assert.equal(blocked.eligible, false);
+    assert.equal(blocked.hiddenValueRecoveryAvailable, true);
+    for (const finding of blocked.validationSummary.generalErrors) {
+      const result = await command({ action: 'resolve-hidden-value', finding });
+      assert.equal(result.status, 'resolved', JSON.stringify(result.issues));
+    }
+    assert.equal(calls, 2);
+    const ready = await command({ action: 'prepare', intent: 'submit' });
+    assert.equal(ready.eligible, true);
+    assert.equal(ready.payload.form_values.hidden, null);
+    assert.equal(ready.payload.form_values.rows[0].id, 0);
+    assert.equal(ready.payload.form_values.rows[0].form_values.nested, null);
+  } finally {
+    manager.dispose();
+  }
+});
+
+test('browser requests cannot enable hidden-value recovery without a server handler', async () => {
+  const schema = {
+    form: { name: 'No recovery', elements: [field('TextField', 'hidden', { visible: false })] },
+  };
+  const manager = createPreviewSessionManager({
+    getSchema: () => schema,
+    serializeRecord: () => null,
+  });
+  try {
+    const opened = await manager.create({
+      configuration: { lifecycle: false },
+      state: { values: { hidden: 9 } },
+      hiddenValueRecoveryAvailable: true,
+    });
+    assert.equal(opened.hiddenValueRecoveryAvailable, false);
+    const rejected = await manager.command({
+      sessionId: opened.sessionId,
+      sequence: 1,
+      action: 'resolve-hidden-value',
+      finding: { fieldName: 'hidden', instancePath: [] },
+      value: null,
+    });
+    assert.equal(rejected.status, 'failed');
+    assert.equal(rejected.state.values.hidden, 9);
+  } finally {
+    manager.dispose();
+  }
+});
+
 for (const security of [undefined, { mode: 'safe' }])
   for (const lifecycle of [false, true])
     test(`CLI retains exact totals, persists pending status and rejects client-granted permissions; lifecycle=${lifecycle}, security=${security?.mode || 'trusted'}`, async () => {
@@ -316,5 +449,54 @@ test('CLI HTTP preview accepts large records and returns shared selected values 
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('CLI clears closed row inputs immediately and validates preserved hidden values when requested', async () => {
+  const schema = {
+    form: {
+      name: 'Retention',
+      elements: [
+        field('NumericField', 'show_rows'),
+        {
+          ...repeatable('rows', [field('TextField', 'secret', { visible_preserve_value: false })]),
+          visible: false,
+          visible_conditions: { field_id: 'show_rows', operator: 'equal_to', value: 1 },
+        },
+        field('TextField', 'hidden', { visible: false }),
+      ],
+    },
+  };
+  const manager = createPreviewSessionManager({
+    getSchema: () => schema,
+    submissionOptions: { validateHiddenValues: true },
+    serializeRecord: (schema, state) => serializePreviewRecord(schema, state, {}, true),
+  });
+  try {
+    const opened = await manager.create({
+      state: {
+        values: { show_rows: 1, hidden: 9 },
+        repeatable: { rows: [{ id: 0, values: { secret: 'secret' } }] },
+      },
+      configuration: { lifecycle: false, recordKind: 'existing' },
+    });
+    const updated = await manager.command({
+      sessionId: opened.sessionId,
+      sequence: 1,
+      action: 'update',
+      fieldKey: 'show_rows',
+      values: { show_rows: 0 },
+    });
+    assert.equal(updated.state.repeatable.rows[0].values.secret, null);
+    const blocked = await manager.command({
+      sessionId: opened.sessionId,
+      sequence: 2,
+      action: 'prepare',
+      intent: 'submit',
+    });
+    assert.equal(blocked.eligible, false);
+    assert.equal(blocked.validationSummary.generalErrors[0].fieldName, 'hidden');
+  } finally {
+    manager.dispose();
   }
 });

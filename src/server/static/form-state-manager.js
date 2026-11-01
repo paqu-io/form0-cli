@@ -709,6 +709,8 @@ export class FormStateManager {
           if (select) select.disabled = readOnly;
         }
       }
+    } else if (field.type === 'SignatureField') {
+      container.querySelector('.signature-field-container')?._setReadOnly?.(readOnly);
     } else if (field.type === 'BooleanField') {
       const boolContainer = container.querySelector('.boolean-field-container');
       if (boolContainer) {

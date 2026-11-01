@@ -66,6 +66,8 @@
     "freshness.previous": "Anterior",
     "freshness.next": "Siguiente",
     "freshness.pending": "Algunos cálculos guardados de registros secundarios todavía necesitan actualizarse.",
+    "freshness.hiddenValueHelp": "Este valor está oculto. Muestra el campo para corregirlo o pide a la aplicación que lo resuelva.",
+    "freshness.resolveHiddenValue": "Resolver valor oculto",
     "freshness.validationCount": "Resultados de validación: {count}",
     "freshness.record": "Registro",
     "previewEvents.settingsHelp": "La clasificación elige new-record o edit-record; no carga un registro de la base de datos.",

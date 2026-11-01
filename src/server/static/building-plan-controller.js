@@ -248,7 +248,14 @@ function highlightElement(element) {
 }
 
 export class BuildingPlanController {
-  constructor(formRenderer, formStateManager, section, contextPath = [], meta = null) {
+  constructor(
+    formRenderer,
+    formStateManager,
+    section,
+    contextPath = [],
+    meta = null,
+    { listenForChanges = true } = {}
+  ) {
     this.formRenderer = formRenderer;
     this.formStateManager = formStateManager;
     this.section = section;
@@ -424,7 +431,9 @@ export class BuildingPlanController {
     this.gridSize = DEFAULT_GRID_SIZE;
 
     this.handleRepeatableChange = this.handleRepeatableChange.bind(this);
-    document.addEventListener('form0:repeatable-change', this.handleRepeatableChange);
+    this.listenForChanges = listenForChanges;
+    if (listenForChanges)
+      document.addEventListener('form0:repeatable-change', this.handleRepeatableChange);
 
     this.syncFromState();
   }
@@ -432,8 +441,102 @@ export class BuildingPlanController {
   dispose() {
     this.disposed = true;
     for (const complete of this.pendingFieldUpdates) complete();
-    document.removeEventListener('form0:repeatable-change', this.handleRepeatableChange);
+    if (this.listenForChanges)
+      document.removeEventListener('form0:repeatable-change', this.handleRepeatableChange);
     this.listeners.clear();
+  }
+
+  /** Initialize a list-created row using the existing geometry defaults on an isolated tree. */
+  createRowDraft(section, parentPath, row, state) {
+    const owned = [
+      this.floorSection,
+      this.roomSection,
+      this.wallSection,
+      this.columnSection,
+      this.beamSection,
+      this.doorSection,
+      this.windowSection,
+    ].some((field) => field && field.data_name === section.data_name);
+    if (
+      !owned ||
+      !this.contextPath.every(
+        (part, index) =>
+          part.key === parentPath[index]?.key && part.index === parentPath[index]?.index
+      )
+    )
+      return null;
+
+    const snapshot = JSON.parse(JSON.stringify(state));
+    const at = (path) => {
+      let node = snapshot;
+      for (const part of path) node = node?.repeatable?.[part.key]?.[part.index];
+      if (!node) throw new Error('The parent building-plan row no longer exists.');
+      return node;
+    };
+    const renderer = this.formRenderer;
+    const instances = (field, path) => {
+      const node = at(path);
+      node.repeatable ||= {};
+      return (node.repeatable[renderer.getPreferredKey(field)] ||= []);
+    };
+    const rows = instances(section, parentPath);
+    const index = rows.length;
+    const draftRow = JSON.parse(JSON.stringify(row));
+    rows.push(draftRow);
+
+    // Geometry helpers write to this adapter, never to accepted state or rendered inputs.
+    const draftRenderer = {
+      getPreferredKey: (field) => renderer.getPreferredKey(field),
+      formatContextPath: (path) => renderer.formatContextPath(path),
+      getRepeatableInstances: instances,
+      getRepeatableStateContainer: (path) => at(path).repeatable,
+      rebuildRepeatableSection() {},
+      addRepeatableInstance(field, path, options = {}) {
+        const child = renderer.createEmptyRepeatableInstance(field);
+        renderer.sanitizeRepeatableInstance(child, {
+          clearValues: options.clearNewInstanceValues,
+          clearNested: options.clearNewInstanceRepeatable,
+        });
+        instances(field, path).push(child);
+      },
+    };
+    const draftState = {
+      setFieldValueAtContext(field, path, value) {
+        const node = at(path);
+        node.values ||= {};
+        node.values[field] = value;
+        return true;
+      },
+      updateFormState() {},
+      clearPendingValuesUnderPath() {},
+    };
+    const draft = new BuildingPlanController(
+      draftRenderer,
+      draftState,
+      this.section,
+      this.contextPath,
+      this.meta,
+      { listenForChanges: false }
+    );
+    try {
+      draft.gridSize = this.gridSize;
+      // There is no DOM to wait for when constructing the initial open-row payload.
+      draft.queueFieldUpdate = (field, path, value, afterUpdate) => {
+        draftState.setFieldValueAtContext(field, path, value);
+        afterUpdate?.();
+      };
+      draft.handleRepeatableChange({
+        detail: {
+          changeType: 'add',
+          sectionKey: renderer.getPreferredKey(section),
+          instanceIndex: index,
+          instancePath: [...parentPath, { key: renderer.getPreferredKey(section), index }],
+        },
+      });
+      return draftRow;
+    } finally {
+      draft.dispose();
+    }
   }
 
   setGridSize(size) {

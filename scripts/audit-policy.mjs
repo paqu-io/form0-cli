@@ -9,6 +9,8 @@ const pinnedVersion = (value) =>
   typeof value === 'string' && /^\d+\.\d+\.\d+(?:-[\w.-]+)?$/.test(value);
 const severity = (value) => Object.hasOwn(SEVERITY, value);
 const advisoryPrefix = 'https://github.com/advisories/';
+const inheritedNames = (pkg) =>
+  Array.isArray(pkg.inheritedVia) ? pkg.inheritedVia : [pkg.inheritedVia];
 
 function policyErrors(policy, now) {
   const errors = [];
@@ -70,9 +72,15 @@ function policyErrors(policy, now) {
         errors.push('Unknown exception parent: ' + name);
       if (pkg.inheritedVia) {
         if (
-          !Object.hasOwn(entry.packages, pkg.inheritedVia) ||
-          pkg.inheritedVia === name ||
-          entry.packages[pkg.inheritedVia]?.inheritedVia
+          !inheritedNames(pkg).length ||
+          new Set(inheritedNames(pkg)).size !== inheritedNames(pkg).length ||
+          inheritedNames(pkg).some(
+            (via) =>
+              typeof via !== 'string' ||
+              !Object.hasOwn(entry.packages, via) ||
+              via === name ||
+              entry.packages[via]?.inheritedVia
+          )
         )
           errors.push('Invalid inherited exception chain: ' + name);
       } else if (
@@ -202,9 +210,14 @@ export function assessAudit({
       errors.push('Audit finding exceeds approved path/directness/severity: ' + name);
     if (pkg.inheritedVia) {
       if (
-        finding.via.length !== 1 ||
-        finding.via[0] !== pkg.inheritedVia ||
-        !Object.hasOwn(report.vulnerabilities, pkg.inheritedVia)
+        finding.via.length !== inheritedNames(pkg).length ||
+        new Set(finding.via).size !== finding.via.length ||
+        finding.via.some(
+          (via) =>
+            typeof via !== 'string' ||
+            !inheritedNames(pkg).includes(via) ||
+            !Object.hasOwn(report.vulnerabilities, via)
+        )
       )
         errors.push('Unaccepted inherited advisory chain: ' + name);
     } else {

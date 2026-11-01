@@ -66,6 +66,8 @@
     "freshness.previous": "Précédent",
     "freshness.next": "Suivant",
     "freshness.pending": "Certains calculs enfants enregistrés doivent encore être actualisés.",
+    "freshness.hiddenValueHelp": "Cette valeur est masquée. Affichez le champ pour la corriger ou demandez à l’application de la résoudre.",
+    "freshness.resolveHiddenValue": "Résoudre la valeur masquée",
     "freshness.validationCount": "Résultats de validation : {count}",
     "freshness.record": "Enregistrement",
     "previewEvents.settingsHelp": "La classification choisit new-record ou edit-record ; elle ne charge aucun enregistrement de la base de données.",

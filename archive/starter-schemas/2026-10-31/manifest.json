@@ -1,0 +1,11 @@
+{
+  "repository": "form0-cli",
+  "source_commit": "7a696799aa4ef8803ca6d0f29959adbfb70ed2d6",
+  "archived_on": "2026-10-31",
+  "files": [
+    {
+      "path": "src/form0-forms/form-schema-template.js",
+      "sha256": "c42c3f00930fa5c158264ce61659b18eb92dffa708538a1c0233ab3877cb8ebe"
+    }
+  ]
+}

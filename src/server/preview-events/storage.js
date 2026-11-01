@@ -40,6 +40,11 @@ export function validatePreviewStorageOptions({ submissionOptions = {}, storageA
   )
     throw new Error('submissionOptions.allowRetain must be boolean.');
   if (
+    submissionOptions.validateHiddenValues !== undefined &&
+    typeof submissionOptions.validateHiddenValues !== 'boolean'
+  )
+    throw new Error('submissionOptions.validateHiddenValues must be boolean.');
+  if (
     storageAdapter &&
     (typeof storageAdapter.load !== 'function' || typeof storageAdapter.save !== 'function')
   )
