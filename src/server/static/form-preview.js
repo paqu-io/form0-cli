@@ -80,6 +80,8 @@ async function loadTranslations() {
         noSchemaLoaded: 'No schema loaded',
         noSchemaRunLoad: 'Run "load" at the form0 prompt. The preview updates automatically.',
         noSchemaPassPath: 'Start "form0 serve" with a schema path to preview a form.',
+        expoAppNotice:
+          "📱 This is the form0 schema preview. To open your app, scan Expo's QR code in the terminal with your phone.",
         connectedWatching: '✅ Connected - watching for changes',
         disconnectedFromServer: '❌ Disconnected from server',
         websocketConnectionError: '❌ WebSocket connection error',
@@ -99,6 +101,8 @@ async function loadTranslations() {
       noSchemaLoaded: 'No schema loaded',
       noSchemaRunLoad: 'Run "load" at the form0 prompt. The preview updates automatically.',
       noSchemaPassPath: 'Start "form0 serve" with a schema path to preview a form.',
+      expoAppNotice:
+        "📱 This is the form0 schema preview. To open your app, scan Expo's QR code in the terminal with your phone.",
       connectedWatching: '✅ Connected - watching for changes',
       disconnectedFromServer: '❌ Disconnected from server',
       websocketConnectionError: '❌ WebSocket connection error',
@@ -646,19 +650,30 @@ function showNoSchema(interactive) {
   document.getElementById('schema-path').textContent = '—';
 }
 
+// For an Expo app, this page is only the schema preview: the app opens on the
+// phone from Expo's QR code in the terminal.
+function showExpoAppNotice(expoApp) {
+  const notice = document.getElementById('app-notice');
+  if (!notice) return;
+  notice.textContent = expoApp ? t('expoAppNotice') : '';
+  notice.hidden = !expoApp;
+}
+
 // Load initial schema on page load
 async function loadInitialSchema() {
   try {
     const response = await fetch('/api/schema');
     if (response.ok) {
       const data = await response.json();
+      showExpoAppNotice(data.expoApp === true);
       previewDiagnostics.setConsole(data.diagnosticsConsole);
       currentSchema = data.schema;
       schemaSource = data.source || 'Current Schema';
       currentBuildingPlanMeta = data.buildingPlanMeta || [];
       await renderForm();
     } else if (response.status === 404) {
-      const { interactive } = await response.json().catch(() => ({}));
+      const { interactive, expoApp } = await response.json().catch(() => ({}));
+      showExpoAppNotice(expoApp === true);
       showNoSchema(interactive === true);
     } else {
       document.getElementById('status').textContent = t('failedToLoadSchema');

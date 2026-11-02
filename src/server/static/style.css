@@ -725,6 +725,20 @@ body {
     border: 1px solid #c3e6cb; 
 } 
 
+.app-notice {
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+    background: #e7f1ff;
+    border: 1px solid #b6d4fe;
+    color: #084298;
+    font-weight: 500;
+}
+
+.app-notice[hidden] {
+    display: none;
+}
+
 .preview-empty-state {
     padding: 32px 20px;
     text-align: center;

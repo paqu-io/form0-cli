@@ -28,15 +28,16 @@ after a fix or mitigation is available. Please keep the report private during th
 For ordinary usage questions, see
 [SUPPORT.md](https://github.com/paqu-io/form0-cli/blob/main/SUPPORT.md).
 
-## Temporary dependency risk accepted for CLI 0.10.0
+## Temporary dependency risk accepted for CLI 0.10.1
 
-The maintainer explicitly approved this carry-forward on 31 October 2026, retaining the expiry
-of **3 November 2026, 00:00 UTC (01:00 Europe/Paris)**. CLI **0.10.0 only** may ship Pi coding-agent
+The maintainer explicitly approved this carry-forward on 2 November 2026, retaining the expiry
+of **3 November 2026, 00:00 UTC (01:00 Europe/Paris)**. CLI **0.10.1 only** may ship Pi coding-agent
 1.0.4 with its nested Undici 8.10.2 and minimatch 10.2.6. The eight previously reviewed Undici
-advisories remain accepted, and the newly reported moderate minimatch advisory below is now
-explicitly accepted. Exact pins and paths remain enforced. These dependencies remain vulnerable;
+advisories and the moderate minimatch advisory below remain accepted. Pi 1.4.0, the latest release
+on 2 November 2026, still pins the same Undici and minimatch versions, so upgrading Pi does not
+remove them. Exact pins and paths remain enforced. These dependencies remain vulnerable;
 this exception is not a patch and does not make installed users' raw npm audit reports clean.
-This replaces the active 0.9.0 release allowance; previous approvals and evidence remain historical.
+This replaces the active 0.10.0 release allowance; previous approvals and evidence remain historical.
 
 The exact accepted Undici advisories are:
 
@@ -60,9 +61,9 @@ redirects or proxies. Some advisories require specific API/options; this allowan
 that every advisory is reachable or unreachable. Importing Pi can affect Node HTTP dispatch before
 entering AI mode. Form expression SAFE mode does not patch an HTTP library.
 
-The maintainer also approved **0.9.0 for pre-release validation**, preserving version bumps on main.
-`npm run ci:check` explicitly selects validation and accepts 0.9.0 or 0.10.0.
-`npm run release:check` and the publication workflow remain restricted to **0.10.0 only**. No other
+The maintainer also approved **0.10.0 for pre-release validation**, preserving version bumps on main.
+`npm run ci:check` explicitly selects validation and accepts 0.10.0 or 0.10.1.
+`npm run release:check` and the publication workflow remain restricted to **0.10.1 only**. No other
 release is approved by the validation allowance. CI environment flags do not select this allowance.
 
 Both paths run a real production-dependency audit. The exception-aware gate verifies the exact
