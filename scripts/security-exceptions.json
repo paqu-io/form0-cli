@@ -2,14 +2,14 @@
   "version": 1,
   "exceptions": [
     {
-      "id": "pi-undici-minimatch-cli-0100-20261031",
+      "id": "pi-undici-minimatch-cli-0101-20261102",
       "approved": true,
       "approvedBy": "aragornii",
-      "approvedOn": "2026-10-31",
+      "approvedOn": "2026-11-02",
       "expiresAt": "2026-11-03T00:00:00.000Z",
-      "cliVersion": "0.10.0",
-      "validationVersion": "0.9.0",
-      "reason": "Maintainer explicitly approved on 31 October 2026 carrying the eight previously reviewed Undici advisories plus moderate minimatch GHSA-g3hv-75wg-m249 for publication of 0.10.0 and validation of 0.9.0 only. Exact pins, dependency paths, advisory identities and severity limits remain enforced. The existing 3 November 2026 expiry is unchanged. This replaces the 0.9.0 release allowance. Both dependencies remain vulnerable; this does not patch them or make installed-user audits clean.",
+      "cliVersion": "0.10.1",
+      "validationVersion": "0.10.0",
+      "reason": "Maintainer explicitly approved on 2 November 2026 carrying the eight previously reviewed Undici advisories and moderate minimatch GHSA-g3hv-75wg-m249 forward for publication of 0.10.1 and validation of 0.10.0 only. Pi 1.4.0, the latest release on that date, still pins Undici 8.10.2 and minimatch 10.2.6. Exact pins, dependency paths, advisory identities and severity limits remain enforced. The existing 3 November 2026 expiry is unchanged. This replaces the 0.10.0 release allowance. Both dependencies remain vulnerable; this does not patch them or make installed-user audits clean.",
       "packages": {
         "@earendil-works/pi-coding-agent": {
           "version": "1.0.4",

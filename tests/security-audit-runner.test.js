@@ -13,13 +13,13 @@ const policy = JSON.parse(
 const report = JSON.parse(
   await readFile(new URL('./fixtures/pi-audit-report.json', import.meta.url), 'utf8')
 );
-const now = Date.parse('2026-10-31T12:00:00Z');
+const now = Date.parse('2026-11-02T12:00:00Z');
 const pi = '@earendil-works/pi-coding-agent';
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'form0-audit-policy-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const manifest = { name: 'form0-cli', version: '0.10.0', dependencies: { [pi]: '1.0.4' } };
-  const lock = { version: '0.10.0', packages: { '': manifest } };
+  const manifest = { name: 'form0-cli', version: '0.10.1', dependencies: { [pi]: '1.0.4' } };
+  const lock = { version: '0.10.1', packages: { '': manifest } };
   for (const [name, pkg] of Object.entries(policy.exceptions[0].packages)) {
     const folder = path.join(root, pkg.path);
     await mkdir(folder, { recursive: true });
@@ -51,9 +51,9 @@ test('validation is explicit; missing or unknown command arguments cannot widen 
     assert.throws(() => parseAuditArguments(args), /Usage:/);
 });
 
-test('installed 0.9.0 metadata permits validation only, including when CI environment flags are present', async (t) => {
+test('installed 0.10.0 metadata permits validation only, including when CI environment flags are present', async (t) => {
   const root = await fixture(t);
-  for (const version of ['0.8.0', '0.8.1', '0.8.2', '0.8.3', '0.9.0', '0.10.0', '0.10.1']) {
+  for (const version of ['0.8.2', '0.9.0', '0.10.0', '0.10.1', '0.10.2', '0.11.0']) {
     for (const file of ['package.json', 'package-lock.json']) {
       const location = path.join(root, file);
       const data = JSON.parse(await readFile(location, 'utf8'));
@@ -68,15 +68,15 @@ test('installed 0.9.0 metadata permits validation only, including when CI enviro
       run: child,
       env: { CI: 'true', GITHUB_ACTIONS: 'true', npm_lifecycle_event: 'ci:check' },
     };
-    assert.equal(auditProject(options).ok, version === '0.10.0', `default ${version}`);
+    assert.equal(auditProject(options).ok, version === '0.10.1', `default ${version}`);
     assert.equal(
       auditProject({ ...options, purpose: 'release' }).ok,
-      version === '0.10.0',
+      version === '0.10.1',
       `release ${version}`
     );
     assert.equal(
       auditProject({ ...options, purpose: 'validation' }).ok,
-      ['0.9.0', '0.10.0'].includes(version),
+      ['0.10.0', '0.10.1'].includes(version),
       `validation ${version}`
     );
   }
