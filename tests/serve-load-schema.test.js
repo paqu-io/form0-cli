@@ -86,7 +86,11 @@ test('without a schema, the preview learns whether load is available', async () 
     try {
       const response = await fetch(`http://localhost:${server.port}/api/schema`);
       assert.equal(response.status, 404);
-      assert.deepEqual(await response.json(), { error: 'No schema loaded', interactive });
+      assert.deepEqual(await response.json(), {
+        error: 'No schema loaded',
+        interactive,
+        expoApp: false,
+      });
     } finally {
       await server.stop();
     }

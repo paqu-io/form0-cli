@@ -89,6 +89,21 @@ export class ServerManager {
   async startDevAndAppServers(args) {
     const app = await resolveAppEndpoint(this.getAppStartDir());
     const banner = app?.expo ? 'expo' : 'app';
+    // Expo prints its QR code after the dev server starts; keep the prompt off
+    // its first line until Enter, or until the app stops.
+    if (app?.expo) {
+      this.shellCore?.holdPrompt?.();
+    }
+    try {
+      await this.startDevAndAppServersInOrder(args, app, banner);
+    } finally {
+      if (!this.isAppServerRunning()) {
+        this.shellCore?.releasePrompt?.();
+      }
+    }
+  }
+
+  async startDevAndAppServersInOrder(args, app, banner) {
     // The dev server's banner carries the single stop hint.
     if (!app?.port) {
       await this.startDevServer(args, { allowNoSchema: true, banner });
@@ -158,7 +173,12 @@ export class ServerManager {
     try {
       // Parse options
       // interactive: an empty preview can point to `load`.
-      const serverOptions = { diagnostics: !args.includes('--no-diagnostics'), interactive: true };
+      // expoApp: the preview says the app itself opens on the phone.
+      const serverOptions = {
+        diagnostics: !args.includes('--no-diagnostics'),
+        interactive: true,
+        expoApp: banner === 'expo',
+      };
       for (let i = 0; i < args.length; i += 1) {
         if (args[i] === '--port' || args[i] === '-p') {
           serverOptions.port = args[i + 1];
@@ -198,6 +218,7 @@ export class ServerManager {
           schemaPath: this.devServer.actualSchemaPath,
           appUrl,
           noSchemaHint: t('commands.serve.noSchemaUseLoad'),
+          promptHint: this.shellCore?.isPromptHeld?.() ? t('commands.serve.expoPromptHint') : null,
           stopHint:
             banner === 'standard'
               ? t('commands.serve.syncAndServeStop')
@@ -288,6 +309,7 @@ export class ServerManager {
             this.readline.prompt();
           }
         } else if (this.readline) {
+          this.shellCore?.releasePrompt?.();
           setTimeout(() => this.refreshPrompt(), 0);
           setTimeout(() => this.refreshPrompt(), 120);
         }

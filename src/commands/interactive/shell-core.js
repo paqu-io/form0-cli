@@ -26,6 +26,7 @@ export class ShellCore {
     this.schemaMode = false;
     this.aiMode = false;
     this.aiBusy = false;
+    this.promptHeld = false;
     this.options = options;
   }
 
@@ -119,14 +120,7 @@ export class ShellCore {
       await this.schemaManager.smartInit({ allowPrompt: false });
     }
 
-    this.rl.on('line', async (input) => {
-      const trimmed = input.trim();
-      if (trimmed) {
-        await this.commandHandler.handleCommand(trimmed);
-      }
-      // Always show appropriate prompt
-      this.rl.prompt();
-    });
+    this.rl.on('line', (input) => this.handleLine(input));
 
     this.rl.on('close', () => {
       this.cleanup();
@@ -142,6 +136,35 @@ export class ShellCore {
       }
     }
     this.rl.prompt();
+  }
+
+  async handleLine(input) {
+    // Pressing Enter is the signal that ends a prompt hold.
+    this.promptHeld = false;
+    const trimmed = input.trim();
+    if (trimmed) {
+      await this.commandHandler.handleCommand(trimmed);
+    }
+    if (!this.promptHeld) {
+      this.rl.prompt();
+    }
+  }
+
+  /**
+   * Stop drawing the prompt until the next Enter. An app that shares the
+   * terminal (Expo prints its QR code after the dev server starts) would
+   * otherwise print its next line after "form0> ", which breaks a QR code.
+   */
+  holdPrompt() {
+    this.promptHeld = true;
+  }
+
+  isPromptHeld() {
+    return this.promptHeld === true;
+  }
+
+  releasePrompt() {
+    this.promptHeld = false;
   }
 
   /**
@@ -202,7 +225,7 @@ export class ShellCore {
       return;
     }
     this.rl.setPrompt(this.getPromptString());
-    if (showPrompt) {
+    if (showPrompt && !this.promptHeld) {
       this.rl.prompt(true);
     }
   }

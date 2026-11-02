@@ -400,6 +400,7 @@ export async function serveCommand(schemaPathArg, options) {
       // With a declared app port, start the app first and the dev server once
       // the app listens, so tools that show the first open port show the app.
       const app = await resolveAppEndpoint(startDir);
+      server.options = { ...server.options, expoApp: app?.expo === true };
       const useAppBanner = (appUrl = null) => {
         server.showServerInfo = async () =>
           printServeBanner(app?.expo ? 'expo' : 'app', server.getStatus(), {

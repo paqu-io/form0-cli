@@ -24,12 +24,13 @@ export function getNetworkUrl(port) {
  * - 'expo': serve --app for an Expo app, opened on the phone from Expo's QR
  *   code. The network URL stays: the device reaches the app's API through it.
  * App banners without a schema add noSchemaHint: how to show one in the
- * preview, which depends on whether the CLI is interactive.
+ * preview, which depends on whether the CLI is interactive. promptHint, last
+ * before the stop hint, says how to get a prompt the CLI holds back.
  */
 export function printServeBanner(
   kind,
   { host, port },
-  { schemaPath, appUrl, stopHint, noSchemaHint } = {}
+  { schemaPath, appUrl, stopHint, noSchemaHint, promptHint } = {}
 ) {
   const url = `http://${browserHost(host)}:${port}`;
   if (kind === 'app' || kind === 'expo') {
@@ -58,6 +59,9 @@ export function printServeBanner(
     if (networkUrl) {
       console.log(colors.textSecondary(`   ${t('commands.serve.onNetwork', { url: networkUrl })}`));
     }
+  }
+  if (promptHint) {
+    console.log(colors.textSecondary(`   ${promptHint}`));
   }
   console.log(colors.textSecondary(`   ${stopHint}`));
 }

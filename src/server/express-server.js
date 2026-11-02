@@ -740,6 +740,7 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
           : 'Current Schema',
       buildingPlanMeta,
       diagnosticsConsole: options.diagnostics !== false,
+      expoApp: options.expoApp === true,
     };
   }
 
@@ -767,9 +768,12 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
     const payload = getPreparedSchemaPayload();
     if (!payload) {
       // The preview's empty state points to `load` when the CLI is interactive.
-      return res
-        .status(404)
-        .json({ error: 'No schema loaded', interactive: options.interactive === true });
+      // expoApp: the preview says the app itself opens on the phone.
+      return res.status(404).json({
+        error: 'No schema loaded',
+        interactive: options.interactive === true,
+        expoApp: options.expoApp === true,
+      });
     }
     res.json(payload);
   });
