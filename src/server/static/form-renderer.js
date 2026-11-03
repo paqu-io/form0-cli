@@ -2,7 +2,13 @@ import { generateUuidV7 } from './uuid.js';
 import { createDescriptionDialog, createSupportingImageDialog } from './dom-utils.js';
 import { resolveSupportingImageUrl } from './supporting-image-utils.js';
 import { BuildingPlanController } from './building-plan-controller.js';
+import { createSharedBuildingPlanController } from './building-plan-shared-controller.js';
 import { BuildingPlanCanvas } from './building-plan-canvas.js';
+import {
+  getBuildingPlanFieldState,
+  isBuildingPlanInternalCollection,
+  readBuildingPlanRecord,
+} from 'form0-core/building-plan';
 
 /**
  * Handles form rendering and field creation
@@ -143,6 +149,23 @@ export class FormRenderer {
       }
       controller?.syncFromState();
       controller?.emitUpdate();
+      if (controller?.isSharedModel)
+        for (const { field, contextPath, container } of this.fieldInstanceRegistry.values()) {
+          if (!contextPath.length || !controller.meta.fieldBindings[field.data_name]) continue;
+          try {
+            this.updateBuildingPlanFieldPresentation(
+              field,
+              container,
+              contextPath,
+              controller.fieldState(
+                contextPath.slice(controller.contextPath.length),
+                field.data_name
+              )
+            );
+          } catch {
+            /* A retired row is removed by the managed renderer. */
+          }
+        }
     }
   }
 
@@ -831,6 +854,12 @@ export class FormRenderer {
   }
 
   renderRepeatableSection(section, container, contextPath = []) {
+    if (
+      this.currentBuildingPlanMeta?.some((meta) =>
+        isBuildingPlanInternalCollection(meta, section.data_name)
+      )
+    )
+      return;
     const preferredKey = this.getPreferredKey(section);
     const sectionIdentifier = this.getRepeatableSectionIdentifier(contextPath, section);
 
@@ -1473,18 +1502,46 @@ export class FormRenderer {
     let canvas = null;
 
     if (this.formStateManager) {
-      controller = new BuildingPlanController(
-        this,
-        this.formStateManager,
-        section,
-        contextPath,
-        metaEntry
-      );
+      controller =
+        metaEntry?.version === 1
+          ? createSharedBuildingPlanController(
+              this,
+              this.formStateManager,
+              section,
+              contextPath,
+              metaEntry
+            )
+          : new BuildingPlanController(
+              this,
+              this.formStateManager,
+              section,
+              contextPath,
+              metaEntry
+            );
       canvas = new BuildingPlanCanvas({
         container: canvasContainer,
         controller: this.managedPreview?.canvasController?.(controller) || controller,
         labelSettings: this.labelVisibilitySettings,
       });
+      if (controller.isSharedModel) {
+        for (const [label, direction] of [
+          ['Undo', 'undo'],
+          ['Redo', 'redo'],
+        ]) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'building-plan-toolbar-button';
+          button.textContent = label;
+          button.onclick = () => controller.history?.(direction);
+          canvas.toolbar.appendChild(button);
+          controller.subscribe(() => {
+            button.disabled =
+              !controller.canEdit() ||
+              !controller.historyState?.[direction === 'undo' ? 'canUndo' : 'canRedo'];
+          });
+        }
+      }
+      if (controller.conflictElement) canvasContainer.appendChild(controller.conflictElement);
     } else {
       canvasContainer.innerHTML = `
         <div class="building-plan-canvas-placeholder">
@@ -1619,6 +1676,32 @@ export class FormRenderer {
     fieldDiv.setAttribute('data-context-key', contextKey);
     fieldDiv.setAttribute('data-context-path', JSON.stringify(contextPath));
     fieldDiv.setAttribute('data-field-key', compositeKey);
+    const planMeta = this.currentBuildingPlanMeta?.find(
+      (meta) => meta.version === 1 && meta.fieldBindings[field.data_name]
+    );
+    if (planMeta && contextPath.length) {
+      try {
+        const record = { values: {}, repeatable: this.activeRepeatableState };
+        if (this.planPresentationState !== this.activeRepeatableState) {
+          this.planPresentationState = this.activeRepeatableState;
+          this.planPresentationCache = new Map();
+        }
+        if (!this.planPresentationCache.has(planMeta.dataName))
+          this.planPresentationCache.set(
+            planMeta.dataName,
+            readBuildingPlanRecord({ meta: planMeta, record })
+          );
+        const plan = this.planPresentationCache.get(planMeta.dataName);
+        this.updateBuildingPlanFieldPresentation(
+          field,
+          fieldDiv,
+          contextPath,
+          getBuildingPlanFieldState(planMeta, record, plan, contextPath, field.data_name)
+        );
+      } catch {
+        /* New drafts receive their model identity before managed rendering. */
+      }
+    }
     const sanitizedContext = contextKey === 'root' ? '' : contextKey.replace(/[^a-zA-Z0-9]+/g, '_');
     const idBase = sanitizedContext ? `${field.data_name}_${sanitizedContext}` : field.data_name;
 
@@ -1846,6 +1929,36 @@ export class FormRenderer {
     if (field.type !== 'LabelField') {
       this.registerFieldInstance(field, contextPath, fieldDiv);
     }
+  }
+
+  updateBuildingPlanFieldPresentation(field, container, contextPath, state) {
+    if (!state) return;
+    if (state.managed) container.style.display = 'none';
+    if (!state.source) return;
+    let group = container.querySelector('[data-building-plan-source]');
+    if (!group) {
+      group = document.createElement('div');
+      group.dataset.buildingPlanSource = 'true';
+      group.className = 'description-subtext';
+      group.setAttribute('role', 'group');
+      const label = document.createElement('span');
+      label.dataset.sourceLabel = 'true';
+      group.appendChild(label);
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.dataset.buildingPlanReset = 'true';
+      reset.className = 'repeatable-instance-action';
+      reset.textContent = 'Reset to inheritance';
+      group.appendChild(reset);
+      container.prepend(group);
+    }
+    const owner = state.scope === 'physical_wall' ? 'Shared physical wall' : 'Room side';
+    group.setAttribute('aria-label', owner);
+    group.querySelector('[data-source-label]').textContent =
+      `${owner} · ${state.source.mode === 'inherit' ? 'Inherited from' : 'Override at'} ${{ floor: 'floor default', room: 'room default', physical_wall: 'this wall', room_face: 'this room side', construction_segment: 'this construction segment', schema: 'form default' }[state.source.scope] || state.source.scope} `;
+    const reset = group.querySelector('[data-building-plan-reset]');
+    reset.hidden = !state.inheritable || state.source.mode !== 'override';
+    reset.onclick = () => this.managedPreview?.resetProperty?.(contextPath, state.property);
   }
 
   /**

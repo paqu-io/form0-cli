@@ -1,4 +1,5 @@
 import { createRecordBackend, hasRecordCollections } from './preview-events/record-coordinator.js';
+import { buildingPlanAssets } from './building-plan-assets.js';
 import { validatePreviewStorageOptions } from './preview-events/storage.js';
 import express from 'express';
 import { rateLimit } from 'express-rate-limit';
@@ -757,6 +758,15 @@ export function createApp(getCurrentSchema, getSchemaSource, projectDir, options
     app.get(`/form0-core/${asset}`, coreValueAssetLimiter, (_req, res) =>
       res.sendFile(asset, { root: path.dirname(file) })
     );
+  }
+  const corePlanAssetLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 1000,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+  });
+  for (const [route, file] of buildingPlanAssets()) {
+    app.get(route, corePlanAssetLimiter, (_req, res) => res.sendFile(file));
   }
   app.use(express.static(path.join(__dirname, 'static')));
 

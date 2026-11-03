@@ -1352,14 +1352,19 @@ body {
   white-space: pre-line;
 }
 
+.container:has(.building-plan-section) {
+  max-width: 1760px;
+}
+
 .building-plan-layout {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  align-items: start;
   gap: 16px;
 }
 
 .building-plan-canvas-panel {
-  flex: 1 1 50%;
+  min-width: 0;
   min-height: 360px;
   background: #ffffff;
   border: 1px solid #d9d9d9;
@@ -1370,13 +1375,54 @@ body {
 }
 
 .building-plan-detail-panel {
-  flex: 1 1 50%;
+  min-width: 0;
   max-height: 520px;
   overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.building-plan-detail-panel .repeatable-instance-header,
+.building-plan-detail-panel .repeatable-instance-header-actions,
+.building-plan-detail-panel .section-title-row {
+  flex-wrap: wrap;
+}
+
+.building-plan-detail-panel .repeatable-instance-header-left {
+  flex: 1 1 12rem;
+}
+
+@media (max-width: 1100px) {
+  .building-plan-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  body:has(.building-plan-section) {
+    padding: 8px;
+  }
+
+  .container:has(.building-plan-section) {
+    padding: 12px;
+  }
+
+  .building-plan-section {
+    padding: 8px;
+  }
+
+  .building-plan-detail-panel .repeatable-section {
+    padding: 12px 0;
+    border-inline: 0;
+  }
+
+  .building-plan-detail-panel .repeatable-instance {
+    padding: 8px;
+  }
 }
 
 .building-plan-toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -1405,12 +1451,12 @@ body {
 .building-plan-canvas-wrapper {
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 
 .building-plan-canvas-container {
   position: relative;
-  flex: 1;
+  flex: 0 0 auto;
+  height: 360px;
   min-height: 320px;
   border: 1px solid #d9d9d9;
   border-radius: 6px;

@@ -161,6 +161,10 @@ export function createPreviewEventUI({
   }
   const hooks = {
     translate,
+    resetProperty: (path, property) =>
+      action({ action: 'building-plan-reset', ...target(path), property }),
+    planHistory: (path, direction) =>
+      action({ action: 'building-plan-history', ...target(path), direction }),
     canvasController: (planController) =>
       createManagedBuildingPlanController({
         controller: planController,
@@ -223,18 +227,27 @@ export function createPreviewEventUI({
         row,
       });
     },
-    remove(section, parentPath, index) {
+    async remove(section, parentPath, index) {
       const affectedPath = client.resolvePath([
         ...parentPath,
         { key: renderer.getPreferredKey(section), index },
       ]);
-      return action({
+      const request = {
         action: 'remove-row',
         ...target(parentPath),
         affectedPath,
         targetScopeId: target([...parentPath, { key: renderer.getPreferredKey(section), index }])
           .scopeId,
-      });
+      };
+      const result = await client.request(request);
+      if (
+        result.issues?.some(
+          (issue) => issue.code === 'observation_deletion_requires_confirmation'
+        ) &&
+        globalThis.confirm(result.issues.map((issue) => issue.message).join(' '))
+      )
+        return action({ ...request, allowObservationDeletion: true });
+      return report(result);
     },
   };
   function refreshControls(state) {
@@ -252,6 +265,14 @@ export function createPreviewEventUI({
           canvasBusy(contextPath) ||
           node?.read_only?.[field.data_name] === true
       );
+      const reset = container.querySelector('[data-building-plan-reset]');
+      if (reset)
+        reset.disabled =
+          configuration.readonly ||
+          !controller ||
+          !opened ||
+          canvasBusy(contextPath) ||
+          node?.read_only?.[field.data_name] === true;
     }
     for (const row of document.querySelectorAll('[data-repeatable-context]')) {
       const path = renderer.parseContextKey(row.getAttribute('data-repeatable-context'));
@@ -306,13 +327,25 @@ export function createPreviewEventUI({
         remove.disabled =
           configuration.readonly || canvasBusy(path) || !controller || !parent.scopeId;
         explain(remove);
-        const command = client.bindRequest({
+        const request = {
           action: 'remove-row',
           ...parent,
           affectedPath: scope.instancePath,
           targetScopeId: scope.scopeId,
-        });
-        remove.onclick = async () => report(await command());
+        };
+        const command = client.bindRequest(request);
+        const confirmed = client.bindRequest({ ...request, allowObservationDeletion: true });
+        remove.onclick = async () => {
+          let result = await command();
+          if (
+            result.issues?.some(
+              (issue) => issue.code === 'observation_deletion_requires_confirmation'
+            ) &&
+            globalThis.confirm(result.issues.map((issue) => issue.message).join(' '))
+          )
+            result = await confirmed();
+          return report(result);
+        };
       }
     }
     for (const add of document.querySelectorAll('.repeatable-add-button')) {
@@ -664,6 +697,12 @@ export function createPreviewEventUI({
         }
         stateManager.customValidation = copy(result.customValidation || []);
         onStatus(result.state.values);
+        for (const { controller: plan } of renderer.buildingPlanRegistry.values()) {
+          const floor = client.resolvePath([...plan.contextPath, ...plan.getActiveFloorPath()]);
+          plan.historyState = result.planHistory?.find((entry) =>
+            samePath(entry.instancePath, floor)
+          );
+        }
         refreshControls(result.state);
         renderer.syncBuildingPlanControllers(request);
       }

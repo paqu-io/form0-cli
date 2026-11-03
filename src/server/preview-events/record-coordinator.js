@@ -8,6 +8,8 @@ export const hasRecordCollections = (schema) => {
   const visit = (fields) =>
     (fields || []).some(
       (field) =>
+        (field.type === 'BuildingPlanSection' &&
+          (!field.building_plan?.meta || field.building_plan.meta.version === 1)) ||
         field.visible_preserve_value === false ||
         /\bREPEATABLE(?:VALUES|SUM)\s*\(/.test(field.calculate || '') ||
         visit(field.elements)

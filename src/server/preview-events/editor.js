@@ -1,5 +1,13 @@
 import { v7 as uuidv7 } from 'uuid';
-import { createFormEngine, buildRepeatableMetadata, WarningSystem } from 'form0-core';
+import {
+  createFormEngine,
+  createRecordEvaluator,
+  buildRepeatableMetadata,
+  WarningSystem,
+  getBuildingPlanMetadata,
+  createBuildingPlanEditor,
+  resolveBuildingPlanRow,
+} from 'form0-core';
 import { randomUUID, createHash } from 'node:crypto';
 import {
   createEventSession,
@@ -99,6 +107,10 @@ export function createPreviewEditor({
   });
   const metadata = buildRepeatableMetadata(schema.form?.elements || []);
   const stageCanvasFloor = createCanvasFloorStager(schema, metadata);
+  const buildingPlans = getBuildingPlanMetadata(schema);
+  const planEvaluator = buildingPlans.length
+    ? createRecordEvaluator({ schema, ...evaluationOptions, diagnostics: { console: false } })
+    : null;
   const rootNames = [...metadata.fieldOwnership]
     .filter(([, field]) => field.parentPath.length === 0)
     .map(([name]) => name);
@@ -120,6 +132,85 @@ export function createPreviewEditor({
     { values: pick(initialState.values, rootNames), repeatable: initialState.repeatable || {} },
     configuration.recordKind
   );
+
+  function planPath(entry) {
+    return entry.path.slice(entry.buildingPlan.floorPath.length - 1);
+  }
+  function attachBuildingPlan(entry) {
+    const parent = owner(parentPath(entry.path));
+    if (parent?.buildingPlan) entry.buildingPlan = parent.buildingPlan;
+    else {
+      const meta = buildingPlans.find(
+        (candidate) =>
+          candidate.repeatablesByNodeKey.floors.preferredKey === entry.path.at(-1)?.repeatableKey
+      );
+      if (!meta) return;
+      const floorsKey = meta.repeatablesByNodeKey.floors.preferredKey;
+      entry.buildingPlan = {
+        meta,
+        floorPath: entry.path,
+        editor: createBuildingPlanEditor({
+          meta,
+          record: {
+            values: {},
+            repeatable: { [floorsKey]: entry.kind === 'new' ? [] : [clone(entry.row)] },
+          },
+        }),
+      };
+    }
+    const { editor } = entry.buildingPlan;
+    const opened = editor.openRow({
+      path: planPath(entry),
+      scopeId: entry.scopeId,
+      parentScopeId: parent?.buildingPlan === entry.buildingPlan ? parent.scopeId : null,
+      row: entry.row,
+    });
+    if (opened.status !== 'opened')
+      throw Object.assign(new TypeError(opened.issues[0]?.message), { issues: opened.issues });
+    entry.row = opened.row;
+    Object.assign(entry.engine.getState().values, clone(opened.row.values));
+  }
+
+  function distributeBuildingPlan(bridge) {
+    const floor = owner(bridge.floorPath);
+    if (!floor || !bridge.editor.hasEditor(floor.scopeId)) return;
+    const row = resolveBuildingPlanRow(bridge.editor.getRecord(), bridge.floorPath.slice(-1));
+    if (!row) return;
+    const children = [...entries.values()].filter(
+      (entry) => entry.buildingPlan === bridge && bridge.editor.hasEditor(entry.scopeId)
+    );
+    const staged = stageCanvasFloor(
+      bridge.floorPath,
+      { ...floor.row, ...state(floor) },
+      row,
+      children
+        .filter((entry) => entry !== floor)
+        .map((entry) => ({ path: entry.path, row: { ...entry.row, ...state(entry) } }))
+    );
+    for (const planned of staged.editors) {
+      const entry = children.find((candidate) => samePath(candidate.path, planned.path));
+      Object.assign(entry.engine.getState().values, clone(planned.row.values));
+      entry.row.repeatable = clone(planned.row.repeatable);
+      entry.handle?.dataChanged();
+    }
+    coordinator.changed();
+  }
+
+  async function updateBuildingPlan(entry, row = { ...entry.row, ...state(entry) }) {
+    if (!entry.buildingPlan) return null;
+    const result = entry.buildingPlan.editor.updateRow(entry.scopeId, row);
+    if (result.status === 'applied') {
+      await entry.buildingPlan.editor.evaluate(planEvaluator, state(root).values);
+      distributeBuildingPlan(entry.buildingPlan);
+    } else {
+      const previous = resolveBuildingPlanRow(
+        entry.buildingPlan.editor.getRecord(),
+        planPath(entry)
+      );
+      if (previous) Object.assign(entry.engine.getState().values, clone(previous.values));
+    }
+    return result;
+  }
 
   async function refreshCommitted() {
     await root.engine.eval();
@@ -352,6 +443,8 @@ export function createPreviewEditor({
           // Core commits the complete preflighted batch and calls this entry's scoped evaluator.
           entry.engine.setValues(updates);
           await entry.pending;
+          const planResult = await updateBuildingPlan(entry);
+          if (planResult?.issues.length) throw new TypeError(planResult.issues[0].message);
           entry.handle?.dataChanged();
           if (!entry.path.length) coordinator.changed();
         }
@@ -506,6 +599,9 @@ export function createPreviewEditor({
         instancePath: clone(entry.path),
         recordKind: entry.kind,
       })),
+      planHistory: [
+        ...new Set([...entries.values()].map((entry) => entry.buildingPlan).filter(Boolean)),
+      ].map((bridge) => ({ instancePath: bridge.floorPath, ...bridge.editor.getState() })),
       presentations: presentations.splice(0),
       retiredScopes: retired.splice(0),
     };
@@ -595,11 +691,81 @@ export function createPreviewEditor({
           original || request.row || { values: {}, repeatable: {} },
           original ? 'existing' : 'new'
         );
+        try {
+          attachBuildingPlan(draft);
+          if (draft.buildingPlan) distributeBuildingPlan(draft.buildingPlan);
+        } catch (error) {
+          draft.handle.retire();
+          return response(failed('invalid_building_plan', error.message));
+        }
         return response(await initialize(draft));
       }
       if (!entry)
         return response(failed('invalid_target', 'No active editor matches this target.'));
+      if (request.action === 'building-plan-reset' || request.action === 'building-plan-history') {
+        if (
+          !entry.buildingPlan ||
+          configuration.readonly ||
+          stageCanvasFloor.readOnly(
+            entry.buildingPlan.floorPath,
+            state(owner(parentPath(entry.buildingPlan.floorPath)) || root)
+          )
+        )
+          return response(failed('readonly_scope', 'Open an editable BuildingPlan row first.'));
+        const editor = entry.buildingPlan.editor;
+        let result;
+        if (request.action === 'building-plan-history')
+          result =
+            request.direction === 'undo'
+              ? editor.undo({ scopeId: entry.scopeId })
+              : request.direction === 'redo'
+                ? editor.redo({ scopeId: entry.scopeId })
+                : failed('invalid_request', 'Choose Undo or Redo.');
+        else
+          result = editor.updateRow(
+            entry.scopeId,
+            { ...entry.row, ...state(entry) },
+            { resetProperties: [request.property] }
+          );
+        if (!result.issues.length) {
+          await editor.evaluate(planEvaluator, state(root).values);
+          distributeBuildingPlan(entry.buildingPlan);
+          for (const child of [...entries.values()]
+            .filter((candidate) => candidate.buildingPlan === entry.buildingPlan)
+            .reverse())
+            await child.engine.eval();
+        }
+        return response({ status: result.status, issues: result.issues });
+      }
+      if (request.action === 'building-plan-operation') {
+        if (
+          !entry.buildingPlan ||
+          configuration.readonly ||
+          stageCanvasFloor.readOnly(
+            entry.buildingPlan.floorPath,
+            state(owner(parentPath(entry.buildingPlan.floorPath)) || root)
+          )
+        )
+          return response(failed('readonly_scope', 'Open an editable BuildingPlan floor first.'));
+        const result = entry.buildingPlan.editor.apply(request.operation, {
+          scopeId: entry.scopeId,
+        });
+        if (!result.issues.length) {
+          await entry.buildingPlan.editor.evaluate(planEvaluator, state(root).values);
+          distributeBuildingPlan(entry.buildingPlan);
+          for (const child of [...entries.values()]
+            .filter((candidate) => candidate.buildingPlan === entry.buildingPlan)
+            .reverse())
+            await child.engine.eval();
+        }
+        const { record: _record, snapshot: _snapshot, ...details } = result;
+        return response(details);
+      }
       if (request.action === 'canvas-update') {
+        if (entry.buildingPlan)
+          return response(
+            failed('invalid_request', 'Versioned BuildingPlan edits require a semantic operation.')
+          );
         if (
           configuration.readonly ||
           stageCanvasFloor.readOnly(path, state(owner(parentPath(path)) || root))
@@ -697,6 +863,8 @@ export function createPreviewEditor({
           return response(failed('invalid_request', error.message));
         }
         await entry.pending;
+        const planResult = await updateBuildingPlan(entry);
+        if (planResult?.issues.length) return response(planResult);
         if (Object.keys(updates).length) {
           entry.handle.dataChanged();
           if (!entry.path.length) coordinator.changed();
@@ -749,6 +917,15 @@ export function createPreviewEditor({
           instancePath: entry.path,
         });
         if (request.action === 'accept-row' && result.eligible && entry.path.length) {
+          if (entry.buildingPlan) {
+            const planned = await updateBuildingPlan(entry, result.payload);
+            if (planned.issues.length)
+              return response({ ...planned, eligible: false, payload: null });
+            result.payload = resolveBuildingPlanRow(
+              entry.buildingPlan.editor.getRecord(),
+              planPath(entry)
+            );
+          }
           const parent = owner(parentPath(entry.path));
           const key = entry.path.at(-1).repeatableKey;
           const rows = (parent.row.repeatable[key] ||= []);
@@ -763,6 +940,12 @@ export function createPreviewEditor({
             instancePath: entry.path,
           });
           if (close.issues.length) return response({ ...close, eligible: false, payload: null });
+          if (entry.buildingPlan) {
+            const accepted = entry.buildingPlan.editor.acceptRow(entry.scopeId);
+            if (accepted.issues.length)
+              return response({ ...accepted, eligible: false, payload: null });
+            distributeBuildingPlan(entry.buildingPlan);
+          }
           if (index < 0 || entry.kind === 'new') rows.push(result.payload);
           else rows[index] = result.payload;
           parent.handle.dataChanged();
@@ -794,6 +977,12 @@ export function createPreviewEditor({
           fieldKey: entry.fieldKey,
         });
         if (cancel.issues.length) return response(cancel);
+        if (entry.buildingPlan) {
+          const cancelled = entry.buildingPlan.editor.cancelRow(entry.scopeId);
+          if (cancelled.issues.length) return response(cancelled);
+          await entry.buildingPlan.editor.evaluate(planEvaluator, state(root).values);
+          distributeBuildingPlan(entry.buildingPlan);
+        }
         const close = await controller.dispatch({
           type: 'unload-' + suffix,
           scopeId: entry.scopeId,
@@ -837,6 +1026,20 @@ export function createPreviewEditor({
             : part.index;
         if (index < 0 || !rows[index])
           return response(failed('invalid_target', 'The row no longer exists.'));
+        const floorMeta = buildingPlans.find(
+          (candidate) => candidate.repeatablesByNodeKey.floors.preferredKey === part.repeatableKey
+        );
+        if (floorMeta && !entry.buildingPlan) {
+          const guard = createBuildingPlanEditor({
+            meta: floorMeta,
+            record: { values: {}, repeatable: { [part.repeatableKey]: rows } },
+          });
+          const proposed = guard.removeRow([part], {
+            allowObservationDeletion: request.allowObservationDeletion === true,
+            preview: true,
+          });
+          if (proposed.issues.length) return response(proposed);
+        }
         const opened = [...entries.values()].find((item) => samePath(item.path, targetPath));
         if (
           targetPath.some((part) => part.identity === 'position') &&
@@ -854,7 +1057,18 @@ export function createPreviewEditor({
           });
           if (close.issues.length) return response(close);
         }
-        rows.splice(index, 1);
+        if (entry.buildingPlan) {
+          const removed = entry.buildingPlan.editor.removeRow(
+            targetPath.slice(entry.buildingPlan.floorPath.length - 1),
+            {
+              scopeId: entry.scopeId,
+              allowObservationDeletion: request.allowObservationDeletion === true,
+            }
+          );
+          if (removed.issues.length) return response(removed);
+          await entry.buildingPlan.editor.evaluate(planEvaluator, state(root).values);
+          distributeBuildingPlan(entry.buildingPlan);
+        } else rows.splice(index, 1);
         entry.handle.dataChanged();
         await entry.engine.eval();
         if (!entry.path.length) await refreshCommitted();

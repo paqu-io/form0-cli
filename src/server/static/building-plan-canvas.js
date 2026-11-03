@@ -136,6 +136,22 @@ function pointInRect(point, rect) {
   );
 }
 
+function pointInRoom(point, room) {
+  const vertices = room.previewRect ? null : room.vertices;
+  if (!vertices?.length) return pointInRect(point, room.previewRect || room.rect);
+  let inside = false;
+  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+    const a = vertices[i],
+      b = vertices[j];
+    if (
+      a.y > point.y !== b.y > point.y &&
+      point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x
+    )
+      inside = !inside;
+  }
+  return inside;
+}
+
 function inflateRect(rect, amount) {
   return {
     x: rect.x - amount,
@@ -232,6 +248,8 @@ export class BuildingPlanCanvas {
     this.beamDraft = null;
     this.hoverState = null;
 
+    this.zoomLevel = 1;
+    this.panOffset = { x: 0, y: 0 };
     this.gridSize = DEFAULT_GRID_SIZE;
     if (this.controller && typeof this.controller.setGridSize === 'function') {
       this.controller.setGridSize(this.gridSize);
@@ -247,6 +265,10 @@ export class BuildingPlanCanvas {
   }
 
   destroy() {
+    if (this.moveFrame != null) cancelAnimationFrame(this.moveFrame);
+    this.canvas?.removeEventListener('pointercancel', this.boundPointerCancel);
+    this.canvas?.removeEventListener('lostpointercapture', this.boundLostCapture);
+    window.removeEventListener('keydown', this.boundGestureKey, true);
     window.removeEventListener('resize', this.boundResizeHandler);
     if (this.resizeObserver) {
       try {
@@ -257,15 +279,27 @@ export class BuildingPlanCanvas {
       this.resizeObserver = null;
     }
     if (this.canvas) {
-      this.canvas.removeEventListener('mousedown', this.boundMouseDown);
-      this.canvas.removeEventListener('mousemove', this.boundMouseMove);
-      window.removeEventListener('mouseup', this.boundMouseUp);
+      this.canvas.removeEventListener('wheel', this.boundWheel);
+      this.canvas.removeEventListener('pointerdown', this.boundMouseDown);
+      this.canvas.removeEventListener('pointermove', this.boundMouseMove);
+      this.canvas.removeEventListener('pointerup', this.boundMouseUp);
       this.canvas.removeEventListener('mouseleave', this.boundMouseLeave);
     }
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+  }
+
+  setZoom(level, focal = { x: this.canvas.width / 2, y: this.canvas.height / 2 }) {
+    const next = clamp(level, 0.25, 4);
+    const point = {
+      x: (focal.x - this.panOffset.x) / this.zoomLevel,
+      y: (focal.y - this.panOffset.y) / this.zoomLevel,
+    };
+    this.panOffset = { x: focal.x - point.x * next, y: focal.y - point.y * next };
+    this.zoomLevel = next;
+    this.render();
   }
 
   setLabelSettings(settings = {}) {
@@ -326,6 +360,28 @@ export class BuildingPlanCanvas {
     this.toolbar.appendChild(this.doorButton);
     this.toolbar.appendChild(this.windowButton);
     this.toolbar.appendChild(this.clearButton);
+    for (const [label, action] of [
+      ['Zoom in', () => this.setZoom(this.zoomLevel * 1.25)],
+      ['Zoom out', () => this.setZoom(this.zoomLevel / 1.25)],
+      [
+        'Reset view',
+        () => {
+          this.zoomLevel = 1;
+          this.panOffset = { x: 0, y: 0 };
+          this.render();
+        },
+      ],
+    ]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.className = 'building-plan-toolbar-button';
+      button.addEventListener('click', action);
+      this.toolbar.appendChild(button);
+    }
+    this.canvasContainerHint = document.createElement('span');
+    this.canvasContainerHint.textContent = 'Scroll to zoom · Shift-drag to pan';
+    this.toolbar.appendChild(this.canvasContainerHint);
 
     this.canvasContainer = document.createElement('div');
     this.canvasContainer.className = 'building-plan-canvas-container';
@@ -421,14 +477,104 @@ export class BuildingPlanCanvas {
   }
 
   attachEvents() {
-    this.boundMouseDown = (event) => this.handleMouseDown(event);
-    this.boundMouseMove = (event) => this.handleMouseMove(event);
-    this.boundMouseUp = (event) => this.handleMouseUp(event);
-    this.boundMouseLeave = () => this.handleMouseLeave();
+    this.canvas.style.touchAction = 'none';
+    this.boundMouseDown = (event) => {
+      if (this.activePointerId != null) return;
+      this.activePointerId = event.pointerId;
+      this.pendingFocus = null;
+      this.controller?.clearPreview?.({ clearIssues: true });
+      this.canvas.setPointerCapture?.(event.pointerId);
+      return this.handleMouseDown(event);
+    };
+    const flushMove = () => {
+      if (this.moveFrame != null) cancelAnimationFrame(this.moveFrame);
+      this.moveFrame = null;
+      const event = this.pendingMove;
+      this.pendingMove = null;
+      if (event) {
+        this.handleMouseMove(event);
+        if (this.dragState?.moved && this.controller?.previewRoom) {
+          const room = this.rooms.find((entry) => entry.id === this.dragState.roomId);
+          if (room) this.controller.previewRoom(room.id, room.previewRect || room.rect);
+        }
+        if (
+          this.wallDragState?.moved &&
+          this.controller?.previewWall &&
+          this.wallDragState.previewPoints
+        )
+          this.controller.previewWall(this.wallDragState.wallId, this.wallDragState.previewPoints);
+      }
+    };
+    this.boundMouseMove = (event) => {
+      this.pendingMove = event;
+      if (this.moveFrame == null) this.moveFrame = requestAnimationFrame(flushMove);
+    };
+    this.boundMouseUp = async (event) => {
+      if (this.activePointerId !== event.pointerId) return;
+      flushMove();
+      this.activePointerId = null;
+      this.canvas.releasePointerCapture?.(event.pointerId);
+      const moved = [
+        this.dragState,
+        this.wallDragState,
+        this.columnDragState,
+        this.beamDragState,
+        this.openingDragState,
+      ].some((state) => state?.moved);
+      const focus = this.pendingFocus;
+      this.pendingFocus = null;
+      try {
+        await this.handleMouseUp(event);
+      } finally {
+        this.controller?.clearPreview?.();
+        if (!moved) focus?.();
+      }
+    };
+    this.boundMouseLeave = () => {
+      if (this.activePointerId == null) this.handleMouseLeave();
+    };
+    this.boundPointerCancel = () => {
+      const pointerId = this.activePointerId;
+      this.activePointerId = null;
+      if (pointerId != null && this.canvas.hasPointerCapture?.(pointerId))
+        this.canvas.releasePointerCapture?.(pointerId);
+      this.isPanning = false;
+      this.panStartPoint = null;
+      this.panStartOffset = null;
+      this.pendingFocus = null;
+      this.pendingMove = null;
+      if (this.moveFrame != null) cancelAnimationFrame(this.moveFrame);
+      this.moveFrame = null;
+      this.handleMouseLeave();
+      this.controller?.clearPreview?.({ clearIssues: true });
+    };
+    this.boundGestureKey = (event) => {
+      if (event.key === 'Escape' && this.activePointerId != null) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.boundPointerCancel();
+      }
+    };
+    this.canvas.addEventListener('pointercancel', this.boundPointerCancel);
+    this.boundLostCapture = () => {
+      if (this.activePointerId != null) this.boundPointerCancel();
+    };
+    this.canvas.addEventListener('lostpointercapture', this.boundLostCapture);
+    window.addEventListener('keydown', this.boundGestureKey, true);
 
-    this.canvas.addEventListener('mousedown', this.boundMouseDown);
-    this.canvas.addEventListener('mousemove', this.boundMouseMove);
-    window.addEventListener('mouseup', this.boundMouseUp);
+    this.boundWheel = (event) => {
+      event.preventDefault();
+      if (this.activePointerId != null) return;
+      const rect = this.canvas.getBoundingClientRect();
+      this.setZoom(this.zoomLevel * Math.exp(-event.deltaY * 0.001), {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
+    };
+    this.canvas.addEventListener('wheel', this.boundWheel, { passive: false });
+    this.canvas.addEventListener('pointerdown', this.boundMouseDown);
+    this.canvas.addEventListener('pointermove', this.boundMouseMove);
+    this.canvas.addEventListener('pointerup', this.boundMouseUp);
     this.canvas.addEventListener('mouseleave', this.boundMouseLeave);
   }
 
@@ -631,7 +777,35 @@ export class BuildingPlanCanvas {
   }
 
   async handleMouseDown(event) {
-    if (this.controller?.canEdit && !this.controller.canEdit()) return;
+    if (event.button === 1 || (event.button === 0 && event.shiftKey)) {
+      event.preventDefault();
+      this.panGesture = { x: event.clientX, y: event.clientY, offset: { ...this.panOffset } };
+      this.canvas.style.cursor = 'grabbing';
+      return;
+    }
+    if (this.controller?.canEdit && !this.controller.canEdit()) {
+      const point = this.getCanvasPoint(event);
+      const opening = this.findOpeningNearPoint(point);
+      const column = this.findColumnHit(point)?.column;
+      const beam = this.findBeamHit(point)?.beam;
+      const wall = this.findWallNearPoint(point)?.wall;
+      const room = this.findRoomAtPoint(point);
+      this.pendingFocus = opening
+        ? () =>
+            this.controller?.[opening.type === 'door' ? 'focusDoor' : 'focusWindow']?.(
+              opening.opening.id
+            )
+        : column
+          ? () => this.controller?.focusColumn?.(column.id)
+          : beam
+            ? () => this.controller?.focusBeam?.(beam.id)
+            : wall
+              ? () => this.controller?.focusWall?.(wall.id)
+              : room
+                ? () => this.controller?.focusRoom?.(room.id)
+                : null;
+      return;
+    }
     const point = this.getCanvasPoint(event);
 
     if (this.mode === MODE_DRAW_COLUMN) {
@@ -732,7 +906,7 @@ export class BuildingPlanCanvas {
             moved: false,
           };
           this.setHoverState(null);
-          this.controller?.focusRoom(room.id);
+          this.pendingFocus = () => this.controller?.focusRoom(room.id);
           this.updateButtonStates();
           this.updateCursor();
           this.render();
@@ -760,7 +934,7 @@ export class BuildingPlanCanvas {
           moved: false,
         };
         this.setHoverState(null);
-        this.controller?.focusWall(wall.id);
+        this.pendingFocus = () => this.controller?.focusWall(wall.id);
         this.updateButtonStates();
         this.updateCursor();
         this.render();
@@ -785,7 +959,7 @@ export class BuildingPlanCanvas {
         };
         this.setHoverState(null);
         if (typeof this.controller?.focusColumn === 'function') {
-          this.controller.focusColumn(column.id);
+          this.pendingFocus = () => this.controller.focusColumn(column.id);
         }
         this.updateButtonStates();
         this.updateCursor();
@@ -823,7 +997,7 @@ export class BuildingPlanCanvas {
         };
         this.setHoverState(null);
         if (typeof this.controller?.focusBeam === 'function') {
-          this.controller.focusBeam(beam.id);
+          this.pendingFocus = () => this.controller.focusBeam(beam.id);
         }
         this.updateButtonStates();
         this.updateCursor();
@@ -864,7 +1038,7 @@ export class BuildingPlanCanvas {
         };
         this.setHoverState(null);
         if (typeof this.controller?.focusBeam === 'function') {
-          this.controller.focusBeam(beam.id);
+          this.pendingFocus = () => this.controller.focusBeam(beam.id);
         }
         this.updateButtonStates();
         this.updateCursor();
@@ -898,7 +1072,7 @@ export class BuildingPlanCanvas {
         this.setHoverState(null);
         const focusFn = type === 'door' ? this.controller?.focusDoor : this.controller?.focusWindow;
         if (typeof focusFn === 'function') {
-          focusFn.call(this.controller, openingId);
+          this.pendingFocus = () => focusFn.call(this.controller, openingId);
         }
         this.updateButtonStates();
         this.updateCursor();
@@ -976,7 +1150,7 @@ export class BuildingPlanCanvas {
         moved: false,
       };
       this.setHoverState(null);
-      this.controller?.focusWall(wall.id);
+      this.pendingFocus = () => this.controller?.focusWall(wall.id);
       this.updateButtonStates();
       this.updateCursor();
       this.render();
@@ -991,11 +1165,13 @@ export class BuildingPlanCanvas {
       this.dragState = {
         type: 'move',
         roomId: room.id,
+        pointerStart: point,
+        moved: false,
         offsetX: point.x - room.rect.x,
         offsetY: point.y - room.rect.y,
       };
       this.setHoverState(null);
-      this.controller?.focusRoom(room.id);
+      this.pendingFocus = () => this.controller?.focusRoom(room.id);
       this.updateButtonStates();
       this.updateCursor();
       this.render();
@@ -1006,6 +1182,14 @@ export class BuildingPlanCanvas {
   }
 
   handleMouseMove(event) {
+    if (this.panGesture) {
+      this.panOffset = {
+        x: this.panGesture.offset.x + event.clientX - this.panGesture.x,
+        y: this.panGesture.offset.y + event.clientY - this.panGesture.y,
+      };
+      this.render();
+      return;
+    }
     const point = this.getCanvasPoint(event);
 
     if (
@@ -1109,6 +1293,9 @@ export class BuildingPlanCanvas {
       if (!room) return;
 
       if (state.type === 'move') {
+        state.moved =
+          state.moved ||
+          Math.hypot(point.x - state.pointerStart.x, point.y - state.pointerStart.y) > 3;
         const width = room.rect.width;
         const height = room.rect.height;
         const snappedOrigin = this.snapPoint({
@@ -1164,6 +1351,13 @@ export class BuildingPlanCanvas {
             x: pt.x + deltaX,
             y: pt.y + deltaY,
           };
+          if (wall.isBoundary) {
+            const increment = this.gridSize / 10;
+            return {
+              x: Math.round(translated.x / increment) * increment,
+              y: Math.round(translated.y / increment) * increment,
+            };
+          }
           const clamped = {
             x: clamp(translated.x, room.rect.x, room.rect.x + room.rect.width),
             y: clamp(translated.y, room.rect.y, room.rect.y + room.rect.height),
@@ -1175,7 +1369,12 @@ export class BuildingPlanCanvas {
         wall.previewPoints = roundedPoints;
         state.previewPoints = roundedPoints;
       } else if (state.type === 'resize') {
-        const snappedPoint = this.snapToRoomEdges(point, room);
+        const snappedPoint = wall.isBoundary
+          ? {
+              x: Math.round(point.x / (this.gridSize / 10)) * (this.gridSize / 10),
+              y: Math.round(point.y / (this.gridSize / 10)) * (this.gridSize / 10),
+            }
+          : this.snapToRoomEdges(point, room);
         const newPoints = state.originalPoints.map((pt, idx) =>
           idx === state.handleIndex ? { ...snappedPoint } : { ...pt }
         );
@@ -1363,6 +1562,11 @@ export class BuildingPlanCanvas {
   }
 
   async handleMouseUp(event) {
+    if (this.panGesture) {
+      this.panGesture = null;
+      this.updateCursor();
+      return;
+    }
     if (this.controller?.canEdit && !this.controller.canEdit()) return;
     const point = this.getCanvasPoint(event);
 
@@ -1453,7 +1657,7 @@ export class BuildingPlanCanvas {
       const room = this.rooms.find((r) => r.id === state.roomId);
       if (room) {
         const commitRect = room.previewRect || room.rect;
-        if (commitRect && (state.type !== 'resize' || state.moved)) {
+        if (commitRect && state.moved) {
           await this.controller?.updateRoom(room.id, commitRect);
         }
       }
@@ -1564,6 +1768,7 @@ export class BuildingPlanCanvas {
   }
 
   handleMouseLeave() {
+    this.panGesture = null;
     if (this.mode === MODE_DRAW_ROOM) {
       this.roomDraft = null;
     }
@@ -1608,8 +1813,8 @@ export class BuildingPlanCanvas {
   getCanvasPoint(event) {
     const rect = this.canvas.getBoundingClientRect();
     return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
+      x: (event.clientX - rect.left - this.panOffset.x) / this.zoomLevel,
+      y: (event.clientY - rect.top - this.panOffset.y) / this.zoomLevel,
     };
   }
 
@@ -1736,12 +1941,7 @@ export class BuildingPlanCanvas {
       }
       const rect = room.previewRect || room.rect;
       if (!rect) continue;
-      if (
-        point.x >= rect.x &&
-        point.x <= rect.x + rect.width &&
-        point.y >= rect.y &&
-        point.y <= rect.y + rect.height
-      ) {
+      if (pointInRoom(point, room)) {
         return room;
       }
     }
@@ -2102,10 +2302,13 @@ export class BuildingPlanCanvas {
   render() {
     if (!this.ctx) return;
 
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.setTransform(this.zoomLevel, 0, 0, this.zoomLevel, this.panOffset.x, this.panOffset.y);
     this.drawGrid();
 
     if (!this.hasFloors) {
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
       this.drawNoFloorOverlay();
       return;
     }
@@ -2508,22 +2711,25 @@ export class BuildingPlanCanvas {
   }
 
   drawGrid() {
-    const { width, height } = this.canvas;
+    const width = (this.canvas.width - this.panOffset.x) / this.zoomLevel;
+    const height = (this.canvas.height - this.panOffset.y) / this.zoomLevel;
+    const minX = Math.floor(-this.panOffset.x / this.zoomLevel / this.gridSize) * this.gridSize;
+    const minY = Math.floor(-this.panOffset.y / this.zoomLevel / this.gridSize) * this.gridSize;
     const ctx = this.ctx;
     ctx.save();
     ctx.strokeStyle = '#e6e6e6';
     ctx.lineWidth = 1;
 
-    for (let x = 0; x <= width; x += this.gridSize) {
+    for (let x = minX; x <= width; x += this.gridSize) {
       ctx.beginPath();
-      ctx.moveTo(x + 0.5, 0);
+      ctx.moveTo(x + 0.5, minY);
       ctx.lineTo(x + 0.5, height);
       ctx.stroke();
     }
 
-    for (let y = 0; y <= height; y += this.gridSize) {
+    for (let y = minY; y <= height; y += this.gridSize) {
       ctx.beginPath();
-      ctx.moveTo(0, y + 0.5);
+      ctx.moveTo(minX, y + 0.5);
       ctx.lineTo(width, y + 0.5);
       ctx.stroke();
     }
@@ -2560,12 +2766,19 @@ export class BuildingPlanCanvas {
     ctx.save();
     ctx.fillStyle = room.color || '#79b8ff';
     ctx.globalAlpha = isSelected ? 0.55 : 0.35;
-    ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+    const vertices = room.previewRect ? null : room.vertices;
+    ctx.beginPath();
+    if (vertices?.length) {
+      ctx.moveTo(vertices[0].x, vertices[0].y);
+      for (const vertex of vertices.slice(1)) ctx.lineTo(vertex.x, vertex.y);
+      ctx.closePath();
+    } else ctx.rect(rect.x, rect.y, rect.width, rect.height);
+    ctx.fill();
 
     ctx.globalAlpha = 1;
     ctx.lineWidth = isSelected ? 4 : 2;
     ctx.strokeStyle = isSelected ? '#1b4b91' : '#3a6fb0';
-    ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+    ctx.stroke();
 
     if (isSelected) {
       const handleSize = ROOM_HANDLE_SIZE;

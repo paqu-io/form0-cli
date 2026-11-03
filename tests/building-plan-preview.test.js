@@ -1,39 +1,14 @@
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { expandBuildingPlanSchema } from 'form0-core';
 import { createPreviewSessionManager } from '../src/server/preview-events/editor.js';
 import { field, repeatable } from './fixtures/preview-event-fields.js';
 import { FormRenderer } from '../src/server/static/form-renderer.js';
 
-const { schema, buildingPlanMeta } = expandBuildingPlanSchema({
-  form: {
-    name: 'Canvas draft ownership',
-    elements: [
-      field('NumericField', 'multiplier', { default_value: 2 }),
-      {
-        type: 'BuildingPlanSection',
-        key: 'plan',
-        data_name: 'plan',
-        label: 'Plan',
-        description: null,
-        description_mode: null,
-        visible: true,
-        visible_conditions: null,
-        read_only: false,
-        read_only_conditions: null,
-        node_overrides: {
-          rooms: {
-            extra_elements: [
-              field('NumericField', 'room_input'),
-              field('CalculatedField', 'room_calc', { calculate: '$room_input * $multiplier' }),
-            ],
-          },
-        },
-      },
-      repeatable('ordinary', [field('TextField', 'ordinary_note')]),
-    ],
-  },
-});
+// Frozen pre-model schema: characterize the retained legacy canvas, not format migration.
+const { schema, buildingPlanMeta } = JSON.parse(
+  readFileSync(new URL('./fixtures/legacy-building-plan-preview.json', import.meta.url), 'utf8')
+);
 const nodes = buildingPlanMeta[0].repeatablesByNodeKey;
 const floorKey = nodes.floors.preferredKey;
 const roomKey = nodes.rooms.preferredKey;

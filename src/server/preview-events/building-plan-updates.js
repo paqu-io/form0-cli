@@ -86,6 +86,10 @@ export function createCanvasFloorStager(schema, metadata) {
         const old = previous?.values?.[name];
         if (Object.hasOwn(previous?.values || {}, name) && equal(value, old)) continue;
         const field = info.fields.get(name)?.field;
+        // Record evaluation materializes live collection values for calculations. Their rows
+        // remain authoritative; do not treat those derived container slots as canvas writes.
+        if (!field && [...info.children.values()].some((child) => child.field.data_name === name))
+          continue;
         if (!field) invalid(`Unknown canvas value field "${name}".`);
         if (old == null && value == null && ['CalculatedField', 'LabelField'].includes(field.type))
           continue;

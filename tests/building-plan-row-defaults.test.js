@@ -1,31 +1,16 @@
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFormEngine, expandBuildingPlanSchema } from 'form0-core';
+import { createFormEngine } from 'form0-core';
 import { FormRenderer } from '../src/server/static/form-renderer.js';
 import { BuildingPlanController } from '../src/server/static/building-plan-controller.js';
 import { createPreviewEventUI } from '../src/server/static/preview-event-ui.js';
 import { createPreviewSessionManager } from '../src/server/preview-events/editor.js';
 
-const { schema, buildingPlanMeta } = expandBuildingPlanSchema({
-  form: {
-    name: 'List-created geometry',
-    elements: [
-      {
-        type: 'BuildingPlanSection',
-        key: 'plan',
-        data_name: 'plan',
-        label: 'Plan',
-        description: null,
-        description_mode: null,
-        visible: true,
-        visible_conditions: null,
-        read_only: false,
-        read_only_conditions: null,
-        node_overrides: null,
-      },
-    ],
-  },
-});
+// Frozen pre-model schema: characterize the retained legacy canvas, not format migration.
+const { schema, buildingPlanMeta } = JSON.parse(
+  readFileSync(new URL('./fixtures/legacy-building-plan-defaults.json', import.meta.url), 'utf8')
+);
 const meta = buildingPlanMeta[0];
 const nodes = meta.repeatablesByNodeKey;
 const key = (node) => nodes[node].preferredKey;
