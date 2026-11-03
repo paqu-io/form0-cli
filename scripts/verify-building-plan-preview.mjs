@@ -832,6 +832,127 @@ try {
     );
     await scenario(
       lifecycle,
+      'same-line room alignment and the supplied shared corner sequence',
+      sharedSeed(),
+      false,
+      async (page) => {
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const canvas = page.locator('.building-plan-canvas');
+        await canvas.scrollIntoViewIfNeeded();
+        let box = await canvas.boundingBox();
+        let lastOperation;
+        page.on('request', (request) => {
+          if (request.url().endsWith('/api/preview-events') && request.postDataJSON()?.operation)
+            lastOperation = request.postDataJSON().operation;
+        });
+        async function drag(from, to, bypass = true) {
+          await canvas.scrollIntoViewIfNeeded();
+          box = await canvas.boundingBox();
+          if (bypass) await page.keyboard.down('Alt');
+          await page.mouse.move(box.x + from[0], box.y + from[1]);
+          await page.mouse.down();
+          await page.mouse.move(box.x + to[0], box.y + to[1], { steps: 8 });
+          const result = await command(page, 'building-plan-operation', () => page.mouse.up());
+          if (bypass) await page.keyboard.up('Alt');
+          return readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state });
+        }
+        let plan = await drag([40, 60], [40, 72]);
+        plan = await drag([100, 30], [92, 30]);
+        plan = await drag([92, 30], [95.4, 30], false);
+        assert.equal(plan.floors[0].rooms[0].vertices[1].x, 4.8);
+        plan = await drag([40, 72], [40, 56]);
+        assert.equal(plan.floors[0].rooms[1].vertices.length, 6);
+        await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        plan = await drag([75, 112], [17.4, 112], false);
+        assert.equal(plan.floors[0].rooms[1].vertices[0].x, 0, JSON.stringify(lastOperation));
+        assert.equal(plan.floors[0].rooms[1].vertices[0].y, 3.2);
+      }
+    );
+    await scenario(
+      lifecycle,
+      'opening cut confirmation cancels or removes with one reversible operation',
+      (() => {
+        const record = sharedSeed();
+        const snapshot = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record });
+        const session = createBuildingPlanSession({ snapshot });
+        const floor = snapshot.floors[0],
+          wallId = floor.rooms[0].faces[2].wallId;
+        const created = session.apply({
+          type: 'create_opening',
+          floorId: floor.id,
+          wallId,
+          kind: 'door',
+          offset: 3.5,
+          width: 0.9,
+          height: 2,
+          values: { door_label: 'Shared door' },
+        });
+        assert.equal(created.status, 'applied');
+        session.apply({
+          type: 'add_observation',
+          floorId: floor.id,
+          subject: { type: 'door', id: created.created.id },
+          observedAt: '2026-11-03',
+          evidence: ['opening-photo'],
+        });
+        return writeBuildingPlanRecord({
+          meta: buildingPlanMeta[0],
+          plan: session.getSnapshot(),
+          record,
+        });
+      })(),
+      false,
+      async (page) => {
+        const opened = await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const before = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: opened.state });
+        const canvas = page.locator('.building-plan-canvas');
+        await canvas.scrollIntoViewIfNeeded();
+        const box = await canvas.boundingBox();
+        let accept = false,
+          prompts = 0;
+        page.removeAllListeners('dialog');
+        page.on('dialog', (dialog) => {
+          prompts++;
+          assert.match(dialog.message(), /Shared door/);
+          assert.match(dialog.message(), /associated observation/);
+          return accept ? dialog.accept() : dialog.dismiss();
+        });
+        async function startCut() {
+          await page.keyboard.down('Alt');
+          await page.mouse.move(box.x + 60, box.y + 100);
+          await page.mouse.down();
+          await page.mouse.move(box.x + 80, box.y + 100, { steps: 8 });
+        }
+        await startCut();
+        await page.mouse.up();
+        await page.keyboard.up('Alt');
+        await page.locator('.building-plan-conflict').waitFor({ state: 'visible' });
+        assert.equal(prompts, 1);
+        assert.deepEqual(
+          readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: (await settle(page)).state }),
+          before
+        );
+        accept = true;
+        await startCut();
+        const result = await command(page, 'building-plan-operation', () => page.mouse.up());
+        await page.keyboard.up('Alt');
+        const after = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state });
+        assert.equal(prompts, 2);
+        assert.equal(after.floors[0].walls.flatMap((w) => w.doors).length, 0);
+        assert.equal(after.floors[0].observations.length, 0);
+        assert.equal(after.floors[0].rooms[1].vertices[0].x, 4);
+        const undone = await command(page, 'building-plan-history', () =>
+          page.getByRole('button', { name: 'Undo', exact: true }).click()
+        );
+        assert.deepEqual(
+          readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: undone.state }),
+          before
+        );
+      }
+    );
+    await scenario(
+      lifecycle,
       'record readonly disables all canvas writes',
       seed(),
       true,
