@@ -1,5 +1,9 @@
 {
   "client": {
+    "buildingPlanEditing": "Modification du plan",
+    "buildingPlanSnapping": "Alignement magnétique",
+    "buildingPlanEdgePan": "Déplacer la vue près des bords pendant le glissement",
+    "buildingPlanGrouping": "Conserver le regroupement des murs physiques pour les nouveaux décrochements",
     "connectedWatching": "✅ Connecté : surveillance des modifications.",
     "disconnectedFromServer": "❌ Déconnecté du serveur.",
     "errorLoadingSchema": "❌ Erreur lors du chargement du schéma.",

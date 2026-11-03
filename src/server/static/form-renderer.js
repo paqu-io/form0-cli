@@ -181,6 +181,12 @@ export class FormRenderer {
     });
   }
 
+  setBuildingPlanEditingPolicy(policy) {
+    this.buildingPlanEditingPolicy = policy;
+    for (const { controller } of this.buildingPlanRegistry.values())
+      controller.setEditingPolicy?.(policy);
+  }
+
   /**
    * Retrieve field instance registry (for state manager)
    */

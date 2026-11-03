@@ -265,6 +265,7 @@ export class BuildingPlanCanvas {
   }
 
   destroy() {
+    this.stopEdgePan();
     if (this.moveFrame != null) cancelAnimationFrame(this.moveFrame);
     this.canvas?.removeEventListener('pointercancel', this.boundPointerCancel);
     this.canvas?.removeEventListener('lostpointercapture', this.boundLostCapture);
@@ -476,13 +477,95 @@ export class BuildingPlanCanvas {
     this.render();
   }
 
+  snapRoomOrigin(room, origin) {
+    if (!this.controller?.interaction) return this.snapPoint(origin);
+    const initial = this.gestureRooms?.get(room.id);
+    if (!initial?.vertices?.length) return origin;
+    const points = initial.vertices.map((point) => ({
+      x: point.x + origin.x - initial.rect.x,
+      y: point.y + origin.y - initial.rect.y,
+    }));
+    const snapped = this.controller.interaction.snapTranslation(points, {
+      roomId: room.id,
+      zoom: this.zoomLevel,
+      originalPoints: initial.vertices,
+      bypass: Boolean(this.lastPointerEvent?.altKey),
+    });
+    return { x: origin.x + snapped[0].x - points[0].x, y: origin.y + snapped[0].y - points[0].y };
+  }
+
+  drawAlignmentGuides() {
+    const guides = this.controller?.interaction?.getGuides() || [];
+    if (!guides.length) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 1.5 / this.zoomLevel;
+    ctx.setLineDash([5 / this.zoomLevel, 4 / this.zoomLevel]);
+    for (const guide of guides) {
+      ctx.beginPath();
+      ctx.moveTo(guide.from.x, guide.from.y);
+      ctx.lineTo(guide.to.x, guide.to.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  stopEdgePan() {
+    if (this.edgePanFrame != null) cancelAnimationFrame(this.edgePanFrame);
+    this.edgePanFrame = null;
+    this.edgePanEvent = null;
+  }
+
+  queueEdgePan(event) {
+    if (!this.controller?.interaction || this.activePointerId == null) return;
+    this.edgePanEvent = event;
+    if (this.edgePanFrame != null) return;
+    const tick = (now) => {
+      this.edgePanFrame = null;
+      const latest = this.edgePanEvent;
+      if (!latest || this.activePointerId == null) return;
+      if (
+        !this.isPanning &&
+        !this.panGesture &&
+        (this.dragState?.moved || this.wallDragState?.moved || this.roomDraft || this.wallDraft)
+      ) {
+        const box = this.canvas.getBoundingClientRect();
+        const delta = this.controller.interaction.edgePan(
+          { x: latest.clientX - box.left, y: latest.clientY - box.top },
+          { width: box.width, height: box.height },
+          now
+        );
+        if (delta.x || delta.y) {
+          this.panOffset.x += delta.x;
+          this.panOffset.y += delta.y;
+          this.pendingMove = latest;
+          this.flushPointerMove();
+        }
+      }
+      this.edgePanFrame = requestAnimationFrame(tick);
+    };
+    this.edgePanFrame = requestAnimationFrame(tick);
+  }
+
   attachEvents() {
     this.canvas.style.touchAction = 'none';
     this.boundMouseDown = (event) => {
       if (this.activePointerId != null) return;
       this.activePointerId = event.pointerId;
+      this.lastPointerEvent = event;
+      this.gestureRooms = new Map(
+        this.rooms.map((room) => [
+          room.id,
+          {
+            rect: { ...room.rect },
+            vertices: room.vertices?.map((point) => ({ ...point })),
+          },
+        ])
+      );
       this.pendingFocus = null;
       this.controller?.clearPreview?.({ clearIssues: true });
+      this.controller?.interaction?.begin();
       this.canvas.setPointerCapture?.(event.pointerId);
       return this.handleMouseDown(event);
     };
@@ -505,7 +588,10 @@ export class BuildingPlanCanvas {
           this.controller.previewWall(this.wallDragState.wallId, this.wallDragState.previewPoints);
       }
     };
+    this.flushPointerMove = flushMove;
     this.boundMouseMove = (event) => {
+      this.lastPointerEvent = event;
+      this.queueEdgePan(event);
       this.pendingMove = event;
       if (this.moveFrame == null) this.moveFrame = requestAnimationFrame(flushMove);
     };
@@ -513,6 +599,7 @@ export class BuildingPlanCanvas {
       if (this.activePointerId !== event.pointerId) return;
       flushMove();
       this.activePointerId = null;
+      this.stopEdgePan();
       this.canvas.releasePointerCapture?.(event.pointerId);
       const moved = [
         this.dragState,
@@ -536,6 +623,7 @@ export class BuildingPlanCanvas {
     this.boundPointerCancel = () => {
       const pointerId = this.activePointerId;
       this.activePointerId = null;
+      this.stopEdgePan();
       if (pointerId != null && this.canvas.hasPointerCapture?.(pointerId))
         this.canvas.releasePointerCapture?.(pointerId);
       this.isPanning = false;
@@ -1298,7 +1386,7 @@ export class BuildingPlanCanvas {
           Math.hypot(point.x - state.pointerStart.x, point.y - state.pointerStart.y) > 3;
         const width = room.rect.width;
         const height = room.rect.height;
-        const snappedOrigin = this.snapPoint({
+        const snappedOrigin = this.snapRoomOrigin(room, {
           x: point.x - state.offsetX,
           y: point.y - state.offsetY,
         });
@@ -1351,6 +1439,14 @@ export class BuildingPlanCanvas {
             x: pt.x + deltaX,
             y: pt.y + deltaY,
           };
+          if (wall.isBoundary && this.controller?.interaction) {
+            const first = state.originalPoints[0],
+              last = state.originalPoints.at(-1);
+            const length = Math.hypot(last.x - first.x, last.y - first.y);
+            const normal = { x: -(last.y - first.y) / length, y: (last.x - first.x) / length };
+            const amount = deltaX * normal.x + deltaY * normal.y;
+            return { x: pt.x + normal.x * amount, y: pt.y + normal.y * amount };
+          }
           if (wall.isBoundary) {
             const increment = this.gridSize / 10;
             return {
@@ -1365,7 +1461,17 @@ export class BuildingPlanCanvas {
           return this.snapPoint(clamped);
         });
 
-        const roundedPoints = roundPoints(newPoints);
+        const snappedPoints =
+          wall.isBoundary && this.controller?.interaction
+            ? this.controller.interaction.snapTranslation(newPoints, {
+                roomId: room.id,
+                physicalWallId: wall.physicalWallId,
+                zoom: this.zoomLevel,
+                originalPoints: state.originalPoints,
+                bypass: Boolean(this.lastPointerEvent?.altKey),
+              })
+            : newPoints;
+        const roundedPoints = roundPoints(snappedPoints);
         wall.previewPoints = roundedPoints;
         state.previewPoints = roundedPoints;
       } else if (state.type === 'resize') {
@@ -1375,9 +1481,30 @@ export class BuildingPlanCanvas {
               y: Math.round(point.y / (this.gridSize / 10)) * (this.gridSize / 10),
             }
           : this.snapToRoomEdges(point, room);
-        const newPoints = state.originalPoints.map((pt, idx) =>
+        let newPoints = state.originalPoints.map((pt, idx) =>
           idx === state.handleIndex ? { ...snappedPoint } : { ...pt }
         );
+        if (wall.isBoundary && this.controller?.interaction) {
+          const a = state.originalPoints[0],
+            b = state.originalPoints.at(-1);
+          const length = Math.hypot(b.x - a.x, b.y - a.y);
+          const normal = { x: -(b.y - a.y) / length, y: (b.x - a.x) / length };
+          const base = state.originalPoints[state.handleIndex];
+          const amount = (point.x - base.x) * normal.x + (point.y - base.y) * normal.y;
+          newPoints = this.controller.interaction.snapTranslation(
+            state.originalPoints.map((pt) => ({
+              x: pt.x + normal.x * amount,
+              y: pt.y + normal.y * amount,
+            })),
+            {
+              roomId: room.id,
+              physicalWallId: wall.physicalWallId,
+              zoom: this.zoomLevel,
+              originalPoints: state.originalPoints,
+              bypass: Boolean(this.lastPointerEvent?.altKey),
+            }
+          );
+        }
 
         const basePoint = state.originalPoints[state.handleIndex];
         if (!state.moved && (basePoint.x !== snappedPoint.x || basePoint.y !== snappedPoint.y)) {
@@ -1832,14 +1959,22 @@ export class BuildingPlanCanvas {
   }
 
   snapCoordinate(value) {
+    if (this.controller?.interaction) return value;
     return Math.round(value / this.gridSize) * this.gridSize;
   }
 
   snapSize(value) {
+    if (this.controller?.interaction) return Math.max(0.001, value);
     return Math.max(this.gridSize, Math.round(value / this.gridSize) * this.gridSize);
   }
 
   snapPoint(point) {
+    if (this.controller?.interaction)
+      return this.controller.interaction.snapPoint(point, {
+        roomId: this.dragState?.roomId,
+        zoom: this.zoomLevel,
+        bypass: Boolean(this.lastPointerEvent?.altKey),
+      });
     const snapped = {
       x: this.snapCoordinate(point.x),
       y: this.snapCoordinate(point.y),
@@ -2316,6 +2451,7 @@ export class BuildingPlanCanvas {
     this.rooms.forEach((room) => this.drawRoom(room));
 
     this.walls.forEach((wall) => this.drawWall(wall));
+    this.drawAlignmentGuides();
 
     this.beams.forEach((beam) => this.drawBeam(beam));
     this.columns.forEach((column) => this.drawColumn(column));

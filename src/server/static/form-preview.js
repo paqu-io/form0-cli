@@ -1,4 +1,5 @@
 import { reviewSubmission } from './submission-review.js';
+import { normalizeBuildingPlanEditingPolicy } from 'form0-core/building-plan';
 import { FormRenderer } from './form-renderer.js';
 import { resolveSupportingImagePath } from './supporting-image-utils.js';
 import { FormStateManager } from './form-state-manager.js';
@@ -127,6 +128,9 @@ let managedSubmitting = false;
 
 const FIELD_KEY_MODE_STORAGE_KEY = 'form0-cli-field-key-mode';
 const LABEL_VISIBILITY_STORAGE_KEY = 'form0-cli-label-visibility';
+const EDITING_POLICY_STORAGE_KEY = 'form0-cli-building-plan-editing';
+let currentEditingPolicy = normalizeBuildingPlanEditingPolicy();
+let settingsEditingCheckboxes = {};
 const DEFAULT_LABEL_VISIBILITY = {
   rooms: true,
   walls: true,
@@ -252,6 +256,33 @@ function ensureSettingsDialog() {
   body.appendChild(settingsKeyModeSelect);
   body.appendChild(previewEvents.settings());
 
+  const editing = document.createElement('fieldset');
+  editing.className = 'settings-group';
+  const editingTitle = document.createElement('legend');
+  editingTitle.textContent = translations.buildingPlanEditing || 'Building Plan Editing';
+  editing.appendChild(editingTitle);
+  for (const [key, label] of [
+    ['snapping', translations.buildingPlanSnapping || 'Magnetic alignment'],
+    ['edgeAutoPan', translations.buildingPlanEdgePan || 'Pan near canvas edges while dragging'],
+    [
+      'preserveWallGrouping',
+      translations.buildingPlanGrouping || 'Preserve physical wall grouping for new jogs',
+    ],
+  ]) {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'settings-checkbox-item';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = `settings-building-plan-${key}`;
+    checkbox.checked = currentEditingPolicy[key];
+    const text = document.createElement('span');
+    text.textContent = label;
+    wrapper.append(checkbox, text);
+    editing.appendChild(wrapper);
+    settingsEditingCheckboxes[key] = checkbox;
+  }
+  body.appendChild(editing);
+
   const labelGroup = document.createElement('div');
   labelGroup.className = 'settings-group';
 
@@ -354,6 +385,8 @@ function openSettingsDialog() {
   previewEvents.resetSettings();
   ensureSettingsDialog();
   if (!settingsDialog) return;
+  for (const [key, checkbox] of Object.entries(settingsEditingCheckboxes))
+    checkbox.checked = currentEditingPolicy[key];
   pendingFieldKeyMode = currentFieldKeyMode;
   if (settingsKeyModeSelect) {
     settingsKeyModeSelect.value = pendingFieldKeyMode;
@@ -407,6 +440,17 @@ function handleSettingsKeyDown(event) {
 
 function saveSettingsDialog() {
   const restartEvents = previewEvents.saveSettings();
+  currentEditingPolicy = normalizeBuildingPlanEditingPolicy(
+    Object.fromEntries(
+      Object.entries(settingsEditingCheckboxes).map(([key, checkbox]) => [key, checkbox.checked])
+    )
+  );
+  try {
+    localStorage.setItem(EDITING_POLICY_STORAGE_KEY, JSON.stringify(currentEditingPolicy));
+  } catch {
+    /* Preferences may be unavailable in private browsing. */
+  }
+  formRenderer.setBuildingPlanEditingPolicy(currentEditingPolicy);
   currentFieldKeyMode = pendingFieldKeyMode;
   persistFieldKeyModePreference(currentFieldKeyMode);
 
@@ -444,6 +488,7 @@ const formStateManager = new FormStateManager(formRenderer, { diagnostics: previ
 formRenderer.setStateManager(formStateManager);
 const operationProcessor = new OperationProcessor(formStateManager);
 const previewEventClient = createPreviewEventClient({
+  getBuildingPlanEditingPolicy: () => currentEditingPolicy,
   accept: (result, request) => previewEvents.accept(result, request),
   present: (operations) => operationProcessor.processPresentations(operations),
   getRecordOptions: () => ({
@@ -521,6 +566,14 @@ function managedFieldChange(target, fieldName) {
 }
 
 loadLabelVisibilityPreference();
+try {
+  currentEditingPolicy = normalizeBuildingPlanEditingPolicy(
+    JSON.parse(localStorage.getItem(EDITING_POLICY_STORAGE_KEY) || '{}')
+  );
+} catch {
+  currentEditingPolicy = normalizeBuildingPlanEditingPolicy();
+}
+formRenderer.setBuildingPlanEditingPolicy(currentEditingPolicy);
 
 /**
  * Trigger a form event

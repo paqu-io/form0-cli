@@ -1,5 +1,9 @@
 {
   "client": {
+    "buildingPlanEditing": "Modifica della pianta",
+    "buildingPlanSnapping": "Allineamento magnetico",
+    "buildingPlanEdgePan": "Spostare la vista vicino ai bordi durante il trascinamento",
+    "buildingPlanGrouping": "Mantenere il raggruppamento dei muri fisici per i nuovi rientri",
     "connectedWatching": "✅ Connesso: in ascolto delle modifiche.",
     "disconnectedFromServer": "❌ Disconnesso dal server.",
     "errorLoadingSchema": "❌ Errore nel caricamento dello schema.",

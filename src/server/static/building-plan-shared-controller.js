@@ -18,16 +18,31 @@ export function createSharedBuildingPlanController(
   issue.hidden = true;
   const controller = new BuildingPlanCanvasController({
     meta,
+    editingPolicy: renderer.buildingPlanEditingPolicy,
     readRecord: () => owner({ values: {}, repeatable: renderer.activeRepeatableState || {} }),
     writeRecord: (record, command) => controller.transaction?.(record, command) ?? false,
     focusRow: (path) => {
       const fullPath = [...contextPath, ...path];
       renderer.ensureRepeatablePathExpanded(fullPath);
-      const element = renderer.getRepeatableInstanceContainer(fullPath);
-      element?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+      // Expansion changes scroll anchoring. Measure after the browser has laid out the row.
+      requestAnimationFrame(() => {
+        if (controller.disposed) return;
+        const element = renderer.getRepeatableInstanceContainer(fullPath);
+        const header = element?.querySelector(':scope > .repeatable-instance-header');
+        const pane = element?.closest('.building-plan-detail-panel');
+        if (header && pane) {
+          const top =
+            pane.scrollTop +
+            header.getBoundingClientRect().top -
+            pane.getBoundingClientRect().top -
+            pane.clientTop;
+          pane.scrollTo({ top, behavior: 'instant' });
+        } else header?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      });
     },
     reportIssues: (issues) => {
-      issue.textContent = issues.map((entry) => entry.message).join(' ');
+      issue.textContent = issues[0]?.message || '';
+      issue.dataset.diagnostics = JSON.stringify(issues);
       issue.hidden = !issues.length;
     },
   });

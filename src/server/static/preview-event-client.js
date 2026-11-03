@@ -39,6 +39,7 @@ export function createPreviewEventClient({
   accept = () => {},
   present = async () => {},
   getRecordOptions = () => undefined,
+  getBuildingPlanEditingPolicy = () => undefined,
 } = {}) {
   let generation = 0,
     current = null,
@@ -109,6 +110,7 @@ export function createPreviewEventClient({
       try {
         const result = await send('/api/preview-events', {
           ...captured,
+          buildingPlanEditingPolicy: getBuildingPlanEditingPolicy(),
           sessionId: session.sessionId,
           sequence,
           scopeId: chosen?.scopeId,

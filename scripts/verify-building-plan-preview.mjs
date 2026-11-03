@@ -461,6 +461,7 @@ try {
           )
             operations++;
         });
+        await page.keyboard.down('Alt');
         await page.mouse.move(box.x + 80, box.y + 60);
         await page.mouse.down();
         await page.mouse.move(box.x + 80, box.y + 70, { steps: 8 });
@@ -470,6 +471,7 @@ try {
           'A preview must not send accepted geometry or run form evaluation.'
         );
         const result = await command(page, 'building-plan-operation', () => page.mouse.up());
+        await page.keyboard.up('Alt');
         const after = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state });
         assert.ok(after.floors[0].rooms[1].vertices.length > 4);
         assert.equal(operations, 1);
@@ -702,6 +704,131 @@ try {
         );
       },
       observationSchema
+    );
+    await scenario(
+      lifecycle,
+      'jog feedback: six rows, compound paths, magnetic realignment, header scrolling and conflicts',
+      sharedSeed(),
+      false,
+      async (page) => {
+        const opened = await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const initial = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: opened.state });
+        const wallRecord =
+          opened.state.repeatable[key('floors')][0].repeatable[key('rooms')][0].repeatable[
+            key('walls')
+          ][2];
+        const canvas = page.locator('.building-plan-canvas');
+        await canvas.scrollIntoViewIfNeeded();
+        const box = await canvas.boundingBox();
+        for (const direction of ['above', 'below']) {
+          await page.evaluate((direction) => {
+            const pane = document.querySelector('.building-plan-detail-panel');
+            pane.scrollTop = direction === 'above' ? 0 : pane.scrollHeight;
+          }, direction);
+          await page.mouse.click(box.x + 40, box.y + 60);
+          await page.waitForTimeout(700);
+          const offset = await row(page, wallRecord.id).evaluate(
+            (element) =>
+              element.querySelector(':scope > .repeatable-instance-header').getBoundingClientRect()
+                .top - element.closest('.building-plan-detail-panel').getBoundingClientRect().top
+          );
+          assert.ok(
+            Math.abs(offset) < 24,
+            `${direction}: wall header offset ${offset}, pane ${await page.locator('.building-plan-detail-panel').evaluate((p) => JSON.stringify({ scroll: p.scrollTop, max: p.scrollHeight - p.clientHeight, height: p.clientHeight }))}`
+          );
+        }
+        async function drag(from, to, bypass = true) {
+          if (bypass) await page.keyboard.down('Alt');
+          await page.mouse.move(box.x + 40, box.y + from);
+          await page.mouse.down();
+          await page.mouse.move(box.x + 40, box.y + to, { steps: 8 });
+          const result = await command(page, 'building-plan-operation', () => page.mouse.up());
+          if (bypass) await page.keyboard.up('Alt');
+          return readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state });
+        }
+        let plan = await drag(60, 64);
+        assert.equal(plan.floors[0].rooms[1].faces.length, 6);
+        assert.equal(plan.floors[0].walls.length, 9);
+        plan = await drag(64, 56);
+        assert.equal(plan.floors[0].rooms[1].faces.length, 6);
+        for (const wall of plan.floors[0].walls)
+          for (const segment of wall.segments)
+            assert.ok(
+              Math.abs(segment.start.x - segment.end.x) < 1e-6 ||
+                Math.abs(segment.start.y - segment.end.y) < 1e-6
+            );
+        // Magnetic capture aligns to the neighbouring face, accounting for thickness.
+        plan = await drag(56, 62, false);
+        assert.equal(plan.floors[0].rooms[1].faces.length, 4);
+        assert.equal(plan.floors[0].walls.length, 7);
+        assert.deepEqual(
+          plan.floors[0].rooms.map((room) => room.vertices.map(({ x, y }) => ({ x, y }))),
+          initial.floors[0].rooms.map((room) => room.vertices.map(({ x, y }) => ({ x, y })))
+        );
+        const before = (await settle(page)).state;
+        await page.keyboard.down('Alt');
+        await page.mouse.move(box.x + 40, box.y + 60);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 40, box.y + 124, { steps: 8 });
+        await page.mouse.up();
+        await page.keyboard.up('Alt');
+        const conflict = page.locator('.building-plan-conflict');
+        await conflict.waitFor({ state: 'visible' });
+        assert.match(await conflict.textContent(), /smaller drag|shorter|back|cancel/i);
+        assert.doesNotMatch(await conflict.textContent(), /invalid extent/);
+        assert.deepEqual((await settle(page)).state.repeatable, before.repeatable);
+      }
+    );
+    await scenario(
+      lifecycle,
+      'editor settings apply to future gestures and edge pan commits once',
+      sharedSeed(),
+      false,
+      async (page) => {
+        const opened = await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        await page.getByRole('button', { name: 'Open settings', exact: true }).click();
+        await page.locator('#settings-building-plan-preserveWallGrouping').check();
+        await page.locator('.settings-modal-footer button.primary-button').click();
+        const canvas = page.locator('.building-plan-canvas');
+        await canvas.scrollIntoViewIfNeeded();
+        const box = await canvas.boundingBox();
+        await page.keyboard.down('Alt');
+        await page.mouse.move(box.x + 40, box.y + 60);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 40, box.y + 64, { steps: 8 });
+        const result = await command(page, 'building-plan-operation', () => page.mouse.up());
+        await page.keyboard.up('Alt');
+        const plan = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state });
+        assert.equal(plan.floors[0].walls.length, 7);
+        assert.equal(plan.floors[0].rooms[1].faces.length, 6);
+        await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        let operations = 0;
+        page.on('request', (request) => {
+          if (
+            request.url().endsWith('/api/preview-events') &&
+            request.postDataJSON()?.action === 'building-plan-operation'
+          )
+            operations++;
+        });
+        await page.mouse.move(box.x + 40, box.y + 30);
+        await page.mouse.down();
+        await page.mouse.move(box.x + box.width - 3, box.y + 30, { steps: 8 });
+        await page.waitForTimeout(420);
+        assert.equal(operations, 0);
+        const moved = await command(page, 'building-plan-operation', () => page.mouse.up());
+        assert.equal(operations, 1);
+        const after = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: moved.state });
+        const original = readBuildingPlanRecord({
+          meta: buildingPlanMeta[0],
+          record: opened.state,
+        });
+        assert.ok(
+          after.floors[0].rooms[0].vertices[0].x - original.floors[0].rooms[0].vertices[0].x >
+            (box.width - 43) / 20,
+          'Holding near the edge must continue moving through a panned viewport'
+        );
+      }
     );
     await scenario(
       lifecycle,

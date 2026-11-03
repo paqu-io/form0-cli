@@ -653,6 +653,17 @@ export function createPreviewEditor({
         return response(failed('invalid_request', 'instancePath must be an array.'));
       if (!validPath(path)) return response(failed('invalid_request', 'Invalid instance path.'));
       const entry = find(path, request.scopeId);
+      if (request.buildingPlanEditingPolicy) {
+        try {
+          // Preferences are scoped to this editor session; schema events cannot write them.
+          const plans = new Set(
+            [...entries.values()].map((item) => item.buildingPlan).filter(Boolean)
+          );
+          for (const plan of plans) plan.editor.setEditingPolicy(request.buildingPlanEditingPolicy);
+        } catch (error) {
+          return response(failed('invalid_editing_policy', error.message));
+        }
+      }
       if (request.action === 'open-row') {
         if (configuration.readonly)
           return response(failed('readonly_scope', 'The editor is read-only.'));

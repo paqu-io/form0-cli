@@ -670,6 +670,10 @@
     }
   },
   "client": {
+    "buildingPlanEditing": "Building Plan Editing",
+    "buildingPlanSnapping": "Magnetic alignment",
+    "buildingPlanEdgePan": "Pan near canvas edges while dragging",
+    "buildingPlanGrouping": "Preserve physical wall grouping for new jogs",
     "failedToLoadSchema": "❌ Failed to load schema.",
     "errorLoadingSchema": "❌ Error loading schema.",
     "noSchemaLoaded": "No schema loaded",
