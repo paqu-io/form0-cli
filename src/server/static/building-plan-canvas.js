@@ -674,6 +674,7 @@ export class BuildingPlanCanvas {
 
       this.rooms = snapshot.rooms || [];
       this.walls = snapshot.walls || [];
+      this.wallFootprints = snapshot.wallFootprints;
       this.columns = snapshot.columns || [];
       this.beams = snapshot.beams || [];
       this.doors = snapshot.doors || [];
@@ -682,6 +683,16 @@ export class BuildingPlanCanvas {
       this.activeFloorIndex =
         typeof snapshot.activeFloorIndex === 'number' ? snapshot.activeFloorIndex : 0;
       this.hasFloors = this.floors.length > 0;
+      if (prevFloorCount === 0 && this.hasFloors && this.wallFootprints?.length) {
+        // Initial framing includes material outside room faces at the floor origin.
+        // Later previews and completed gestures never recenter the viewport.
+        const points = this.wallFootprints.flatMap((wall) => wall.polygons.flat());
+        if (points.length)
+          this.panOffset = {
+            x: Math.max(0, 8 - Math.min(...points.map((point) => point.x))),
+            y: Math.max(0, 8 - Math.min(...points.map((point) => point.y))),
+          };
+      }
 
       if (prevActiveFloor !== this.activeFloorIndex || prevFloorCount !== this.floors.length) {
         this.selectedRoomId = null;
@@ -1477,6 +1488,9 @@ export class BuildingPlanCanvas {
         wall.previewPoints = roundedPoints;
         state.previewPoints = roundedPoints;
       } else if (state.type === 'resize') {
+        // A click inside a handle's tolerance must still navigate to its row.
+        if (!state.moved && distance(point, state.pointerStart) <= 1) return;
+        state.moved = true;
         const snappedPoint = wall.isBoundary
           ? {
               x: Math.round(point.x / (this.gridSize / 10)) * (this.gridSize / 10),
@@ -1506,11 +1520,6 @@ export class BuildingPlanCanvas {
               bypass: Boolean(this.lastPointerEvent?.altKey),
             }
           );
-        }
-
-        const basePoint = state.originalPoints[state.handleIndex];
-        if (!state.moved && (basePoint.x !== snappedPoint.x || basePoint.y !== snappedPoint.y)) {
-          state.moved = true;
         }
 
         const roundedPoints = roundPoints(newPoints);
@@ -2221,9 +2230,11 @@ export class BuildingPlanCanvas {
 
   findRoomHandle(point) {
     if (!point) return null;
+    const preferred = this.controller?.getActiveRoomId?.() || this.selectedRoomId;
     const hitOffset = ROOM_HANDLE_HIT_SIZE / 2;
     for (let i = this.rooms.length - 1; i >= 0; i -= 1) {
       const room = this.rooms[i];
+      if (preferred && room.id !== preferred && this.findWallNearPoint(point, preferred)) continue;
       const rect = room.previewRect || room.rect;
       if (!rect) continue;
       const handles = this.getRoomHandlePositions(rect);
@@ -2242,90 +2253,68 @@ export class BuildingPlanCanvas {
   }
 
   findWallNearPoint(point, roomId = null) {
-    let bestMatch = null;
-    let bestDistance = WALL_HIT_TOLERANCE;
-
-    this.walls.forEach((wall) => {
-      if (roomId && wall.roomId !== roomId) {
-        return;
-      }
-      const renderedPoints = this.getRenderedWallPoints(wall);
-      if (!Array.isArray(renderedPoints) || renderedPoints.length < 2) {
-        return;
-      }
-
-      if (wall._labelRect && pointInRect(point, wall._labelRect)) {
-        const start = renderedPoints[0];
-        const end = renderedPoints[renderedPoints.length - 1] || start;
-        bestDistance = 0;
-        bestMatch = {
+    const preferred = this.controller?.getActiveRoomId?.() || this.selectedRoomId;
+    const edges = [],
+      labels = [];
+    for (const wall of this.walls) {
+      if (roomId && wall.roomId !== roomId) continue;
+      const points = this.getRenderedWallPoints(wall);
+      if (!points?.length) continue;
+      const inMaterial = this.wallFootprints
+        ?.find((entry) => entry.id === wall.physicalWallId)
+        ?.polygons.some((vertices) => pointInRoom(point, { vertices }));
+      for (let index = 0; index < points.length - 1; index++) {
+        const start = points[index],
+          end = points[index + 1];
+        const dist = pointToSegmentDistance(point, start, end);
+        const along = projectScalarToSegment(point, start, end);
+        const ratio = clamp(along, 0, 1);
+        const hit = {
           wall,
-          segmentIndex: 0,
-          distance: 0,
-          ratio: 0.5,
-          closestPoint:
-            start && end
-              ? {
-                  x: (start.x + end.x) / 2,
-                  y: (start.y + end.y) / 2,
-                }
-              : { x: point.x, y: point.y },
+          segmentIndex: index,
+          distance: dist,
+          ratio,
+          closestPoint: {
+            x: start.x + (end.x - start.x) * ratio,
+            y: start.y + (end.y - start.y) * ratio,
+          },
         };
-        return;
+        if (dist < WALL_HIT_TOLERANCE || (inMaterial && along >= 0 && along <= 1)) edges.push(hit);
+        if (index === 0 && wall._labelRect && pointInRect(point, wall._labelRect)) labels.push(hit);
       }
-
-      for (let index = 0; index < renderedPoints.length - 1; index += 1) {
-        const start = renderedPoints[index];
-        const end = renderedPoints[index + 1];
-        const distanceToSegment = pointToSegmentDistance(point, start, end);
-        if (distanceToSegment < bestDistance) {
-          const ratio = clamp(projectScalarToSegment(point, start, end), 0, 1);
-          bestDistance = distanceToSegment;
-          bestMatch = {
-            wall,
-            segmentIndex: index,
-            distance: distanceToSegment,
-            ratio,
-            closestPoint: {
-              x: start.x + (end.x - start.x) * ratio,
-              y: start.y + (end.y - start.y) * ratio,
-            },
-          };
-        }
-      }
-    });
-
-    return bestMatch;
+    }
+    // A badge must not conceal a short neighbouring edge. Resolve geometry first,
+    // then room ownership, then proximity; labels remain useful outside the wall band.
+    const hits = edges.length ? edges : labels;
+    hits.sort(
+      (a, b) =>
+        Number(b.wall.roomId === preferred) - Number(a.wall.roomId === preferred) ||
+        a.distance - b.distance ||
+        Number(b.wall.id === this.selectedWallId) - Number(a.wall.id === this.selectedWallId)
+    );
+    return hits[0] || null;
   }
 
   findWallHandle(point) {
     if (!point) return null;
-    const testWalls = [];
-    if (this.selectedWallId) {
-      const selected = this.walls.find((wall) => wall.id === this.selectedWallId);
-      if (selected) {
-        testWalls.push(selected);
-      }
-    }
-    this.walls.forEach((wall) => {
-      if (!this.selectedWallId || wall.id !== this.selectedWallId) {
-        testWalls.push(wall);
-      }
-    });
-
-    for (let i = 0; i < testWalls.length; i += 1) {
-      const wall = testWalls[i];
+    const preferred = this.controller?.getActiveRoomId?.() || this.selectedRoomId;
+    const hits = [];
+    for (const wall of this.walls) {
       const points = this.getRenderedWallPoints(wall);
-      if (!Array.isArray(points) || points.length < 2) continue;
-      for (let index = 0; index < 2; index += 1) {
-        const handlePoint = points[index];
-        const dist = distance(point, handlePoint);
-        if (dist <= WALL_HANDLE_HIT_RADIUS) {
-          return { wall, index, handlePoint };
-        }
+      if (!points || points.length < 2) continue;
+      for (const index of [0, points.length - 1]) {
+        const handlePoint = points[index],
+          dist = distance(point, handlePoint);
+        if (dist <= WALL_HANDLE_HIT_RADIUS) hits.push({ wall, index, handlePoint, distance: dist });
       }
     }
-    return null;
+    hits.sort(
+      (a, b) =>
+        Number(b.wall.roomId === preferred) - Number(a.wall.roomId === preferred) ||
+        a.distance - b.distance ||
+        Number(b.wall.id === this.selectedWallId) - Number(a.wall.id === this.selectedWallId)
+    );
+    return hits[0] || null;
   }
 
   setHoverState(nextState) {
@@ -2452,14 +2441,14 @@ export class BuildingPlanCanvas {
 
     this.rooms.forEach((room) => this.drawRoom(room));
 
+    this.drawPhysicalWalls();
     this.walls.forEach((wall) => this.drawWall(wall));
     this.drawAlignmentGuides();
 
     this.beams.forEach((beam) => this.drawBeam(beam));
     this.columns.forEach((column) => this.drawColumn(column));
 
-    this.doors.forEach((door) => this.drawOpening(door, 'door'));
-    this.windows.forEach((window) => this.drawOpening(window, 'window'));
+    this.drawOpenings();
 
     if (this.wallDraft && this.wallDraft.start && this.wallDraft.end) {
       this.drawDraftWall(this.wallDraft.start, this.wallDraft.end);
@@ -2972,6 +2961,61 @@ export class BuildingPlanCanvas {
     ctx.restore();
   }
 
+  drawPhysicalWalls() {
+    if (!this.wallFootprints) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = '#444';
+    ctx.strokeStyle = '#444';
+    ctx.beginPath();
+    for (const wall of this.wallFootprints) {
+      // Opaque fills compose valid junctions without double-stroked interior seams.
+      for (const polygon of wall.polygons) {
+        if (!polygon.length) continue;
+        ctx.moveTo(polygon[0].x, polygon[0].y);
+        for (const point of polygon.slice(1)) ctx.lineTo(point.x, point.y);
+        ctx.closePath();
+      }
+    }
+    ctx.fill();
+    for (const wall of this.wallFootprints) {
+      for (const segment of wall.schematicSegments) {
+        ctx.beginPath();
+        ctx.setLineDash([4, 3]);
+        ctx.lineWidth = 1 / this.zoomLevel;
+        ctx.moveTo(segment.points[0].x, segment.points[0].y);
+        ctx.lineTo(segment.points[1].x, segment.points[1].y);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+
+  drawOpenings() {
+    for (const [type, collection] of [
+      ['door', this.doors],
+      ['window', this.windows],
+    ]) {
+      for (const opening of collection) opening._labelRect = null;
+      const chosen = new Map();
+      for (const opening of collection) {
+        const key = opening.subjectId || opening.id;
+        const previous = chosen.get(key);
+        const selected = type === 'door' ? this.selectedDoorId : this.selectedWindowId;
+        if (
+          !previous ||
+          opening.id === selected ||
+          (previous.id !== selected &&
+            (previous.isDimmed ||
+              opening.roomId === (this.controller?.getActiveRoomId?.() || this.selectedRoomId)))
+        )
+          chosen.set(key, opening);
+      }
+      for (const opening of chosen.values()) this.drawOpening(opening, type);
+    }
+  }
+
   drawWall(wall) {
     const ctx = this.ctx;
     const points = this.getRenderedWallPoints(wall);
@@ -2991,7 +3035,7 @@ export class BuildingPlanCanvas {
     for (let i = 1; i < points.length; i += 1) {
       ctx.lineTo(points[i].x, points[i].y);
     }
-    ctx.stroke();
+    if (!this.wallFootprints || this.selectedWallId === wall.id) ctx.stroke();
     ctx.restore();
 
     if (this.selectedWallId === wall.id) {
@@ -3058,7 +3102,8 @@ export class BuildingPlanCanvas {
     const wall = this.walls.find((entry) => entry.id === opening.wallId);
     if (!wall) return null;
 
-    const wallPoints = this.getRenderedWallPoints(wall);
+    const wallPoints =
+      opening.physical && wall.axisPoints ? wall.axisPoints : this.getRenderedWallPoints(wall);
     if (!Array.isArray(wallPoints) || wallPoints.length < 2) {
       return null;
     }
@@ -3150,7 +3195,11 @@ export class BuildingPlanCanvas {
     ctx.save();
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = lineWidth;
-    ctx.lineCap = 'round';
+    ctx.lineCap = opening.physical ? 'butt' : 'round';
+    if (opening.physical?.thickness > 0) {
+      // The opening occupies the full host band; keep the existing door/window colours.
+      ctx.lineWidth = opening.physical.thickness * this.gridSize;
+    }
     ctx.beginPath();
     ctx.moveTo(geometry.startPoint.x, geometry.startPoint.y);
     ctx.lineTo(geometry.endPoint.x, geometry.endPoint.y);
@@ -3247,6 +3296,10 @@ export class BuildingPlanCanvas {
       }
     });
 
+    const preferred = this.controller?.getActiveRoomId?.() || this.selectedRoomId;
+    priority.sort(
+      (a, b) => Number(b.opening.roomId === preferred) - Number(a.opening.roomId === preferred)
+    );
     for (let i = 0; i < priority.length; i += 1) {
       const { type, opening } = priority[i];
       const geometry = this.getOpeningGeometry(opening);
@@ -3292,6 +3345,10 @@ export class BuildingPlanCanvas {
     let bestMatch = null;
     let bestDistance = OPENING_HIT_TOLERANCE;
 
+    const preferred = this.controller?.getActiveRoomId?.() || this.selectedRoomId;
+    candidates.sort(
+      (a, b) => Number(b.opening.roomId === preferred) - Number(a.opening.roomId === preferred)
+    );
     candidates.forEach(({ type, opening }) => {
       const geometry = this.getOpeningGeometry(opening);
       if (!geometry || geometry.segmentLength === 0) return;

@@ -26,6 +26,12 @@ export function createSharedBuildingPlanController(
     readRecord: () => owner({ values: {}, repeatable: renderer.activeRepeatableState || {} }),
     writeRecord: (record, command) => controller.transaction?.(record, command) ?? false,
     focusRow: (path) => {
+      controller.preferredRoomId =
+        [...controller.rooms.values()].find((room) =>
+          room.path.every(
+            (part, index) => part.key === path[index]?.key && part.index === path[index]?.index
+          )
+        )?.id || null;
       const fullPath = [...contextPath, ...path];
       renderer.ensureRepeatablePathExpanded(fullPath);
       // Expansion changes scroll anchoring. Measure after the browser has laid out the row.

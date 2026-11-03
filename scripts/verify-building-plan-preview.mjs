@@ -133,27 +133,44 @@ const sharedSeed = (height = 3, observation = false) => {
 };
 const directory = await mkdtemp(path.join(os.tmpdir(), 'form0-building-plan-'));
 const safe = process.env.FORM0_PREVIEW_SAFE === '1';
-const app = createApp(
-  () => activeSchema,
-  () => 'BuildingPlan fixture',
-  directory,
-  { diagnostics: false, engineOptions: safe ? { security: SAFE_SECURITY_CONFIG } : {} }
-);
-const server = await new Promise((resolve) => {
-  const s = app.listen(0, '127.0.0.1', () => resolve(s));
-});
-const sockets = createWebSocketServer(
-  server,
-  () => activeSchema,
-  () => 'BuildingPlan fixture',
-  {}
-);
+async function startPreviewServer() {
+  const app = createApp(
+    () => activeSchema,
+    () => 'BuildingPlan fixture',
+    directory,
+    { diagnostics: false, engineOptions: safe ? { security: SAFE_SECURITY_CONFIG } : {} }
+  );
+  const server = await new Promise((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  const sockets = createWebSocketServer(
+    server,
+    () => activeSchema,
+    () => 'BuildingPlan fixture',
+    {}
+  );
+  return { server, sockets };
+}
+let { server, sockets } = await startPreviewServer();
+async function stopPreviewServer() {
+  await new Promise((resolve) => sockets.wss.close(resolve));
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
+}
 const browser = await chromium.launch({
   headless: true,
   ...(process.env.FORM0_CHROMIUM_EXECUTABLE
     ? { executablePath: process.env.FORM0_CHROMIUM_EXECUTABLE }
     : {}),
 });
+async function canvasBox(canvas) {
+  const box = await canvas.boundingBox();
+  const offset = await canvas.evaluate((element) => {
+    const matrix = element.getContext('2d').getTransform();
+    return { x: matrix.e, y: matrix.f };
+  });
+  return { ...box, x: box.x + offset.x, y: box.y + offset.y };
+}
 const evidence = [];
 const settle = (page) =>
   page.evaluate(() => window.form0PreviewEvents.dispatch({ type: 'validate-record' }));
@@ -177,7 +194,7 @@ async function draw(page, tool, start, end) {
   await page.getByRole('button', { name: tool, exact: true }).click();
   const canvas = page.locator('.building-plan-canvas');
   await canvas.scrollIntoViewIfNeeded();
-  const box = await canvas.boundingBox();
+  const box = await canvasBox(canvas);
   return command(page, 'building-plan-operation', async () => {
     await page.mouse.move(box.x + box.width * start[0], box.y + box.height * start[1]);
     await page.mouse.down();
@@ -191,7 +208,7 @@ async function place(page, tool, point, { meters = false } = {}) {
   await page.getByRole('button', { name: tool, exact: true }).click();
   const canvas = page.locator('.building-plan-canvas');
   await canvas.scrollIntoViewIfNeeded();
-  const box = await canvas.boundingBox();
+  const box = await canvasBox(canvas);
   return command(page, 'building-plan-operation', () =>
     page.mouse.click(
       box.x + (meters ? point[0] * 20 : box.width * point[0]),
@@ -251,6 +268,9 @@ async function scenario(lifecycle, label, initial, readonly, run, scenarioSchema
   evidence.push(result);
   page.setDefaultTimeout(7000);
   page.on('pageerror', (error) => result.errors.push(error.stack || error.message));
+  page.on('response', (response) => {
+    if (response.status() === 429) result.errors.push(`HTTP 429: ${response.url()}`);
+  });
   page.on('dialog', (dialog) => dialog.accept());
   await page.addInitScript(
     (config) => localStorage.setItem('form0-preview-events', JSON.stringify(config)),
@@ -277,6 +297,12 @@ async function scenario(lifecycle, label, initial, readonly, run, scenarioSchema
 }
 try {
   for (const lifecycle of [false, true]) {
+    // Each group uses its own preview server: repeated cache-free browser startups must
+    // not exhaust the real server's asset limiter. Production limits remain unchanged.
+    if (lifecycle) {
+      await stopPreviewServer();
+      ({ server, sockets } = await startPreviewServer());
+    }
     const savedSeed = seed();
     await scenario(
       lifecycle,
@@ -428,7 +454,7 @@ try {
         await page.getByRole('button', { name: 'Select / Move / Resize', exact: true }).click();
         const canvas = page.locator('.building-plan-canvas');
         await canvas.scrollIntoViewIfNeeded();
-        const box = await canvas.boundingBox();
+        const box = await canvasBox(canvas);
         await page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.4);
         await page.mouse.down();
         await page.mouse.move(box.x + box.width + 20, box.y + box.height * 0.4, { steps: 12 });
@@ -452,7 +478,7 @@ try {
         const before = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: opened.state });
         const canvas = page.locator('.building-plan-canvas');
         await canvas.scrollIntoViewIfNeeded();
-        const box = await canvas.boundingBox();
+        const box = await canvasBox(canvas);
         let operations = 0;
         page.on('request', (request) => {
           if (
@@ -707,6 +733,102 @@ try {
     );
     await scenario(
       lifecycle,
+      'physical wall material, one opening and active-room overlap selection',
+      (() => {
+        const record = sharedSeed();
+        const plan = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record });
+        const domain = createBuildingPlanSession({ snapshot: plan });
+        assert.equal(
+          domain.apply({
+            type: 'create_opening',
+            floorId: plan.floors[0].id,
+            wallId: plan.floors[0].rooms[0].faces[2].wallId,
+            kind: 'door',
+            offset: 3.5,
+            width: 0.9,
+          }).status,
+          'applied'
+        );
+        return writeBuildingPlanRecord({
+          meta: buildingPlanMeta[0],
+          plan: domain.getSnapshot(),
+          record,
+        });
+      })(),
+      false,
+      async (page) => {
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const canvas = page.locator('.building-plan-canvas');
+        await canvas.scrollIntoViewIfNeeded();
+        const colors = await canvas.evaluate((element) => {
+          const ctx = element.getContext('2d');
+          const m = ctx.getTransform();
+          const pixel = (x, y) =>
+            [
+              ...ctx.getImageData(Math.round(x * m.a + m.e), Math.round(y * m.d + m.f), 1, 1).data,
+            ].slice(0, 3);
+          return {
+            exterior: pixel(-2, -2),
+            material: pixel(30, 62),
+            door: pixel(81, 62),
+            above: pixel(81, 57),
+            below: pixel(81, 67),
+          };
+        });
+        assert.deepEqual(colors.exterior, [68, 68, 68]);
+        assert.deepEqual(colors.material, [68, 68, 68]);
+        assert.deepEqual(colors.door, [43, 138, 62]);
+        assert.notDeepEqual(colors.above, colors.door);
+        assert.notDeepEqual(colors.below, colors.door);
+        const box = await canvasBox(canvas);
+        await page.keyboard.down('Alt');
+        await page.mouse.move(box.x + 40, box.y + 60);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 40, box.y + 72, { steps: 8 });
+        const changed = await command(page, 'building-plan-operation', () => page.mouse.up());
+        await page.keyboard.up('Alt');
+        const plan = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: changed.state });
+        const room2 = plan.floors[0].rooms[1];
+        const recordRoom = changed.state.repeatable[key('floors')][0].repeatable[key('rooms')][1];
+        const returnFace = room2.faces.find((face) =>
+          face.edgeIds.some((id) => {
+            const edge = room2.edges.find((edge) => edge.id === id);
+            const a = room2.vertices.find((v) => v.id === edge.startId),
+              b = room2.vertices.find((v) => v.id === edge.endId);
+            return Math.abs(a.x - 5) < 1e-6 && Math.abs(b.x - 5) < 1e-6;
+          })
+        );
+        assert.ok(returnFace);
+        const returnRow = recordRoom.repeatable[key('walls')].find(
+          (wall) =>
+            JSON.parse(
+              wall.values[
+                buildingPlanMeta[0].repeatablesByNodeKey.walls.fields.find(
+                  (f) => f.binding?.role === 'storage'
+                ).dataName
+              ]
+            ).id === returnFace.id
+        );
+        await command(page, 'open-row', () => control(row(page, recordRoom.id), 'edit').click());
+        await canvas.scrollIntoViewIfNeeded();
+        const current = await canvasBox(canvas);
+        await page.mouse.click(current.x + 100, current.y + 68);
+        await page.waitForTimeout(250);
+        const offset = await row(page, returnRow.id).evaluate(
+          (element) =>
+            element.querySelector(':scope > .repeatable-instance-header').getBoundingClientRect()
+              .top - element.closest('.building-plan-detail-panel').getBoundingClientRect().top
+        );
+        assert.ok(
+          Math.abs(offset) < 24,
+          `Room 2 return row must receive the overlapping hit; offset ${offset}`
+        );
+        if (process.env.FORM0_BUILDING_PLAN_SCREENSHOT)
+          await canvas.screenshot({ path: process.env.FORM0_BUILDING_PLAN_SCREENSHOT });
+      }
+    );
+    await scenario(
+      lifecycle,
       'jog feedback: six rows, compound paths, magnetic realignment, header scrolling and conflicts',
       sharedSeed(),
       false,
@@ -719,7 +841,7 @@ try {
           ][2];
         const canvas = page.locator('.building-plan-canvas');
         await canvas.scrollIntoViewIfNeeded();
-        const box = await canvas.boundingBox();
+        const box = await canvasBox(canvas);
         for (const direction of ['above', 'below']) {
           await page.evaluate((direction) => {
             const pane = document.querySelector('.building-plan-detail-panel');
@@ -791,7 +913,7 @@ try {
         await page.locator('.settings-modal-footer button.primary-button').click();
         const canvas = page.locator('.building-plan-canvas');
         await canvas.scrollIntoViewIfNeeded();
-        const box = await canvas.boundingBox();
+        const box = await canvasBox(canvas);
         await page.keyboard.down('Alt');
         await page.mouse.move(box.x + 40, box.y + 60);
         await page.mouse.down();
@@ -839,7 +961,7 @@ try {
         await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
         const canvas = page.locator('.building-plan-canvas');
         await canvas.scrollIntoViewIfNeeded();
-        let box = await canvas.boundingBox();
+        let box = await canvasBox(canvas);
         let lastOperation;
         page.on('request', (request) => {
           if (request.url().endsWith('/api/preview-events') && request.postDataJSON()?.operation)
@@ -847,7 +969,7 @@ try {
         });
         async function drag(from, to, bypass = true) {
           await canvas.scrollIntoViewIfNeeded();
-          box = await canvas.boundingBox();
+          box = await canvasBox(canvas);
           if (bypass) await page.keyboard.down('Alt');
           await page.mouse.move(box.x + from[0], box.y + from[1]);
           await page.mouse.down();
@@ -908,7 +1030,7 @@ try {
         const before = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: opened.state });
         const canvas = page.locator('.building-plan-canvas');
         await canvas.scrollIntoViewIfNeeded();
-        const box = await canvas.boundingBox();
+        const box = await canvasBox(canvas);
         let accept = false,
           prompts = 0;
         page.removeAllListeners('dialog');
@@ -989,8 +1111,6 @@ try {
   if (evidence.some((item) => !item.passed)) process.exitCode = 1;
 } finally {
   await browser.close();
-  await new Promise((resolve) => sockets.wss.close(resolve));
-  server.closeAllConnections();
-  await new Promise((resolve) => server.close(resolve));
+  await stopPreviewServer();
   await rm(directory, { recursive: true, force: true });
 }

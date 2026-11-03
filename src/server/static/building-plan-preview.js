@@ -29,6 +29,27 @@ export function createManagedBuildingPlanController({
   busyChanged = () => {},
 }) {
   if (controller.isSharedModel) {
+    let lastRoomScopes = '';
+    controller.getActiveRoomId = () => {
+      const roomKey = controller.meta.repeatablesByNodeKey.rooms.preferredKey;
+      const rooms = [...controller.rooms.values()];
+      const matches = client.getScopes().flatMap((scope) => {
+        const floorPart = scope.instancePath.find(
+          (part) => part.repeatableKey === controller.floorKey
+        );
+        if (floorPart?.instanceId !== controller.floors[controller.activeFloorIndex]?.rowId)
+          return [];
+        const roomPart = scope.instancePath.find((part) => part.repeatableKey === roomKey);
+        const room = roomPart && rooms.find((entry) => entry.rowId === roomPart.instanceId);
+        return room ? [{ room, scopeId: scope.scopeId }] : [];
+      });
+      const signature = matches.map((entry) => entry.scopeId).join('|');
+      if (signature !== lastRoomScopes) {
+        controller.preferredRoomId = matches.at(-1)?.room.id || null;
+        lastRoomScopes = signature;
+      }
+      return controller.preferredRoomId;
+    };
     controller.readOnly = () => configuration().readonly || !session();
     controller.history = async (direction) => {
       const floorPath = [...controller.contextPath, ...controller.getActiveFloorPath()];

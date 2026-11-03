@@ -1548,6 +1548,16 @@ export class FormRenderer {
         }
       }
       if (controller.conflictElement) canvasContainer.appendChild(controller.conflictElement);
+      if (controller.isSharedModel)
+        detailContainer.addEventListener('focusin', (event) => {
+          for (const room of controller.rooms.values()) {
+            const element = this.getRepeatableInstanceContainer([...contextPath, ...room.path]);
+            if (element?.contains(event.target)) {
+              controller.preferredRoomId = room.id;
+              break;
+            }
+          }
+        });
     } else {
       canvasContainer.innerHTML = `
         <div class="building-plan-canvas-placeholder">
