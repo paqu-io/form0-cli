@@ -733,6 +733,119 @@ try {
     );
     await scenario(
       lifecycle,
+      'explicit Split and Rejoin preserve shared rows and exact placement',
+      sharedSeed(),
+      false,
+      async (page) => {
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const canvas = page.locator('.building-plan-canvas');
+        await page.getByRole('button', { name: 'Split', exact: true }).click();
+        await canvas.scrollIntoViewIfNeeded();
+        let box = await canvasBox(canvas);
+        await page.keyboard.down('Alt');
+        await page.mouse.move(box.x + 70, box.y + 60);
+        await page.mouse.down();
+        const split = await command(page, 'building-plan-operation', () => page.mouse.up());
+        await page.keyboard.up('Alt');
+        let plan = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: split.state });
+        assert.ok(plan.floors[0].rooms.every((room) => room.faces.length === 5));
+        assert.equal(plan.floors[0].walls.length, 7);
+        await page.getByRole('button', { name: 'Rejoin', exact: true }).click();
+        box = await canvasBox(canvas);
+        await page.mouse.move(box.x + 70, box.y + 60);
+        await page.mouse.down();
+        const joined = await command(page, 'building-plan-operation', () => page.mouse.up());
+        plan = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: joined.state });
+        assert.ok(plan.floors[0].rooms.every((room) => room.faces.length === 4));
+        await page.getByRole('button', { name: 'Split', exact: true }).click();
+        box = await canvasBox(canvas);
+        await page.mouse.move(box.x + 40, box.y);
+        await page.mouse.down();
+        await page.keyboard.press('Escape');
+        await page.mouse.up();
+        assert.equal(
+          await page
+            .getByRole('button', { name: 'Split', exact: true })
+            .getAttribute('aria-pressed'),
+          'false'
+        );
+        await page.getByRole('button', { name: 'Split', exact: true }).click();
+        box = await canvasBox(canvas);
+        await page.mouse.move(box.x + 40, box.y);
+        await page.getByLabel('Split distance (m)', { exact: true }).fill('2.25');
+        const exact = await command(page, 'building-plan-operation', () =>
+          page.getByRole('button', { name: 'Split at distance', exact: true }).click()
+        );
+        plan = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: exact.state });
+        assert.ok(plan.floors[0].rooms[0].vertices.some((v) => v.x === 2.25 && v.y === 0));
+        assert.equal(plan.floors[0].rooms[0].faces.length, 5);
+        await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+      }
+    );
+    await scenario(
+      lifecycle,
+      'split partition gestures and magnetic Rejoin',
+      (() => {
+        const record = sharedSeed();
+        const domain = createBuildingPlanSession({
+          snapshot: readBuildingPlanRecord({ meta: buildingPlanMeta[0], record }),
+        });
+        const floor = domain.getSnapshot().floors[0];
+        assert.equal(
+          domain.apply({
+            type: 'create_wall',
+            floorId: floor.id,
+            roomId: floor.rooms[0].id,
+            vertices: [
+              { x: 1, y: 1 },
+              { x: 4, y: 1 },
+            ],
+          }).status,
+          'applied'
+        );
+        return writeBuildingPlanRecord({
+          meta: buildingPlanMeta[0],
+          record,
+          plan: domain.getSnapshot(),
+        });
+      })(),
+      false,
+      async (page) => {
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const canvas = page.locator('.building-plan-canvas');
+        await page.getByRole('button', { name: 'Split', exact: true }).click();
+        await canvas.scrollIntoViewIfNeeded();
+        let box = await canvasBox(canvas);
+        await page.mouse.move(box.x + 40, box.y + 20);
+        await page.mouse.down();
+        await command(page, 'building-plan-operation', () => page.mouse.up());
+        await page.getByRole('button', { name: 'Select / Move / Resize', exact: true }).click();
+        const drag = async (from, to, bypass = false) => {
+          box = await canvasBox(canvas);
+          if (bypass) await page.keyboard.down('Alt');
+          await page.mouse.move(box.x + from[0], box.y + from[1]);
+          await page.mouse.down();
+          await page.mouse.move(box.x + to[0], box.y + to[1], { steps: 8 });
+          const response = await command(page, 'building-plan-operation', () => page.mouse.up());
+          if (bypass) await page.keyboard.up('Alt');
+          return readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: response.state });
+        };
+        let plan = await drag([60, 20], [66, 32], true);
+        assert.equal(plan.floors[0].rooms[0].faces.filter((face) => face.freePath).length, 3);
+        plan = await drag([60, 32], [60, 21]);
+        assert.equal(plan.floors[0].rooms[0].faces.filter((face) => face.freePath).length, 2);
+        await page.getByRole('button', { name: 'Rejoin', exact: true }).click();
+        box = await canvasBox(canvas);
+        await page.mouse.move(box.x + 40, box.y + 20);
+        await page.mouse.down();
+        const joined = await command(page, 'building-plan-operation', () => page.mouse.up());
+        plan = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: joined.state });
+        assert.equal(plan.floors[0].rooms[0].faces.filter((face) => face.freePath).length, 1);
+        await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+      }
+    );
+    await scenario(
+      lifecycle,
       'physical wall material, one opening and active-room overlap selection',
       (() => {
         const record = sharedSeed();

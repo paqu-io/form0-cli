@@ -397,6 +397,7 @@ export class BuildingPlanCanvas {
     this.container.appendChild(this.floorTabsContainer);
 
     this.container.appendChild(this.toolbar);
+    this.buildCutControls();
     this.container.appendChild(this.canvasContainer);
 
     this.renderFloorTabs();
@@ -429,6 +430,8 @@ export class BuildingPlanCanvas {
   }
 
   setMode(mode) {
+    this.cutGesture = false;
+    this.cutTarget = this.cutDraft = null;
     if (mode === MODE_DRAW_ROOM && this.roomButton && this.roomButton.disabled) {
       return;
     }
@@ -475,6 +478,140 @@ export class BuildingPlanCanvas {
     this.updateCursor();
     this.updateButtonStates();
     this.render();
+  }
+
+  buildCutControls() {
+    if (!this.controller?.getCutPlacement) return;
+    if (!this.externalToolbar) {
+      this.splitButton = this.createToolbarButton('Split', 'split');
+      this.rejoinButton = this.createToolbarButton('Rejoin', 'rejoin');
+      this.toolbar.append(this.splitButton, this.rejoinButton);
+    }
+    this.cutToolbar = document.createElement('div');
+    this.cutToolbar.className = 'building-plan-toolbar';
+    const label = document.createElement('label');
+    label.textContent = 'Split distance (m) ';
+    this.cutDistanceInput = document.createElement('input');
+    this.cutDistanceInput.type = 'number';
+    this.cutDistanceInput.step = 'any';
+    this.cutDistanceInput.min = '0';
+    this.cutDistanceInput.style.width = '90px';
+    this.cutDistanceInput.setAttribute('aria-label', 'Split distance (m)');
+    this.cutDistanceInput.addEventListener('input', () => {
+      const target = this.cutTarget;
+      if (!target) return;
+      const ratio = Number(this.cutDistanceInput.value) / target.length;
+      this.cutDraft = {
+        ...target,
+        point: {
+          x: target.start.x + (target.end.x - target.start.x) * ratio,
+          y: target.start.y + (target.end.y - target.start.y) * ratio,
+        },
+        guide: null,
+      };
+      this.render();
+    });
+    label.appendChild(this.cutDistanceInput);
+    this.cutDistanceButton = document.createElement('button');
+    this.cutDistanceButton.type = 'button';
+    this.cutDistanceButton.className = 'building-plan-toolbar-button';
+    this.cutDistanceButton.textContent = 'Split at distance';
+    this.cutDistanceButton.addEventListener('click', async () => {
+      if (!this.cutAllowed() || !this.cutTarget) return;
+      await this.controller.splitWall(this.cutTarget.wallId, {
+        offset: Number(this.cutDistanceInput.value),
+      });
+      this.cutTarget = this.cutDraft = null;
+      this.render();
+    });
+    const hint = document.createElement('span');
+    hint.textContent = 'Point at a wall, then click or enter a distance from its marked 0 end.';
+    this.cutToolbar.append(label, this.cutDistanceButton, hint);
+    this.container.appendChild(this.cutToolbar);
+  }
+
+  cutAllowed() {
+    return Boolean(
+      this.controller?.getCutPlacement &&
+      this.controller.canEdit() &&
+      !this.readOnly &&
+      (!this.externalToolbar || this.controller.toolbarState?.canResize)
+    );
+  }
+
+  updateCutControls() {
+    for (const [button, mode] of [
+      [this.splitButton, 'split'],
+      [this.rejoinButton, 'rejoin'],
+    ]) {
+      if (!button) continue;
+      button.disabled = !this.cutAllowed();
+      button.classList.toggle('active', this.mode === mode);
+      button.setAttribute('aria-pressed', String(this.mode === mode));
+    }
+    if (!this.cutToolbar) return;
+    this.cutToolbar.style.display = this.mode === 'split' ? 'flex' : 'none';
+    const disabled = !this.cutAllowed() || !this.cutTarget;
+    this.cutDistanceInput.disabled = disabled;
+    this.cutDistanceButton.disabled = disabled;
+  }
+
+  updateCutPlacement(point, event) {
+    if (!this.cutAllowed()) return;
+    const options = {
+      roomId: this.controller.scope?.roomId,
+      preferredRoomId: this.controller.getActiveRoomId?.() || this.selectedRoomId,
+      zoom: this.zoomLevel,
+      bypass: Boolean(event.altKey),
+    };
+    this.cutDraft =
+      this.mode === 'split'
+        ? this.controller.getCutPlacement(point, options)
+        : this.controller.getJoinPlacement(point, options);
+    if (this.mode === 'split' && this.cutDraft) {
+      this.cutTarget = this.cutDraft;
+      if (document.activeElement !== this.cutDistanceInput)
+        this.cutDistanceInput.value = String(Math.round(this.cutDraft.offset * 1000) / 1000);
+    }
+    this.render();
+  }
+
+  drawEditingCuts() {
+    const roomId = this.controller?.scope?.roomId;
+    const nodes = (this.editingCuts || []).filter((cut) => !roomId || cut.roomId === roomId);
+    if (this.cutDraft) nodes.push(this.cutDraft);
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#0369a1';
+    ctx.lineWidth = 1.5 / this.zoomLevel;
+    for (const node of nodes) {
+      ctx.beginPath();
+      ctx.arc(
+        node.point.x,
+        node.point.y,
+        (node === this.cutDraft ? 5 : 3) / this.zoomLevel,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+      ctx.stroke();
+    }
+    if (this.cutDraft?.guide) {
+      ctx.setLineDash([4 / this.zoomLevel, 4 / this.zoomLevel]);
+      ctx.beginPath();
+      ctx.moveTo(this.cutDraft.guide.from.x, this.cutDraft.guide.from.y);
+      ctx.lineTo(this.cutDraft.guide.to.x, this.cutDraft.guide.to.y);
+      ctx.stroke();
+    }
+    if (this.mode === 'split' && this.cutTarget?.start) {
+      const origin = this.cutTarget.start;
+      ctx.setLineDash([]);
+      ctx.font = `${11 / this.zoomLevel}px sans-serif`;
+      ctx.fillStyle = '#0369a1';
+      ctx.fillText('0', origin.x + 6 / this.zoomLevel, origin.y - 6 / this.zoomLevel);
+    }
+    ctx.restore();
   }
 
   snapRoomOrigin(room, origin) {
@@ -637,10 +774,14 @@ export class BuildingPlanCanvas {
       this.controller?.clearPreview?.({ clearIssues: true });
     };
     this.boundGestureKey = (event) => {
-      if (event.key === 'Escape' && this.activePointerId != null) {
+      if (
+        event.key === 'Escape' &&
+        (this.activePointerId != null || ['split', 'rejoin'].includes(this.mode))
+      ) {
         event.preventDefault();
         event.stopPropagation();
         this.boundPointerCancel();
+        if (['split', 'rejoin'].includes(this.mode)) this.setMode(MODE_SELECT);
       }
     };
     this.canvas.addEventListener('pointercancel', this.boundPointerCancel);
@@ -675,6 +816,7 @@ export class BuildingPlanCanvas {
       this.rooms = snapshot.rooms || [];
       this.walls = snapshot.walls || [];
       this.wallFootprints = snapshot.wallFootprints;
+      this.editingCuts = snapshot.editingCuts || [];
       this.columns = snapshot.columns || [];
       this.beams = snapshot.beams || [];
       this.doors = snapshot.doors || [];
@@ -906,6 +1048,12 @@ export class BuildingPlanCanvas {
       return;
     }
     const point = this.getCanvasPoint(event);
+    if (['split', 'rejoin'].includes(this.mode)) {
+      this.pendingFocus = null;
+      this.cutGesture = this.cutAllowed();
+      if (this.cutGesture) this.updateCutPlacement(point, event);
+      return;
+    }
 
     if (this.mode === MODE_DRAW_COLUMN) {
       const room = this.findRoomAtPoint(point);
@@ -1292,6 +1440,10 @@ export class BuildingPlanCanvas {
       return;
     }
     const point = this.getCanvasPoint(event);
+    if (['split', 'rejoin'].includes(this.mode)) {
+      this.updateCutPlacement(point, event);
+      return;
+    }
 
     if (
       this.mode === MODE_SELECT &&
@@ -1452,7 +1604,7 @@ export class BuildingPlanCanvas {
             x: pt.x + deltaX,
             y: pt.y + deltaY,
           };
-          if (wall.isBoundary && this.controller?.interaction) {
+          if ((wall.isBoundary || wall.isCutPortion) && this.controller?.interaction) {
             const first = state.originalPoints[0],
               last = state.originalPoints.at(-1);
             const length = Math.hypot(last.x - first.x, last.y - first.y);
@@ -1460,7 +1612,7 @@ export class BuildingPlanCanvas {
             const amount = deltaX * normal.x + deltaY * normal.y;
             return { x: pt.x + normal.x * amount, y: pt.y + normal.y * amount };
           }
-          if (wall.isBoundary) {
+          if (wall.isBoundary || wall.isCutPortion) {
             const increment = this.gridSize / 10;
             return {
               x: Math.round(translated.x / increment) * increment,
@@ -1475,10 +1627,12 @@ export class BuildingPlanCanvas {
         });
 
         const snappedPoints =
-          wall.isBoundary && this.controller?.interaction
+          (wall.isBoundary || wall.isCutPortion) && this.controller?.interaction
             ? this.controller.interaction.snapTranslation(newPoints, {
                 roomId: room.id,
                 physicalWallId: state.physicalWallId,
+                editingGroupId: wall.isCutPortion ? wall.editingGroupId : null,
+                faceId: wall.id,
                 zoom: this.zoomLevel,
                 originalPoints: state.originalPoints,
                 bypass: Boolean(this.lastPointerEvent?.altKey),
@@ -1500,7 +1654,7 @@ export class BuildingPlanCanvas {
         let newPoints = state.originalPoints.map((pt, idx) =>
           idx === state.handleIndex ? { ...snappedPoint } : { ...pt }
         );
-        if (wall.isBoundary && this.controller?.interaction) {
+        if ((wall.isBoundary || wall.isCutPortion) && this.controller?.interaction) {
           const a = state.originalPoints[0],
             b = state.originalPoints.at(-1);
           const length = Math.hypot(b.x - a.x, b.y - a.y);
@@ -1515,6 +1669,8 @@ export class BuildingPlanCanvas {
             {
               roomId: room.id,
               physicalWallId: state.physicalWallId,
+              editingGroupId: wall.isCutPortion ? wall.editingGroupId : null,
+              faceId: wall.id,
               zoom: this.zoomLevel,
               originalPoints: state.originalPoints,
               bypass: Boolean(this.lastPointerEvent?.altKey),
@@ -1707,6 +1863,18 @@ export class BuildingPlanCanvas {
     }
     if (this.controller?.canEdit && !this.controller.canEdit()) return;
     const point = this.getCanvasPoint(event);
+    if (['split', 'rejoin'].includes(this.mode)) {
+      const target = this.cutDraft;
+      const allowed = this.cutGesture && this.cutAllowed();
+      this.cutGesture = false;
+      if (allowed && target)
+        await (this.mode === 'split'
+          ? this.controller.splitWall(target.wallId, { offset: target.offset })
+          : this.controller.rejoinCut(target.id));
+      this.cutDraft = this.cutTarget = null;
+      this.render();
+      return;
+    }
 
     if (this.mode === MODE_DRAW_ROOM && this.roomDraft) {
       const rect = this.normalizeRectangle(this.roomDraft.start, point);
@@ -1906,6 +2074,8 @@ export class BuildingPlanCanvas {
   }
 
   handleMouseLeave() {
+    this.cutGesture = false;
+    this.cutDraft = null;
     this.panGesture = null;
     if (this.mode === MODE_DRAW_ROOM) {
       this.roomDraft = null;
@@ -2427,6 +2597,7 @@ export class BuildingPlanCanvas {
 
   render() {
     if (!this.ctx) return;
+    this.updateCutControls();
 
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -2449,6 +2620,7 @@ export class BuildingPlanCanvas {
     this.columns.forEach((column) => this.drawColumn(column));
 
     this.drawOpenings();
+    this.drawEditingCuts();
 
     if (this.wallDraft && this.wallDraft.start && this.wallDraft.end) {
       this.drawDraftWall(this.wallDraft.start, this.wallDraft.end);
