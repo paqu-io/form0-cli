@@ -795,7 +795,7 @@ try {
             const edge = room2.edges.find((edge) => edge.id === id);
             const a = room2.vertices.find((v) => v.id === edge.startId),
               b = room2.vertices.find((v) => v.id === edge.endId);
-            return Math.abs(a.x - 5) < 1e-6 && Math.abs(b.x - 5) < 1e-6;
+            return Math.abs(a.x - 5.2) < 1e-6 && Math.abs(b.x - 5.2) < 1e-6;
           })
         );
         assert.ok(returnFace);
@@ -812,7 +812,18 @@ try {
         await command(page, 'open-row', () => control(row(page, recordRoom.id), 'edit').click());
         await canvas.scrollIntoViewIfNeeded();
         const current = await canvasBox(canvas);
-        await page.mouse.click(current.x + 100, current.y + 68);
+        await page.mouse.click(current.x + 104, current.y + 68);
+        const returnPixels = await canvas.evaluate((element) => {
+          const ctx = element.getContext('2d'),
+            m = ctx.getTransform();
+          const pixel = (x, y) =>
+            [
+              ...ctx.getImageData(Math.round(x * m.a + m.e), Math.round(y * m.d + m.f), 1, 1).data,
+            ].slice(0, 3);
+          return { material: pixel(102, 68), interior: pixel(98, 68) };
+        });
+        assert.deepEqual(returnPixels.material, [209, 45, 45]);
+        assert.notDeepEqual(returnPixels.interior, [68, 68, 68]);
         await page.waitForTimeout(250);
         const offset = await row(page, returnRow.id).evaluate(
           (element) =>
@@ -825,6 +836,63 @@ try {
         );
         if (process.env.FORM0_BUILDING_PLAN_SCREENSHOT)
           await canvas.screenshot({ path: process.env.FORM0_BUILDING_PLAN_SCREENSHOT });
+      }
+    );
+    await scenario(
+      lifecycle,
+      'opposite jog thickness and detachment remove unbound tails',
+      sharedSeed(3, true),
+      false,
+      async (page) => {
+        const opened = await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const initial = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: opened.state });
+        const canvas = page.locator('.building-plan-canvas');
+        await canvas.scrollIntoViewIfNeeded();
+        let box = await canvasBox(canvas);
+        await page.keyboard.down('Alt');
+        await page.mouse.move(box.x + 140, box.y + 64);
+        await page.mouse.down();
+        await page.mouse.move(box.x + 140, box.y + 52, { steps: 8 });
+        const jog = await command(page, 'building-plan-operation', () => page.mouse.up());
+        await page.keyboard.up('Alt');
+        const p = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: jog.state });
+        const originalLeft = initial.floors[0].rooms[1].faces[3].wallId;
+        assert.ok(p.floors[0].rooms[0].vertices.some((v) => v.x === 2.8));
+        assert.ok(p.floors[0].rooms[0].faces.some((f) => f.wallId === originalLeft));
+        const colors = await canvas.evaluate((element) => {
+          const ctx = element.getContext('2d'),
+            m = ctx.getTransform();
+          const pixel = (x, y) =>
+            [
+              ...ctx.getImageData(Math.round(x * m.a + m.e), Math.round(y * m.d + m.f), 1, 1).data,
+            ].slice(0, 3);
+          return { band: pixel(58, 56), interior: pixel(62, 56) };
+        });
+        assert.deepEqual(colors.band, [68, 68, 68]);
+        assert.notDeepEqual(colors.interior, [68, 68, 68]);
+        await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        await canvas.scrollIntoViewIfNeeded();
+        box = await canvasBox(canvas);
+        await page.keyboard.down('Alt');
+        await page.mouse.move(box.x + 40, box.y + 25);
+        await page.mouse.down();
+        await page.mouse.move(box.x - 160, box.y + 25, { steps: 8 });
+        const detached = await command(page, 'building-plan-operation', () => page.mouse.up());
+        await page.keyboard.up('Alt');
+        const next = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: detached.state });
+        const wallId = initial.floors[0].rooms[1].faces[0].wallId;
+        const stationary = next.floors[0].walls.find((w) => w.id === wallId);
+        assert.deepEqual([stationary.segments[0].start.x, stationary.segments[0].end.x], [8, 3]);
+        assert.deepEqual(next.floors[0].observations, initial.floors[0].observations);
+        const tail = await canvas.evaluate((element) => {
+          const ctx = element.getContext('2d'),
+            m = ctx.getTransform();
+          return [
+            ...ctx.getImageData(Math.round(20 * m.a + m.e), Math.round(62 * m.d + m.f), 1, 1).data,
+          ].slice(0, 3);
+        });
+        assert.notDeepEqual(tail, [68, 68, 68]);
       }
     );
     await scenario(
@@ -980,7 +1048,7 @@ try {
         }
         let plan = await drag([40, 60], [40, 72]);
         plan = await drag([100, 30], [92, 30]);
-        plan = await drag([92, 30], [95.4, 30], false);
+        plan = await drag([92, 30], [96, 30], true);
         assert.equal(plan.floors[0].rooms[0].vertices[1].x, 4.8);
         plan = await drag([40, 72], [40, 56]);
         assert.equal(plan.floors[0].rooms[1].vertices.length, 6);
