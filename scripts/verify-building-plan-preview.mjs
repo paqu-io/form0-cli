@@ -731,6 +731,149 @@ try {
       },
       observationSchema
     );
+    for (const axis of ['x', 'y'])
+      await scenario(
+        lifecycle,
+        `stationary extension realignment and Rejoin (${axis})`,
+        (() => {
+          const record = sharedSeed();
+          const domain = createBuildingPlanSession({
+            snapshot: readBuildingPlanRecord({ meta: buildingPlanMeta[0], record }),
+          });
+          const floor = domain.getSnapshot().floors[0];
+          assert.equal(
+            domain.apply({
+              type: 'split_face',
+              floorId: floor.id,
+              faceId: floor.rooms[0].faces[axis === 'x' ? 3 : 0].id,
+              offset: axis === 'x' ? 1.5 : 2,
+            }).status,
+            'applied'
+          );
+          return writeBuildingPlanRecord({
+            meta: buildingPlanMeta[0],
+            record,
+            plan: domain.getSnapshot(),
+          });
+        })(),
+        false,
+        async (page) => {
+          const opened = await command(page, 'open-row', () =>
+            control(row(page, 0), 'edit').click()
+          );
+          const original = readBuildingPlanRecord({
+            meta: buildingPlanMeta[0],
+            record: opened.state,
+          });
+          const canvas = page.locator('.building-plan-canvas');
+          const drag = async (from, to, bypass = false) => {
+            await canvas.scrollIntoViewIfNeeded();
+            const box = await canvasBox(canvas);
+            if (bypass) await page.keyboard.down('Alt');
+            await page.mouse.move(box.x + from[0], box.y + from[1]);
+            await page.mouse.down();
+            await page.mouse.move(box.x + to[0], box.y + to[1], { steps: 8 });
+            const result = await command(page, 'building-plan-operation', () => page.mouse.up());
+            if (bypass) await page.keyboard.up('Alt');
+            return readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state });
+          };
+          await drag(axis === 'x' ? [0, 45] : [20, 0], axis === 'x' ? [12, 45] : [20, 12], true);
+          const aligned = await drag(
+            axis === 'x' ? [12, 45] : [20, 12],
+            axis === 'x' ? [2, 45] : [20, 2]
+          );
+          assert.deepEqual(
+            aligned.floors[0].rooms[0].vertices.map(({ x, y }) => [x, y]),
+            original.floors[0].rooms[0].vertices.map(({ x, y }) => [x, y])
+          );
+          assert.equal(aligned.floors[0].rooms[0].faces.length, 5);
+          await page.getByRole('button', { name: 'Rejoin', exact: true }).click();
+          const box = await canvasBox(canvas),
+            point = axis === 'x' ? [0, 30] : [40, 0];
+          await page.mouse.move(box.x + point[0], box.y + point[1]);
+          await page.mouse.down();
+          const result = await command(page, 'building-plan-operation', () => page.mouse.up());
+          assert.equal(
+            readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state }).floors[0]
+              .rooms[0].faces.length,
+            4
+          );
+          await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+        }
+      );
+    await scenario(
+      lifecycle,
+      'single thickness field edits a split portion with reset and nested Cancel',
+      (() => {
+        const record = sharedSeed(),
+          domain = createBuildingPlanSession({
+            snapshot: readBuildingPlanRecord({ meta: buildingPlanMeta[0], record }),
+          });
+        const floor = domain.getSnapshot().floors[0];
+        assert.equal(
+          domain.apply({
+            type: 'split_face',
+            floorId: floor.id,
+            faceId: floor.rooms[1].faces[0].id,
+            offset: 2,
+          }).status,
+          'applied'
+        );
+        return writeBuildingPlanRecord({
+          meta: buildingPlanMeta[0],
+          record,
+          plan: domain.getSnapshot(),
+        });
+      })(),
+      false,
+      async (page) => {
+        let result = await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const room = result.state.repeatable[key('floors')][0].repeatable[key('rooms')][1];
+        await command(page, 'open-row', () => control(row(page, room.id), 'edit').click());
+        await row(page, room.id)
+          .locator(`[data-name="${name('rooms', 'room_name')}"] select`)
+          .selectOption('bedroom');
+        const wall = room.repeatable[key('walls')][1],
+          wallRow = row(page, wall.id);
+        await command(page, 'open-row', () => control(wallRow, 'edit').click());
+        const field = wallRow.locator(`[data-name="${name('walls', 'wall_thickness_m')}"]`);
+        assert.equal(await field.locator('input').count(), 1);
+        await field.locator('input').fill('0.4');
+        await field.locator('input').press('Tab');
+        result = await settle(page);
+        let floor = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state })
+          .floors[0];
+        assert.equal(floor.walls.length, 7);
+        assert.ok(
+          floor.walls
+            .flatMap((wall) => wall.segments)
+            .some((segment) => segment.overrides?.wall_thickness_m === 0.4)
+        );
+        assert.equal(
+          result.state.repeatable[key('floors')][0].repeatable[key('rooms')][1].repeatable[
+            key('walls')
+          ][0].values[name('walls', 'wall_thickness_m')],
+          0.2
+        );
+        assert.match(await field.innerText(), /this wall portion/);
+        result = await command(page, 'building-plan-reset', () =>
+          field.locator('[data-building-plan-reset]').click()
+        );
+        assert.equal(Number(await field.locator('input').inputValue()), 0.2);
+        await field.locator('input').fill('0.4');
+        await field.locator('input').press('Tab');
+        await command(page, 'accept-row', () => control(wallRow, 'save').click());
+        result = await command(page, 'cancel', () => control(row(page, room.id), 'cancel').click());
+        floor = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state })
+          .floors[0];
+        assert.ok(
+          floor.walls
+            .flatMap((wall) => wall.segments)
+            .every((segment) => !Object.hasOwn(segment.overrides || {}, 'wall_thickness_m'))
+        );
+        await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+      }
+    );
     await scenario(
       lifecycle,
       'explicit Split and Rejoin preserve shared rows and exact placement',

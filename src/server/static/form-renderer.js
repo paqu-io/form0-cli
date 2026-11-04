@@ -1971,7 +1971,7 @@ export class FormRenderer {
     const owner = state.scope === 'physical_wall' ? 'Shared physical wall' : 'Room side';
     group.setAttribute('aria-label', owner);
     group.querySelector('[data-source-label]').textContent =
-      `${owner} · ${state.source.mode === 'inherit' ? 'Inherited from' : 'Override at'} ${{ floor: 'floor default', room: 'room default', physical_wall: 'this wall', room_face: 'this room side', construction_segment: 'this construction segment', schema: 'form default' }[state.source.scope] || state.source.scope} `;
+      `${owner} · ${state.source.mode === 'inherit' ? 'Inherited from' : 'Override at'} ${{ floor: 'floor default', room: 'room default', physical_wall: 'this wall', room_face: 'this room side', construction_segment: 'this wall portion', schema: 'form default' }[state.source.scope] || state.source.scope} `;
     const reset = group.querySelector('[data-building-plan-reset]');
     reset.hidden = !state.inheritable || state.source.mode !== 'override';
     reset.onclick = () => this.managedPreview?.resetProperty?.(contextPath, state.property);
