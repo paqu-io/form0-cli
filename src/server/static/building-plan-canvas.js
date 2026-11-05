@@ -430,6 +430,8 @@ export class BuildingPlanCanvas {
   }
 
   setMode(mode) {
+    this.cornerDragState = null;
+    this.pinTarget = null;
     this.cutGesture = false;
     this.cutTarget = this.cutDraft = null;
     if (mode === MODE_DRAW_ROOM && this.roomButton && this.roomButton.disabled) {
@@ -480,6 +482,78 @@ export class BuildingPlanCanvas {
     this.render();
   }
 
+  buildCornerControls() {
+    if (!this.controller?.getCornerPlacement) return;
+    this.cornerToolbar = document.createElement('div');
+    this.cornerToolbar.className = 'building-plan-toolbar';
+    this.pinWallButton = document.createElement('button');
+    this.pinWallButton.type = 'button';
+    this.pinWallButton.className = 'building-plan-toolbar-button';
+    this.pinWallButton.addEventListener('click', () => {
+      if (this.cutAllowed()) this.setMode(this.mode === 'pin' ? MODE_SELECT : 'pin');
+      this.render();
+    });
+    const hint = document.createElement('span');
+    hint.textContent =
+      'Drag a corner to reshape. Alt allows free corner movement. Wall drags stay parallel.';
+    this.cornerHint = hint;
+    this.cornerToolbar.append(this.pinWallButton, hint);
+    this.container.appendChild(this.cornerToolbar);
+  }
+
+  cornerAt(point) {
+    if (!this.controller?.getCornerPlacement || !this.cutAllowed()) return null;
+    return this.controller.getCornerPlacement(point, {
+      roomId: this.controller.scope?.roomId,
+      preferredRoomId:
+        this.controller.getActiveRoomId?.() ||
+        this.controller.preferredRoomId ||
+        this.selectedRoomId,
+      zoom: this.zoomLevel,
+    });
+  }
+
+  drawCornerControls() {
+    if (!this.controller?.getCornerPlacement) return;
+    const view = this.controller.getSnapshot();
+    const roomId =
+      this.controller.scope?.roomId ||
+      this.controller.getActiveRoomId?.() ||
+      this.controller.preferredRoomId ||
+      this.selectedRoomId;
+    const ctx = this.ctx;
+    ctx.save();
+    if (this.cutAllowed() && this.mode === MODE_SELECT)
+      for (const corner of view.corners || []) {
+        if (corner.roomId !== roomId) continue;
+        ctx.beginPath();
+        ctx.arc(corner.point.x, corner.point.y, 4 / this.zoomLevel, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 1.5 / this.zoomLevel;
+        ctx.stroke();
+      }
+    ctx.font = `${11 / this.zoomLevel}px sans-serif`;
+    ctx.fillStyle = '#2563eb';
+    for (const wall of view.walls.filter((wall) => wall.pinned)) {
+      const a = wall.points[0],
+        b = wall.points.at(-1);
+      ctx.fillText('Pinned', (a.x + b.x) / 2, (a.y + b.y) / 2 - 8 / this.zoomLevel);
+    }
+    ctx.restore();
+    if (this.pinWallButton) {
+      this.pinWallButton.disabled = !this.cutAllowed();
+      this.pinWallButton.textContent = 'Pin / unpin';
+      this.pinWallButton.title = 'Choose this tool, then click a wall to pin or unpin it.';
+      this.pinWallButton.setAttribute('aria-pressed', String(this.mode === 'pin'));
+      this.cornerHint.textContent =
+        this.mode === 'pin'
+          ? 'Click a wall to pin or unpin it, then return to Select.'
+          : 'Drag a corner to reshape. Alt allows free corner movement. Wall drags stay parallel.';
+    }
+  }
+
   buildCutControls() {
     if (!this.controller?.getCutPlacement) return;
     if (!this.externalToolbar) {
@@ -528,6 +602,7 @@ export class BuildingPlanCanvas {
     hint.textContent = 'Point at a wall, then click or enter a distance from its marked 0 end.';
     this.cutToolbar.append(label, this.cutDistanceButton, hint);
     this.container.appendChild(this.cutToolbar);
+    this.buildCornerControls();
   }
 
   cutAllowed() {
@@ -713,6 +788,10 @@ export class BuildingPlanCanvas {
       this.pendingMove = null;
       if (event) {
         this.handleMouseMove(event);
+        if (this.cornerDragState?.moved && this.cornerDragState.previewPoint) {
+          const state = this.cornerDragState;
+          this.controller.previewCorner(state.roomId, state.id, state.previewPoint);
+        }
         if (this.dragState?.moved && this.controller?.previewRoom) {
           const room = this.rooms.find((entry) => entry.id === this.dragState.roomId);
           if (room) this.controller.previewRoom(room.id, room.previewRect || room.rect);
@@ -740,6 +819,7 @@ export class BuildingPlanCanvas {
       this.canvas.releasePointerCapture?.(event.pointerId);
       const moved = [
         this.dragState,
+        this.cornerDragState,
         this.wallDragState,
         this.columnDragState,
         this.beamDragState,
@@ -759,6 +839,7 @@ export class BuildingPlanCanvas {
     };
     this.boundPointerCancel = () => {
       const pointerId = this.activePointerId;
+      this.cornerDragState = null;
       this.activePointerId = null;
       this.stopEdgePan();
       if (pointerId != null && this.canvas.hasPointerCapture?.(pointerId))
@@ -776,12 +857,12 @@ export class BuildingPlanCanvas {
     this.boundGestureKey = (event) => {
       if (
         event.key === 'Escape' &&
-        (this.activePointerId != null || ['split', 'rejoin'].includes(this.mode))
+        (this.activePointerId != null || ['split', 'rejoin', 'pin'].includes(this.mode))
       ) {
         event.preventDefault();
         event.stopPropagation();
         this.boundPointerCancel();
-        if (['split', 'rejoin'].includes(this.mode)) this.setMode(MODE_SELECT);
+        if (['split', 'rejoin', 'pin'].includes(this.mode)) this.setMode(MODE_SELECT);
       }
     };
     this.canvas.addEventListener('pointercancel', this.boundPointerCancel);
@@ -1048,6 +1129,13 @@ export class BuildingPlanCanvas {
       return;
     }
     const point = this.getCanvasPoint(event);
+    if (this.mode === 'pin') {
+      this.pendingFocus = null;
+      this.pinTarget = this.cutAllowed()
+        ? this.findWallNearPoint(point, this.controller.scope?.roomId)?.wall.id
+        : null;
+      return;
+    }
     if (['split', 'rejoin'].includes(this.mode)) {
       this.pendingFocus = null;
       this.cutGesture = this.cutAllowed();
@@ -1135,6 +1223,15 @@ export class BuildingPlanCanvas {
     }
 
     if (this.mode === MODE_SELECT) {
+      const corner = this.cornerAt(point);
+      if (corner) {
+        this.cornerDragState = { ...corner, pointerStart: point, moved: false };
+        this.selectedRoomId = corner.roomId;
+        this.selectedWallId = null;
+        this.pendingFocus = () => this.controller.focusRoom(corner.roomId);
+        this.render();
+        return;
+      }
       const roomHandleHit = this.findRoomHandle(point);
       if (roomHandleHit && roomHandleHit.room) {
         const { room, handle } = roomHandleHit;
@@ -1440,6 +1537,7 @@ export class BuildingPlanCanvas {
       return;
     }
     const point = this.getCanvasPoint(event);
+    if (this.mode === 'pin') return;
     if (['split', 'rejoin'].includes(this.mode)) {
       this.updateCutPlacement(point, event);
       return;
@@ -1448,6 +1546,7 @@ export class BuildingPlanCanvas {
     if (
       this.mode === MODE_SELECT &&
       !this.dragState &&
+      !this.cornerDragState &&
       !this.wallDragState &&
       !this.openingDragState &&
       !this.roomDraft &&
@@ -1583,8 +1682,31 @@ export class BuildingPlanCanvas {
       return;
     }
 
+    if (this.mode === MODE_SELECT && this.cornerDragState) {
+      const state = this.cornerDragState;
+      const delta = { x: point.x - state.pointerStart.x, y: point.y - state.pointerStart.y };
+      state.moved ||= Math.hypot(delta.x, delta.y) * this.zoomLevel > 3;
+      if (state.moved)
+        state.previewPoint = this.controller.interaction.snapCorner(
+          {
+            x: state.point.x + delta.x,
+            y: state.point.y + delta.y,
+          },
+          {
+            originalPoint: state.point,
+            roomId: state.roomId,
+            vertexId: state.id,
+            zoom: this.zoomLevel,
+            bypass: Boolean(event.altKey),
+          }
+        );
+      return;
+    }
+
     if (this.mode === MODE_SELECT && this.wallDragState) {
-      const wall = this.walls.find((w) => w.id === this.wallDragState.wallId);
+      const wall =
+        this.controller?.walls?.get(this.wallDragState.wallId) ||
+        this.walls.find((w) => w.id === this.wallDragState.wallId);
       if (!wall) return;
       const room = this.rooms.find((r) => r.id === wall.roomId);
       if (!room || !room.rect) return;
@@ -1604,14 +1726,7 @@ export class BuildingPlanCanvas {
             x: pt.x + deltaX,
             y: pt.y + deltaY,
           };
-          if ((wall.isBoundary || wall.isCutPortion) && this.controller?.interaction) {
-            const first = state.originalPoints[0],
-              last = state.originalPoints.at(-1);
-            const length = Math.hypot(last.x - first.x, last.y - first.y);
-            const normal = { x: -(last.y - first.y) / length, y: (last.x - first.x) / length };
-            const amount = deltaX * normal.x + deltaY * normal.y;
-            return { x: pt.x + normal.x * amount, y: pt.y + normal.y * amount };
-          }
+          if (this.controller?.interaction) return translated;
           if (wall.isBoundary || wall.isCutPortion) {
             const increment = this.gridSize / 10;
             return {
@@ -1628,7 +1743,8 @@ export class BuildingPlanCanvas {
 
         const snappedPoints =
           (wall.isBoundary || wall.isCutPortion) && this.controller?.interaction
-            ? this.controller.interaction.snapTranslation(newPoints, {
+            ? this.controller.interaction.snapWallTranslation(newPoints, {
+                perpendicular: wall.isCutPortion && !wall.isBoundary,
                 roomId: room.id,
                 physicalWallId: state.physicalWallId,
                 editingGroupId: wall.isCutPortion ? wall.editingGroupId : null,
@@ -1863,6 +1979,12 @@ export class BuildingPlanCanvas {
     }
     if (this.controller?.canEdit && !this.controller.canEdit()) return;
     const point = this.getCanvasPoint(event);
+    if (this.mode === 'pin') {
+      if (this.pinTarget && this.cutAllowed()) this.controller.toggleWallPin(this.pinTarget);
+      this.pinTarget = null;
+      this.render();
+      return;
+    }
     if (['split', 'rejoin'].includes(this.mode)) {
       const target = this.cutDraft;
       const allowed = this.cutGesture && this.cutAllowed();
@@ -1975,11 +2097,21 @@ export class BuildingPlanCanvas {
       return;
     }
 
+    if (this.mode === MODE_SELECT && this.cornerDragState) {
+      const state = this.cornerDragState;
+      this.cornerDragState = null;
+      if (state.moved && state.previewPoint)
+        await this.controller.updateCorner(state.roomId, state.id, state.previewPoint);
+      this.updateButtonStates();
+      this.render();
+      return;
+    }
+
     if (this.mode === MODE_SELECT && this.wallDragState) {
       const state = this.wallDragState;
       const wall = this.walls.find((w) => w.id === state.wallId);
-      if (wall && state.previewPoints && state.moved) {
-        await this.controller?.updateWall(wall.id, state.previewPoints);
+      if (state.previewPoints && state.moved) {
+        await this.controller?.updateWall(state.wallId, state.previewPoints);
       }
       if (wall) {
         delete wall.previewPoints;
@@ -2399,6 +2531,7 @@ export class BuildingPlanCanvas {
   }
 
   findRoomHandle(point) {
+    if (this.controller?.getCornerPlacement) return null;
     if (!point) return null;
     const preferred = this.controller?.getActiveRoomId?.() || this.selectedRoomId;
     const hitOffset = ROOM_HANDLE_HIT_SIZE / 2;
@@ -2621,6 +2754,7 @@ export class BuildingPlanCanvas {
 
     this.drawOpenings();
     this.drawEditingCuts();
+    this.drawCornerControls();
 
     if (this.wallDraft && this.wallDraft.start && this.wallDraft.end) {
       this.drawDraftWall(this.wallDraft.start, this.wallDraft.end);
@@ -3079,7 +3213,7 @@ export class BuildingPlanCanvas {
     ctx.strokeStyle = isSelected ? '#1b4b91' : '#3a6fb0';
     ctx.stroke();
 
-    if (isSelected) {
+    if (isSelected && !this.controller?.getCornerPlacement) {
       const handleSize = ROOM_HANDLE_SIZE;
       const half = handleSize / 2;
       const corners = [

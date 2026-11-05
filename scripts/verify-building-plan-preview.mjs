@@ -259,9 +259,15 @@ async function answerRoom(page, room) {
     })
   );
 }
+let scenarioCount = 0;
 async function scenario(lifecycle, label, initial, readonly, run, scenarioSchema = schema) {
   if (process.env.FORM0_BROWSER_SCENARIO && !label.includes(process.env.FORM0_BROWSER_SCENARIO))
     return;
+  if (scenarioCount && scenarioCount % 10 === 0) {
+    await stopPreviewServer();
+    ({ server, sockets } = await startPreviewServer());
+  }
+  scenarioCount++;
   activeSchema = scenarioSchema;
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
   const result = { lifecycle, label, errors: [] };
@@ -1069,6 +1075,7 @@ try {
         await canvas.scrollIntoViewIfNeeded();
         const current = await canvasBox(canvas);
         await page.mouse.click(current.x + 104, current.y + 68);
+        await page.getByRole('button', { name: 'Pin / unpin', exact: true }).click();
         const returnPixels = await canvas.evaluate((element) => {
           const ctx = element.getContext('2d'),
             m = ctx.getTransform();
@@ -1096,6 +1103,177 @@ try {
     );
     await scenario(
       lifecycle,
+      'reversal contact and direct corners preserve physical bands and optional pins',
+      sharedSeed(3, true),
+      false,
+      async (page) => {
+        const opened = await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const initial = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: opened.state });
+        const canvas = page.locator('.building-plan-canvas');
+        async function drag(from, to, bypass = true) {
+          await canvas.scrollIntoViewIfNeeded();
+          const box = await canvas.boundingBox();
+          const m = await canvas.evaluate((element) => {
+            const m = element.getContext('2d').getTransform();
+            return { x: m.e, y: m.f, z: m.a };
+          });
+          if (bypass) await page.keyboard.down('Alt');
+          await page.mouse.move(box.x + m.x + from[0] * 20 * m.z, box.y + m.y + from[1] * 20 * m.z);
+          await page.mouse.down();
+          await page.mouse.move(box.x + m.x + to[0] * 20 * m.z, box.y + m.y + to[1] * 20 * m.z, {
+            steps: 24,
+          });
+          let result;
+          try {
+            result = await command(page, 'building-plan-operation', () => page.mouse.up());
+          } catch (error) {
+            throw new Error(
+              `${error.message}; ${JSON.stringify({ from, to, conflicts: await page.locator('.building-plan-conflict').allTextContents() })}`
+            );
+          }
+          if (bypass) await page.keyboard.up('Alt');
+          return readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state });
+        }
+        await drag([7, 3.2], [7, 3.8]);
+        const reversed = await drag([7, 3.8], [7, 2.6]);
+        assert.ok(reversed.floors[0].rooms[0].vertices.some((v) => v.x === 2.8 && v.y === 2.4));
+        await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        await drag([7, 3.2], [7, 2.6]);
+        await drag([7, 2.6], [7, 3.8]);
+        let box = await canvasBox(canvas);
+        await page.mouse.move(box.x + 20, box.y + 66);
+        await page.mouse.wheel(0, -1600);
+        await page.waitForTimeout(100);
+        const aligned = await drag([1, 3], [1, 3.8], false);
+        assert.equal(aligned.floors[0].rooms[0].vertices.length, 4);
+        assert.ok(aligned.floors[0].rooms[0].vertices.some((v) => v.y === 3.6));
+        await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        await page.getByRole('button', { name: 'Reset view', exact: true }).click();
+        await canvas.scrollIntoViewIfNeeded();
+        box = await canvasBox(canvas);
+        await page.getByRole('button', { name: 'Pin / unpin', exact: true }).click();
+        await page.mouse.click(box.x + 140, box.y + 64);
+        await page.getByRole('button', { name: 'Select / Move / Resize', exact: true }).click();
+        const reshaped = await drag([8, 6.2], [9, 6.25], false);
+        assert.deepEqual(reshaped.floors[0].rooms[1].vertices[2], {
+          ...initial.floors[0].rooms[1].vertices[2],
+          x: 9,
+        });
+        assert.deepEqual(reshaped.floors[0].rooms[0].vertices, initial.floors[0].rooms[0].vertices);
+        const restored = await command(page, 'cancel', () =>
+          control(row(page, 0), 'cancel').click()
+        );
+        assert.deepEqual(
+          readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: restored.state }).floors[0]
+            .rooms,
+          initial.floors[0].rooms
+        );
+      }
+    );
+    await scenario(
+      lifecycle,
+      'jog corner preserves stationary walls and reverses with an optional pin',
+      sharedSeed(3, true),
+      false,
+      async (page) => {
+        const canvas = page.locator('.building-plan-canvas');
+        async function drag(from, to, bypass = false) {
+          await canvas.scrollIntoViewIfNeeded();
+          const box = await canvasBox(canvas);
+          if (bypass) await page.keyboard.down('Alt');
+          await page.mouse.move(box.x + from[0] * 20, box.y + from[1] * 20);
+          await page.mouse.down();
+          await page.mouse.move(box.x + to[0] * 20, box.y + to[1] * 20, { steps: 24 });
+          const response = await command(page, 'building-plan-operation', () => page.mouse.up());
+          if (bypass) await page.keyboard.up('Alt');
+          return readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: response.state });
+        }
+        for (const pin of [false, true]) {
+          await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+          await drag([8, 4], [5, 4], true);
+          const before = await drag([4, 3.2], [4, 2.2], true);
+          if (pin) {
+            await page.getByRole('button', { name: 'Pin / unpin', exact: true }).click();
+            await canvas.scrollIntoViewIfNeeded();
+            const box = await canvasBox(canvas);
+            await page.mouse.click(box.x + 25, box.y + 60);
+            await page.getByRole('button', { name: 'Select / Move / Resize', exact: true }).click();
+          }
+          const moved = await drag([3, 2.2], [3, 1.4]);
+          for (const old of before.floors[0].rooms[0].vertices.filter((v) => v.y === 3))
+            assert.deepEqual(
+              moved.floors[0].rooms[0].vertices.find((v) => v.id === old.id),
+              old
+            );
+          for (const room of moved.floors[0].rooms)
+            for (const vertex of room.vertices.filter((v) => v.x > 4.9)) assert.equal(vertex.x, 5);
+          const colors = await canvas.evaluate((element) => {
+            const ctx = element.getContext('2d'),
+              m = ctx.getTransform();
+            const pixel = (x, y) =>
+              [
+                ...ctx.getImageData(Math.round(x * m.a + m.e), Math.round(y * m.d + m.f), 1, 1)
+                  .data,
+              ].slice(0, 3);
+            return { band: pixel(102, 54), outside: pixel(106, 40) };
+          });
+          assert.deepEqual(colors.band, [68, 68, 68]);
+          assert.notDeepEqual(colors.outside, [68, 68, 68]);
+          if (!pin && process.env.FORM0_BUILDING_PLAN_CORNER_SCREENSHOT)
+            await canvas.screenshot({ path: process.env.FORM0_BUILDING_PLAN_CORNER_SCREENSHOT });
+          const restored = await drag([3, 1.4], [3, 2.18]);
+          assert.deepEqual(
+            restored.floors[0].rooms.map((r) => r.vertices),
+            before.floors[0].rooms.map((r) => r.vertices)
+          );
+          await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+        }
+      }
+    );
+    await scenario(
+      lifecycle,
+      'shared diagonal junctions preserve alignment and guided wall movement',
+      sharedSeed(3, true),
+      false,
+      async (page) => {
+        const canvas = page.locator('.building-plan-canvas');
+        async function drag(from, to, bypass = false) {
+          await canvas.scrollIntoViewIfNeeded();
+          const box = await canvasBox(canvas);
+          if (bypass) await page.keyboard.down('Alt');
+          await page.mouse.move(box.x + from[0] * 20, box.y + from[1] * 20);
+          await page.mouse.down();
+          await page.mouse.move(box.x + to[0] * 20, box.y + to[1] * 20, { steps: 24 });
+          const result = await command(page, 'building-plan-operation', () => page.mouse.up());
+          if (bypass) await page.keyboard.up('Alt');
+          const plan = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state });
+          assert.deepEqual(createBuildingPlanSession({ snapshot: plan }).validate(), []);
+          return plan;
+        }
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        await drag([8, 3.2], [8, 2.6], true);
+        const moved = await drag([6, 2.84], [7, 2.86]);
+        assert.ok(Math.abs(moved.floors[0].rooms[1].vertices[1].y - 2.72) < 1e-5);
+        assert.ok(Math.abs(moved.floors[0].rooms[1].vertices[0].x - 3) < 1e-6);
+        assert.ok(Math.abs(moved.floors[0].rooms[1].vertices[1].x - 8) < 1e-6);
+        await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const down = await drag([3, 3.2], [3, 3.8], true);
+        const returns = down.floors[0].rooms[0].faces
+          .flatMap((face) =>
+            down.floors[0].walls.filter((w) => w.id === face.wallId).flatMap((w) => w.segments)
+          )
+          .filter(
+            (segment) =>
+              Math.abs(segment.start.x - 2.9) < 1e-6 && Math.abs(segment.end.x - 2.9) < 1e-6
+          );
+        assert.equal(returns.length, 1);
+      }
+    );
+    await scenario(
+      lifecycle,
       'opposite jog thickness and detachment remove unbound tails',
       sharedSeed(3, true),
       false,
@@ -1115,6 +1293,8 @@ try {
         const originalLeft = initial.floors[0].rooms[1].faces[3].wallId;
         assert.ok(p.floors[0].rooms[0].vertices.some((v) => v.x === 2.8));
         assert.ok(p.floors[0].rooms[0].faces.some((f) => f.wallId === originalLeft));
+        await page.getByRole('button', { name: 'Clear Selection', exact: true }).click();
+        await page.getByRole('button', { name: 'Pin / unpin', exact: true }).click();
         const colors = await canvas.evaluate((element) => {
           const ctx = element.getContext('2d'),
             m = ctx.getTransform();
@@ -1128,6 +1308,7 @@ try {
         assert.notDeepEqual(colors.interior, [68, 68, 68]);
         await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
         await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        await page.getByRole('button', { name: 'Select / Move / Resize', exact: true }).click();
         await canvas.scrollIntoViewIfNeeded();
         box = await canvasBox(canvas);
         await page.keyboard.down('Alt');
