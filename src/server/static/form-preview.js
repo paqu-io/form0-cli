@@ -131,6 +131,7 @@ const LABEL_VISIBILITY_STORAGE_KEY = 'form0-cli-label-visibility';
 const EDITING_POLICY_STORAGE_KEY = 'form0-cli-building-plan-editing';
 let currentEditingPolicy = normalizeBuildingPlanEditingPolicy();
 let settingsEditingCheckboxes = {};
+let settingsThicknessAnchorSelect = null;
 const DEFAULT_LABEL_VISIBILITY = {
   rooms: true,
   walls: true,
@@ -281,6 +282,29 @@ function ensureSettingsDialog() {
     editing.appendChild(wrapper);
     settingsEditingCheckboxes[key] = checkbox;
   }
+  const anchorLabel = document.createElement('label');
+  anchorLabel.htmlFor = 'settings-building-plan-thicknessAnchor';
+  anchorLabel.textContent =
+    translations.buildingPlanThicknessAnchor || 'When changing wall thickness';
+  settingsThicknessAnchorSelect = document.createElement('select');
+  settingsThicknessAnchorSelect.id = anchorLabel.htmlFor;
+  settingsThicknessAnchorSelect.className = 'settings-select';
+  for (const [value, label] of [
+    ['room_face', translations.buildingPlanAnchorFace || 'Keep active room face fixed (default)'],
+    ['midline', translations.buildingPlanAnchorMidline || 'Keep wall midline fixed'],
+  ]) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    settingsThicknessAnchorSelect.appendChild(option);
+  }
+  settingsThicknessAnchorSelect.value = currentEditingPolicy.thicknessAnchor;
+  const anchorHelp = document.createElement('div');
+  anchorHelp.className = 'settings-group-description';
+  anchorHelp.textContent =
+    translations.buildingPlanAnchorHelp ||
+    'Applies to future edits. Floor-wide changes use the wall reference face when no room is active.';
+  editing.append(anchorLabel, settingsThicknessAnchorSelect, anchorHelp);
   body.appendChild(editing);
 
   const labelGroup = document.createElement('div');
@@ -387,6 +411,7 @@ function openSettingsDialog() {
   if (!settingsDialog) return;
   for (const [key, checkbox] of Object.entries(settingsEditingCheckboxes))
     checkbox.checked = currentEditingPolicy[key];
+  settingsThicknessAnchorSelect.value = currentEditingPolicy.thicknessAnchor;
   pendingFieldKeyMode = currentFieldKeyMode;
   if (settingsKeyModeSelect) {
     settingsKeyModeSelect.value = pendingFieldKeyMode;
@@ -440,11 +465,12 @@ function handleSettingsKeyDown(event) {
 
 function saveSettingsDialog() {
   const restartEvents = previewEvents.saveSettings();
-  currentEditingPolicy = normalizeBuildingPlanEditingPolicy(
-    Object.fromEntries(
+  currentEditingPolicy = normalizeBuildingPlanEditingPolicy({
+    ...Object.fromEntries(
       Object.entries(settingsEditingCheckboxes).map(([key, checkbox]) => [key, checkbox.checked])
-    )
-  );
+    ),
+    thicknessAnchor: settingsThicknessAnchorSelect.value,
+  });
   try {
     localStorage.setItem(EDITING_POLICY_STORAGE_KEY, JSON.stringify(currentEditingPolicy));
   } catch {

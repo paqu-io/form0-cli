@@ -1232,6 +1232,86 @@ try {
         }
       }
     );
+    for (const anchor of ['room_face', 'midline'])
+      await scenario(
+        lifecycle,
+        `thickness anchor ${anchor} applies to ordinary row writes and nested Cancel`,
+        sharedSeed(3, true),
+        false,
+        async (page) => {
+          const opened = await command(page, 'open-row', () =>
+            control(row(page, 0), 'edit').click()
+          );
+          const before = readBuildingPlanRecord({
+            meta: buildingPlanMeta[0],
+            record: opened.state,
+          });
+          await page.getByRole('button', { name: 'Open settings', exact: true }).click();
+          await page.locator('#settings-building-plan-thicknessAnchor').selectOption(anchor);
+          await page.locator('.settings-modal-footer button.primary-button').click();
+          assert.deepEqual((await settle(page)).state.repeatable, opened.state.repeatable);
+          const roomRecord = opened.state.repeatable[key('floors')][0].repeatable[key('rooms')][0];
+          await command(page, 'open-row', () => control(row(page, roomRecord.id), 'edit').click());
+          const wallRecord = roomRecord.repeatable[key('walls')][2];
+          await command(page, 'open-row', () => control(row(page, wallRecord.id), 'edit').click());
+          await row(page, wallRecord.id)
+            .locator(`[data-name="${name('walls', 'wall_thickness_m')}"] input`)
+            .fill('0.4');
+          const result = await settle(page);
+          const plan = readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: result.state });
+          assert.equal(plan.floors[0].rooms[0].vertices[2].y, anchor === 'midline' ? 2.9 : 3);
+          assert.deepEqual(plan.floors[0].observations, before.floors[0].observations);
+          await command(page, 'cancel', () => control(row(page, wallRecord.id), 'cancel').click());
+          assert.deepEqual(
+            readBuildingPlanRecord({
+              meta: buildingPlanMeta[0],
+              record: (await settle(page)).state,
+            }),
+            before
+          );
+          await command(page, 'cancel', () => control(row(page, roomRecord.id), 'cancel').click());
+          await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+        }
+      );
+    await scenario(
+      lifecycle,
+      'connected axis return follows the moved west wall without intrusive material',
+      sharedSeed(3, true),
+      false,
+      async (page) => {
+        await command(page, 'open-row', () => control(row(page, 0), 'edit').click());
+        const canvas = page.locator('.building-plan-canvas');
+        async function drag(from, to) {
+          await canvas.scrollIntoViewIfNeeded();
+          const box = await canvasBox(canvas);
+          await page.keyboard.down('Alt');
+          await page.mouse.move(box.x + from[0] * 20, box.y + from[1] * 20);
+          await page.mouse.down();
+          await page.mouse.move(box.x + to[0] * 20, box.y + to[1] * 20, { steps: 20 });
+          const r = await command(page, 'building-plan-operation', () => page.mouse.up());
+          await page.keyboard.up('Alt');
+          return readBuildingPlanRecord({ meta: buildingPlanMeta[0], record: r.state });
+        }
+        await drag([6, 3.2], [6, 3]);
+        const plan = await drag([3, 5], [2.4, 5]);
+        assert.ok(plan.floors[0].rooms[0].vertices.some((v) => v.x === 2.2 && v.y === 2.8));
+        const pixels = await canvas.evaluate((element) => {
+          const ctx = element.getContext('2d'),
+            m = ctx.getTransform();
+          return [
+            [42, 58],
+            [56, 62],
+          ].map(([x, y]) =>
+            [
+              ...ctx.getImageData(Math.round(x * m.a + m.e), Math.round(y * m.d + m.f), 1, 1).data,
+            ].slice(0, 3)
+          );
+        });
+        for (const pixel of pixels) assert.notDeepEqual(pixel, [68, 68, 68]);
+        assert.deepEqual(createBuildingPlanSession({ snapshot: plan }).validate(), []);
+        await command(page, 'cancel', () => control(row(page, 0), 'cancel').click());
+      }
+    );
     await scenario(
       lifecycle,
       'shared diagonal junctions preserve alignment and guided wall movement',
