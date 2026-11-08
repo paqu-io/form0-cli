@@ -1,3 +1,4 @@
+import { createSchemaAuthoringTree } from './schema-authoring-tree.js';
 import { createRequire } from 'module';
 import path from 'path';
 import { colors } from './theme.js';
@@ -362,7 +363,13 @@ export function formatSchemaPreviewLines(schema, options = {}) {
   ];
   if (form.description) lines.push(colors.textSecondary(`   ${form.description}`));
   lines.push('');
-  appendFieldPreviewLines(form.elements || [], lines, '', options, { value: 0 });
+  appendFieldPreviewLines(
+    options.showIds ? createSchemaAuthoringTree(form.elements || []).elements : form.elements || [],
+    lines,
+    '',
+    options,
+    { value: 0 }
+  );
   return lines;
 }
 

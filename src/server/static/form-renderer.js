@@ -1509,7 +1509,7 @@ export class FormRenderer {
 
     if (this.formStateManager) {
       controller =
-        metaEntry?.version === 1
+        metaEntry?.version === 2
           ? createSharedBuildingPlanController(
               this,
               this.formStateManager,
@@ -1693,7 +1693,7 @@ export class FormRenderer {
     fieldDiv.setAttribute('data-context-path', JSON.stringify(contextPath));
     fieldDiv.setAttribute('data-field-key', compositeKey);
     const planMeta = this.currentBuildingPlanMeta?.find(
-      (meta) => meta.version === 1 && meta.fieldBindings[field.data_name]
+      (meta) => meta.version === 2 && meta.fieldBindings[field.data_name]
     );
     if (planMeta && contextPath.length) {
       try {
@@ -1949,8 +1949,9 @@ export class FormRenderer {
 
   updateBuildingPlanFieldPresentation(field, container, contextPath, state) {
     if (!state) return;
-    if (state.managed) container.style.display = 'none';
-    if (!state.source) return;
+    if (state.managed || state.applicable === false) container.style.display = 'none';
+    if (!state.source && !state.outside) return;
+    const source = state.source || { scope: 'schema', mode: 'inherit' };
     let group = container.querySelector('[data-building-plan-source]');
     if (!group) {
       group = document.createElement('div');
@@ -1968,13 +1969,19 @@ export class FormRenderer {
       group.appendChild(reset);
       container.prepend(group);
     }
-    const owner = state.scope === 'physical_wall' ? 'Shared physical wall' : 'Room side';
+    const owner = state.outside
+      ? 'Exterior'
+      : state.opposite
+        ? 'Opposite face'
+        : state.scope === 'physical_wall'
+          ? 'Shared physical wall'
+          : 'Room side';
     group.setAttribute('aria-label', owner);
     group.querySelector('[data-source-label]').textContent =
-      `${owner} · ${state.source.mode === 'inherit' ? 'Inherited from' : 'Override at'} ${{ floor: 'floor default', room: 'room default', physical_wall: 'this wall', room_face: 'this room side', construction_segment: 'this wall portion', schema: 'form default' }[state.source.scope] || state.source.scope} `;
+      `${owner} · ${source.mode === 'inherit' ? 'Inherited from' : 'Override at'} ${{ floor: 'floor default', room: 'room default', physical_wall: 'this wall', room_face: 'this room side', construction_segment: 'this wall portion', schema: 'form default' }[source.scope] || source.scope} `;
     const reset = group.querySelector('[data-building-plan-reset]');
-    reset.hidden = !state.inheritable || state.source.mode !== 'override';
-    reset.onclick = () => this.managedPreview?.resetProperty?.(contextPath, state.property);
+    reset.hidden = !state.inheritable || source.mode !== 'override';
+    reset.onclick = () => this.managedPreview?.resetProperty?.(contextPath, state.dataName);
   }
 
   /**

@@ -1074,3 +1074,40 @@ test('ambiguous existing row IDs and reused new-row IDs are rejected before open
     }
   );
 });
+
+for (const mode of ['trusted', 'safe'])
+  test(`preview MESSAGEBOX round trip has fresh reads and one-shot replies (${mode})`, async () => {
+    const schema = eventSchema(
+      `ON('blur','input',function(){MESSAGEBOX({buttons:[{id:'yes',label:'Yes'}],context:{original:$input}},function(reply){if(!reply.cancelled)SETVALUE('input',$input+reply.context.original);});SETVALUE('input',10);});`
+    );
+    await withPreview(
+      schema,
+      async ({ started, command }) => {
+        const opened = await command({ action: 'dispatch', type: 'blur', fieldKey: 'input' });
+        assert.deepEqual(opened.issues, []);
+        assert.equal(opened.state.values.input, 10);
+        const question = opened.presentations.find(
+          (operation) => operation.operation === 'MESSAGEBOX'
+        );
+        assert.ok(question);
+        assert.equal('context' in question.params, false);
+        const reply = await command({
+          action: 'ui-response',
+          scopeId: started.scopes[0].scopeId,
+          requestId: question.params.requestId,
+          response: { value: 'yes' },
+        });
+        assert.deepEqual(reply.issues, []);
+        assert.equal(reply.state.values.input, 14);
+        const duplicate = await command({
+          action: 'ui-response',
+          scopeId: started.scopes[0].scopeId,
+          requestId: question.params.requestId,
+          response: { value: 'yes' },
+        });
+        assert.equal(duplicate.issues.length, 1);
+        assert.equal(duplicate.state.values.input, 14);
+      },
+      { lifecycle: true, recordKind: 'existing', security: { mode } }
+    );
+  });

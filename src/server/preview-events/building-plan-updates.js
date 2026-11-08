@@ -90,6 +90,13 @@ export function createCanvasFloorStager(schema, metadata) {
         // remain authoritative; do not treat those derived container slots as canvas writes.
         if (!field && [...info.children.values()].some((child) => child.field.data_name === name))
           continue;
+        const inlineSection = (elements) =>
+          elements?.some(
+            (element) =>
+              element.type === 'Section' &&
+              (element.data_name === name || inlineSection(element.elements))
+          );
+        if (!field && inlineSection(info.field.elements)) continue;
         if (!field) invalid(`Unknown canvas value field "${name}".`);
         if (old == null && value == null && ['CalculatedField', 'LabelField'].includes(field.type))
           continue;

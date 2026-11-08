@@ -132,6 +132,7 @@ const EDITING_POLICY_STORAGE_KEY = 'form0-cli-building-plan-editing';
 let currentEditingPolicy = normalizeBuildingPlanEditingPolicy();
 let settingsEditingCheckboxes = {};
 let settingsThicknessAnchorSelect = null;
+let settingsInheritedChangeSelect = null;
 const DEFAULT_LABEL_VISIBILITY = {
   rooms: true,
   walls: true,
@@ -266,8 +267,8 @@ function ensureSettingsDialog() {
     ['snapping', translations.buildingPlanSnapping || 'Magnetic alignment'],
     ['edgeAutoPan', translations.buildingPlanEdgePan || 'Pan near canvas edges while dragging'],
     [
-      'preserveWallGrouping',
-      translations.buildingPlanGrouping || 'Preserve physical wall grouping for new jogs',
+      'copyCustomAnswersAutomatically',
+      translations.buildingPlanAutoCopy || 'Copy custom answers automatically',
     ],
   ]) {
     const wrapper = document.createElement('label');
@@ -282,6 +283,24 @@ function ensureSettingsDialog() {
     editing.appendChild(wrapper);
     settingsEditingCheckboxes[key] = checkbox;
   }
+  const policyLabel = document.createElement('label');
+  policyLabel.htmlFor = 'settings-building-plan-inheritedChangePolicy';
+  policyLabel.textContent =
+    translations.buildingPlanInheritedPolicy || 'When topology changes inherited physical values';
+  settingsInheritedChangeSelect = document.createElement('select');
+  settingsInheritedChangeSelect.id = policyLabel.htmlFor;
+  settingsInheritedChangeSelect.className = 'settings-select';
+  for (const [value, label] of [
+    ['ask', translations.buildingPlanInheritedAsk || 'Preview and ask (default)'],
+    ['apply', translations.buildingPlanInheritedApply || 'Apply new defaults automatically'],
+  ]) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    settingsInheritedChangeSelect.appendChild(option);
+  }
+  settingsInheritedChangeSelect.value = currentEditingPolicy.inheritedChangePolicy;
+  editing.append(policyLabel, settingsInheritedChangeSelect);
   const anchorLabel = document.createElement('label');
   anchorLabel.htmlFor = 'settings-building-plan-thicknessAnchor';
   anchorLabel.textContent =
@@ -299,6 +318,7 @@ function ensureSettingsDialog() {
     settingsThicknessAnchorSelect.appendChild(option);
   }
   settingsThicknessAnchorSelect.value = currentEditingPolicy.thicknessAnchor;
+  settingsInheritedChangeSelect.value = currentEditingPolicy.inheritedChangePolicy;
   const anchorHelp = document.createElement('div');
   anchorHelp.className = 'settings-group-description';
   anchorHelp.textContent =
@@ -412,6 +432,7 @@ function openSettingsDialog() {
   for (const [key, checkbox] of Object.entries(settingsEditingCheckboxes))
     checkbox.checked = currentEditingPolicy[key];
   settingsThicknessAnchorSelect.value = currentEditingPolicy.thicknessAnchor;
+  settingsInheritedChangeSelect.value = currentEditingPolicy.inheritedChangePolicy;
   pendingFieldKeyMode = currentFieldKeyMode;
   if (settingsKeyModeSelect) {
     settingsKeyModeSelect.value = pendingFieldKeyMode;
@@ -470,6 +491,7 @@ function saveSettingsDialog() {
       Object.entries(settingsEditingCheckboxes).map(([key, checkbox]) => [key, checkbox.checked])
     ),
     thicknessAnchor: settingsThicknessAnchorSelect.value,
+    inheritedChangePolicy: settingsInheritedChangeSelect.value,
   });
   try {
     localStorage.setItem(EDITING_POLICY_STORAGE_KEY, JSON.stringify(currentEditingPolicy));
@@ -516,7 +538,7 @@ const operationProcessor = new OperationProcessor(formStateManager);
 const previewEventClient = createPreviewEventClient({
   getBuildingPlanEditingPolicy: () => currentEditingPolicy,
   accept: (result, request) => previewEvents.accept(result, request),
-  present: (operations) => operationProcessor.processPresentations(operations),
+  present: (operations, respond) => operationProcessor.processPresentations(operations, respond),
   getRecordOptions: () => ({
     fieldKeyMode: currentFieldKeyMode,
     created_at_client: createdAtTimestamp,
@@ -1141,7 +1163,11 @@ function addFormEventListeners() {
         const type = event.type === 'focusin' ? 'focus' : 'blur';
         if (!['TextField', 'NumericField'].includes(definition?.type)) return;
         if (!event.target.matches?.('input, textarea')) return;
-        previewEvents.interaction(type, name, contextualPath(event.target));
+        previewEvents.interaction(type, name, contextualPath(event.target), {
+          complete: !event.relatedTarget?.closest?.(
+            '[data-preview-row-action="cancel"], #preview-cancel'
+          ),
+        });
       };
       // Built-in inputs expose focus/blur. Click needs a supported activation field.
       for (const type of ['focusin', 'focusout'])

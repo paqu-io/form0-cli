@@ -673,6 +673,7 @@
     "buildingPlanEditing": "Building Plan Editing",
     "buildingPlanSnapping": "Magnetic alignment",
     "buildingPlanEdgePan": "Pan near canvas edges while dragging",
+    "buildingPlanAutoCopy": "Copy custom answers automatically",
     "buildingPlanGrouping": "Preserve physical wall grouping for new jogs",
     "buildingPlanThicknessAnchor": "When changing wall thickness",
     "buildingPlanAnchorFace": "Keep active room face fixed (default)",
@@ -765,7 +766,10 @@
     "previewEvents.connectorSucceeded": "Stored successfully",
     "previewEvents.connectorFailed": "Submission failed",
     "previewEvents.companionPersisted": "Record and freshness saved together.",
-    "previewEvents.canvasBusy": "Updating floor…"
+    "previewEvents.canvasBusy": "Updating floor…",
+    "buildingPlanInheritedPolicy": "When topology changes inherited physical values",
+    "buildingPlanInheritedAsk": "Preview and ask (default)",
+    "buildingPlanInheritedApply": "Apply new defaults automatically"
   },
   "common": {
     "failedToLoadValues": "❌ Failed to load initial values: {message}",

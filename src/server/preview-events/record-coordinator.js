@@ -9,7 +9,7 @@ export const hasRecordCollections = (schema) => {
     (fields || []).some(
       (field) =>
         (field.type === 'BuildingPlanSection' &&
-          (!field.building_plan?.meta || field.building_plan.meta.version === 1)) ||
+          (!field.building_plan?.meta || field.building_plan.meta.version === 2)) ||
         field.visible_preserve_value === false ||
         /\bREPEATABLE(?:VALUES|SUM)\s*\(/.test(field.calculate || '') ||
         visit(field.elements)

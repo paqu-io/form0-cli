@@ -18,11 +18,11 @@ export function createSharedBuildingPlanController(
   issue.hidden = true;
   const controller = new BuildingPlanCanvasController({
     meta,
+    managedTransactions: true,
     editingPolicy: renderer.buildingPlanEditingPolicy,
     confirmOpeningRemoval: (issue) =>
-      globalThis.confirm?.(
-        `${issue.message}\n\n${issue.observationIds.length ? `This also deletes ${issue.observationIds.length} associated observation(s).\n\n` : ''}Keep this position and remove the opening(s)?`
-      ) === true,
+      globalThis.confirm?.(`${issue.message}\n\nKeep this position and remove the opening(s)?`) ===
+      true,
     readRecord: () => owner({ values: {}, repeatable: renderer.activeRepeatableState || {} }),
     writeRecord: (record, command) => controller.transaction?.(record, command) ?? false,
     focusRow: (path) => {

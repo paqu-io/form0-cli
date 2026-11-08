@@ -1,3 +1,4 @@
+import { buildSchemaAuthoringIndex } from '../../../utils/schema-authoring-tree.js';
 import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
@@ -15,37 +16,7 @@ function isContainerElement(element) {
   return element && CONTAINER_TYPES.has(element.type);
 }
 
-function buildElementIndex(elements) {
-  const nodes = [];
-  const byId = new Map();
-
-  function walk(list, parent, depth) {
-    if (!Array.isArray(list)) {
-      return;
-    }
-
-    list.forEach((element, index) => {
-      const node = {
-        id: nodes.length + 1,
-        element,
-        parent,
-        parentList: list,
-        index,
-        depth,
-      };
-      nodes.push(node);
-      byId.set(node.id, node);
-
-      if (isContainerElement(element)) {
-        walk(element.elements || [], node, depth + 1);
-      }
-    });
-  }
-
-  walk(elements, null, 0);
-
-  return { nodes, byId };
-}
+const buildElementIndex = buildSchemaAuthoringIndex;
 
 function isDescendant(targetNode, ancestorNode) {
   let current = targetNode.parent;
@@ -292,7 +263,7 @@ export class SchemaEditor {
   }
 
   preview() {
-    const schema = this.schemaManager.getCurrentSchema();
+    const schema = structuredClone(this.schemaManager.getCurrentSchema());
     if (!schema) {
       console.log(colors.error(t('common.noSchemaLoaded')));
       return;
@@ -324,7 +295,7 @@ export class SchemaEditor {
       return;
     }
 
-    const schema = this.schemaManager.getCurrentSchema();
+    const schema = structuredClone(this.schemaManager.getCurrentSchema());
     const { byId } = buildElementIndex(schema.form.elements || []);
     const targetNode = byId.get(targetId);
     if (!targetNode) {
@@ -335,6 +306,17 @@ export class SchemaEditor {
     let insertList = null;
     let insertIndex = null;
     const positionLower = position.toLowerCase();
+    if (
+      targetNode.virtual &&
+      !(targetNode.virtual.kind === 'predefined' && positionLower === 'inside')
+    ) {
+      console.log(
+        colors.error(
+          'Add custom fields inside a predefined node or authored container; system structure is protected.'
+        )
+      );
+      return;
+    }
 
     if (positionLower === 'before' || positionLower === 'after') {
       insertList = targetNode.parentList;
@@ -344,14 +326,16 @@ export class SchemaEditor {
         console.log(colors.error(t('interactive.schemaEdit.insideRequiresSection')));
         return;
       }
-      const elements = Array.isArray(targetNode.element.elements)
-        ? targetNode.element.elements
-        : [];
-      if (elements.length > 0) {
+      const elements = targetNode.virtual?.customElements
+        ? targetNode.virtual.customElements()
+        : Array.isArray(targetNode.element.elements)
+          ? targetNode.element.elements
+          : [];
+      if (elements.length > 0 && !targetNode.virtual?.customElements) {
         console.log(colors.warning(t('interactive.schemaEdit.insideRequiresEmpty')));
         return;
       }
-      targetNode.element.elements = elements;
+      if (!targetNode.virtual) targetNode.element.elements = elements;
       insertList = elements;
       insertIndex = elements.length;
     } else {
@@ -408,7 +392,7 @@ export class SchemaEditor {
       return;
     }
 
-    const schema = this.schemaManager.getCurrentSchema();
+    const schema = structuredClone(this.schemaManager.getCurrentSchema());
     const { byId } = buildElementIndex(schema.form.elements || []);
     const targetNode = byId.get(targetId);
     if (!targetNode) {
@@ -416,6 +400,34 @@ export class SchemaEditor {
       return;
     }
 
+    if (targetNode.virtual && targetNode.virtual.kind !== 'plan') {
+      const virtual = targetNode.virtual;
+      if (['plan', 'protected'].includes(virtual.kind)) {
+        console.log(
+          colors.error(
+            'System structure is protected. Edit custom fields or routing/placement entries.'
+          )
+        );
+        return;
+      }
+      const config = virtual.config();
+      const initial =
+        virtual.kind === 'system'
+          ? config.system_bindings?.[virtual.property] || {}
+          : virtual.kind === 'property'
+            ? config.property_overrides?.[virtual.property] || {}
+            : Object.fromEntries(
+                Object.entries(config).filter(([key]) => key !== 'extra_elements')
+              );
+      const edited = await this.editJson(initial);
+      if (!edited) return;
+      if (virtual.kind === 'system') (config.system_bindings ||= {})[virtual.property] = edited;
+      else if (virtual.kind === 'property')
+        (config.property_overrides ||= {})[virtual.property] = edited;
+      else Object.assign(config, edited);
+      await this.saveSchema(schema);
+      return;
+    }
     const original = targetNode.element;
     const originalType = original.type;
     const originalDataName = original.data_name;
@@ -474,7 +486,7 @@ export class SchemaEditor {
       return;
     }
 
-    const schema = this.schemaManager.getCurrentSchema();
+    const schema = structuredClone(this.schemaManager.getCurrentSchema());
     const { byId } = buildElementIndex(schema.form.elements || []);
     const targetNode = byId.get(targetId);
     if (!targetNode) {
@@ -482,6 +494,10 @@ export class SchemaEditor {
       return;
     }
 
+    if (targetNode.virtual && targetNode.virtual.kind !== 'plan') {
+      console.log(colors.error('Predefined nodes and generated controls cannot be removed.'));
+      return;
+    }
     const descendantCount = this.countDescendants(targetNode.element);
     const label = getElementLabel(targetNode.element);
     const confirmed = await this.confirm(
@@ -520,7 +536,7 @@ export class SchemaEditor {
       return;
     }
 
-    const schema = this.schemaManager.getCurrentSchema();
+    const schema = structuredClone(this.schemaManager.getCurrentSchema());
     const { byId } = buildElementIndex(schema.form.elements || []);
     const sourceNode = byId.get(sourceId);
     const targetNode = byId.get(targetId);
@@ -535,6 +551,18 @@ export class SchemaEditor {
       return;
     }
 
+    if (
+      sourceNode.virtual ||
+      (targetNode.virtual &&
+        !(targetNode.virtual.kind === 'predefined' && position.toLowerCase() === 'inside'))
+    ) {
+      console.log(
+        colors.error(
+          'Move custom fields within authored containers. Use an inherited placement entry to place a generated control.'
+        )
+      );
+      return;
+    }
     if (sourceNode === targetNode) {
       console.log(colors.error(t('interactive.schemaEdit.moveSameTarget')));
       return;
@@ -562,14 +590,16 @@ export class SchemaEditor {
         console.log(colors.error(t('interactive.schemaEdit.insideRequiresSection')));
         return;
       }
-      const elements = Array.isArray(targetNode.element.elements)
-        ? targetNode.element.elements
-        : [];
-      if (elements.length > 0) {
+      const elements = targetNode.virtual?.customElements
+        ? targetNode.virtual.customElements()
+        : Array.isArray(targetNode.element.elements)
+          ? targetNode.element.elements
+          : [];
+      if (elements.length > 0 && !targetNode.virtual?.customElements) {
         console.log(colors.warning(t('interactive.schemaEdit.insideRequiresEmpty')));
         return;
       }
-      targetNode.element.elements = elements;
+      if (!targetNode.virtual) targetNode.element.elements = elements;
 
       sourceNode.parentList.splice(sourceNode.index, 1);
       elements.push(sourceNode.element);
@@ -622,6 +652,8 @@ export class SchemaEditor {
       return;
     }
 
+    const { expandBuildingPlanSchema } = await import('form0-core');
+    expandBuildingPlanSchema(schema);
     await fs.writeJson(schemaPath, schema, { spaces: 2 });
     this.schemaManager.currentSchema = schema;
     if (this.engineRunner) {

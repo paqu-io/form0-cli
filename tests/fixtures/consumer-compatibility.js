@@ -35,6 +35,7 @@ export const SPECIAL_BUILTINS = {
   ON: { status: 'supported', case: 'registration' },
   OFF: { status: 'supported', case: 'remove-handler' },
   ALERT: { status: 'supported', case: 'presentation-once' },
+  MESSAGEBOX: { status: 'supported', case: 'managed-response' },
   SETVALUE: { status: 'supported', case: 'field-operations' },
   INVALID: { status: 'supported', case: 'scoped-validation' },
 };

@@ -1704,14 +1704,14 @@ export class BuildingPlanCanvas {
     }
 
     if (this.mode === MODE_SELECT && this.wallDragState) {
-      const wall =
-        this.controller?.walls?.get(this.wallDragState.wallId) ||
-        this.walls.find((w) => w.id === this.wallDragState.wallId);
+      const state = this.wallDragState;
+      const previewWall = this.walls.find((w) => w.id === state.wallId);
+      // Candidate topology can replace this facing row during the gesture.
+      // Read stable metadata from the accepted scene; write previews only to the view.
+      const wall = this.controller?.walls?.get?.(state.wallId) || previewWall;
       if (!wall) return;
       const room = this.rooms.find((r) => r.id === wall.roomId);
       if (!room || !room.rect) return;
-
-      const state = this.wallDragState;
 
       if (state.type === 'move') {
         const deltaX = point.x - state.pointerStart.x;
@@ -1755,7 +1755,7 @@ export class BuildingPlanCanvas {
               })
             : newPoints;
         const roundedPoints = roundPoints(snappedPoints);
-        wall.previewPoints = roundedPoints;
+        if (previewWall) previewWall.previewPoints = roundedPoints;
         state.previewPoints = roundedPoints;
       } else if (state.type === 'resize') {
         // A click inside a handle's tolerance must still navigate to its row.
@@ -1795,7 +1795,7 @@ export class BuildingPlanCanvas {
         }
 
         const roundedPoints = roundPoints(newPoints);
-        wall.previewPoints = roundedPoints;
+        if (previewWall) previewWall.previewPoints = roundedPoints;
         state.previewPoints = roundedPoints;
       }
 
@@ -2109,17 +2109,18 @@ export class BuildingPlanCanvas {
 
     if (this.mode === MODE_SELECT && this.wallDragState) {
       const state = this.wallDragState;
-      const wall = this.walls.find((w) => w.id === state.wallId);
-      if (state.previewPoints && state.moved) {
-        await this.controller?.updateWall(state.wallId, state.previewPoints);
-      }
-      if (wall) {
-        delete wall.previewPoints;
-      }
+      // Release the gesture before awaiting a managed question. Pointer movement
+      // during that wait is hover, and can never revise the submitted candidate.
       this.wallDragState = null;
-      this.updateCursor();
-      this.updateButtonStates();
-      this.render();
+      try {
+        if (state.previewPoints && state.moved)
+          await this.controller?.updateWall(state.wallId, state.previewPoints);
+      } finally {
+        for (const wall of this.walls) delete wall.previewPoints;
+        this.updateCursor();
+        this.updateButtonStates();
+        this.render();
+      }
       return;
     }
 

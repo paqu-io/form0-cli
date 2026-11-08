@@ -99,5 +99,21 @@ export function createFieldTemplate(type, options = {}) {
     }
   }
 
+  if (type === 'BuildingPlanSection') {
+    const starter = (name, label, scope) => ({
+      ...createFieldTemplate('TextField', { dataName: name, label }),
+      key: name,
+      ...(scope ? { building_plan: { scope, on_split: 'copy' } } : {}),
+    });
+    template.node_overrides = {
+      walls: {
+        extra_elements: [
+          starter('construction_material', 'Construction material', 'physical_wall'),
+          starter('surface_finish', 'Surface finish', 'wall_face'),
+        ],
+      },
+      objects: { extra_elements: [starter('object_category', 'Object category')] },
+    };
+  }
   return template;
 }

@@ -307,3 +307,44 @@ test('malformed controller targets cannot silently fall back to the root editor'
     assert.equal((await controller.dispatch(request)).issues[0].code, 'invalid_request');
   assert.equal(sent, 1);
 });
+
+test('MESSAGEBOX replies bypass the presentation-waiting request queue', async () => {
+  const sent = [];
+  let accepted;
+  const client = createPreviewEventClient({
+    fetch: async (url, options) => {
+      const body = JSON.parse(options.body);
+      sent.push(body);
+      if (url.endsWith('preview-session')) return response(initial);
+      if (url.endsWith('preview-dispose')) return response({});
+      return response({
+        ...initial,
+        sequence: body.sequence,
+        state: { values: { input: body.action === 'ui-response' ? 12 : 10 }, repeatable: {} },
+        presentations:
+          body.action === 'dispatch'
+            ? [
+                {
+                  operation: 'MESSAGEBOX',
+                  scopeId: 'root-A',
+                  instancePath: [],
+                  params: { requestId: 'question-1', buttons: [{ id: 'apply', label: 'Apply' }] },
+                },
+              ]
+            : [],
+      });
+    },
+    accept: (result) => (accepted = result),
+    present: async (operations, reply) => {
+      for (const operation of operations) await reply(operation, { value: 'apply' });
+    },
+  });
+  await client.start({ lifecycle: true, recordKind: 'existing' }, { values: { input: 4 } });
+  const result = await client.request({ action: 'dispatch', type: 'blur', fieldKey: 'input' });
+  assert.deepEqual(result.issues, []);
+  assert.equal(accepted.state.values.input, 12);
+  assert.deepEqual(
+    sent.filter((body) => body.sequence).map((body) => body.action),
+    ['dispatch', 'ui-response']
+  );
+});

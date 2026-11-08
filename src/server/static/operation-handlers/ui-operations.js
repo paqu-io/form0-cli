@@ -29,65 +29,75 @@ function getAlertDialogOverlay() {
  * Show the next alert in the queue
  */
 function showNextAlert() {
-  if (alertQueue.length === 0) {
+  if (!alertQueue.length) {
     isShowingAlert = false;
     return;
   }
-
   isShowingAlert = true;
-  const { title, message } = alertQueue.shift();
-
-  // Get shared overlay
+  const item = alertQueue.shift();
   const overlay = getAlertDialogOverlay();
-
-  // Clear any existing content
+  const previousFocus = document.activeElement;
   overlay.innerHTML = '';
-
-  // Create alert dialog content
-  const dialogContent = createAlertDialogContent(title, message);
-
-  // Add content to overlay
-  overlay.appendChild(dialogContent);
+  const content = createAlertDialogContent(item.title, item.message);
+  overlay.appendChild(content);
   overlay.style.display = 'flex';
-
-  // Focus management
-  const okBtn = dialogContent.querySelector('.alert-dialog-ok-btn');
-  const closeBtn = dialogContent.querySelector('.alert-dialog-close');
-
-  // Focus the OK button initially
-  okBtn.focus();
-
-  // Event handlers
-  function hideDialog() {
+  content.setAttribute('role', 'alertdialog');
+  content.setAttribute('aria-modal', 'true');
+  const originalButton = content.querySelector('.alert-dialog-ok-btn');
+  const footer = originalButton.parentElement;
+  const closeButton = content.querySelector('.alert-dialog-close');
+  originalButton.remove();
+  let input;
+  if (item.input) {
+    input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = item.placeholder || '';
+    input.setAttribute('aria-label', item.placeholder || 'Response');
+    content.insertBefore(input, footer);
+  }
+  let closed = false;
+  const close = (response = { cancelled: true }) => {
+    if (closed) return;
+    closed = true;
+    overlay.removeEventListener('click', outside);
+    document.removeEventListener('keydown', keydown, true);
     overlay.style.display = 'none';
     overlay.innerHTML = '';
-    showNextAlert(); // Show next alert in queue
-  }
-
-  // Close button
-  closeBtn.addEventListener('click', hideDialog);
-  closeBtn.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') hideDialog();
+    item.resolve?.(response);
+    previousFocus?.focus?.();
+    showNextAlert();
+  };
+  const buttons = (item.buttons || [{ id: 'OK', label: 'OK' }]).map((definition) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'alert-dialog-ok-btn';
+    button.textContent = definition.label;
+    button.addEventListener('click', () =>
+      close({ value: definition.id, input: input?.value || '' })
+    );
+    footer.appendChild(button);
+    return button;
   });
-
-  // OK button
-  okBtn.addEventListener('click', hideDialog);
-  okBtn.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') hideDialog();
-  });
-
-  // Click outside to close
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) hideDialog();
-  });
-
-  // Escape key to close
-  document.addEventListener('keydown', function escapeHandler(e) {
-    if (e.key === 'Escape') {
-      hideDialog();
-      document.removeEventListener('keydown', escapeHandler);
+  const outside = (event) => {
+    if (event.target === overlay) close();
+  };
+  const keydown = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      close();
     }
-  });
+    if (event.key === 'Tab') {
+      const targets = [closeButton, ...(input ? [input] : []), ...buttons];
+      const index = targets.indexOf(document.activeElement);
+      const next = (index + (event.shiftKey ? -1 : 1) + targets.length) % targets.length;
+      event.preventDefault();
+      targets[next].focus();
+    }
+  };
+  closeButton.addEventListener('click', () => close());
+  overlay.addEventListener('click', outside);
+  document.addEventListener('keydown', keydown, true);
+  (input || buttons[0]).focus();
 }
 
 /**
@@ -117,6 +127,11 @@ function handleAlert(params, formStateManager) {
  */
 export const uiOperationHandlers = {
   ALERT: handleAlert,
+  MESSAGEBOX: (params) =>
+    new Promise((resolve) => {
+      alertQueue.push({ ...params, resolve });
+      if (!isShowingAlert) showNextAlert();
+    }),
   // Future handlers will be added here:
   // CONFIRM: handleConfirm,
   // NOTIFY: handleNotify,

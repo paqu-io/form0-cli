@@ -240,13 +240,6 @@ export function createPreviewEventUI({
           .scopeId,
       };
       const result = await client.request(request);
-      if (
-        result.issues?.some(
-          (issue) => issue.code === 'observation_deletion_requires_confirmation'
-        ) &&
-        globalThis.confirm(result.issues.map((issue) => issue.message).join(' '))
-      )
-        return action({ ...request, allowObservationDeletion: true });
       return report(result);
     },
   };
@@ -334,16 +327,8 @@ export function createPreviewEventUI({
           targetScopeId: scope.scopeId,
         };
         const command = client.bindRequest(request);
-        const confirmed = client.bindRequest({ ...request, allowObservationDeletion: true });
         remove.onclick = async () => {
           let result = await command();
-          if (
-            result.issues?.some(
-              (issue) => issue.code === 'observation_deletion_requires_confirmation'
-            ) &&
-            globalThis.confirm(result.issues.map((issue) => issue.message).join(' '))
-          )
-            result = await confirmed();
           return report(result);
         };
       }
@@ -633,8 +618,10 @@ export function createPreviewEventUI({
         })
       );
     },
-    interaction(type, fieldKey, contextPath = []) {
+    interaction(type, fieldKey, contextPath = [], options = {}) {
       const selected = target(contextPath);
+      if (type === 'blur' && options.complete !== false && controller && selected.scopeId)
+        action({ action: 'building-plan-complete', fieldKey, ...selected });
       if (configuration.fieldInteractions.includes(type) && controller && selected.scopeId)
         return action({ action: 'dispatch', type, fieldKey, ...selected });
     },

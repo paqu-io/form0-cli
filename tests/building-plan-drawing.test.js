@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BuildingPlanCanvas } from '../src/server/static/building-plan-canvas.js';
+import { BuildingPlanCanvasController, readBuildingPlanRecord } from 'form0-core';
+import { fixture as planFixture } from './fixtures/building-plan-v2.js';
 
 const wall = (id, roomId, y = 0) => ({
   id,
@@ -19,6 +21,143 @@ function canvas() {
     zoomLevel: 1,
   });
 }
+
+for (const [roomIndex, label, deltaY] of [
+  [0, 'W3.2', 40],
+  [1, 'W3.1', -40],
+])
+  for (const type of ['move', 'resize'])
+    test(`a ${type} reaches its full endpoint across junction reconstruction (${label})`, async () => {
+      const f = planFixture();
+      let record = f.record;
+      const before = readBuildingPlanRecord({ meta: f.meta, record });
+      const controller = new BuildingPlanCanvasController({
+        meta: f.meta,
+        readRecord: () => record,
+        writeRecord: (next) => {
+          record = next;
+        },
+        editingPolicy: { snapping: false },
+      });
+      const c = Object.assign(Object.create(BuildingPlanCanvas.prototype), {
+        controller,
+        mode: 'select',
+        gridSize: 20,
+        zoomLevel: 1,
+        getCanvasPoint: (event) => event,
+        render() {},
+        updateCursor() {},
+        updateButtonStates() {},
+      });
+      const unsubscribe = controller.subscribe((scene) => {
+        c.walls = scene.walls;
+        c.rooms = scene.rooms;
+      });
+      try {
+        const selected = c.walls.find(
+          (wall) =>
+            wall.roomId === before.floors[0].rooms[roomIndex].id && wall.displayLabel === label
+        );
+        assert.ok(selected);
+        const original = structuredClone(selected.points);
+        const pointerStart =
+          type === 'resize'
+            ? original.at(-1)
+            : {
+                x: (original[0].x + original[1].x) / 2,
+                y: original[0].y,
+              };
+        c.wallDragState = {
+          type,
+          wallId: selected.id,
+          physicalWallId: selected.physicalWallId,
+          handleIndex: original.length - 1,
+          originalPoints: original,
+          pointerStart,
+          moved: false,
+        };
+        c.lastPointerEvent = { altKey: true };
+        controller.interaction.begin();
+        let rebuilt = false;
+        for (let step = 1; step <= 40; step++) {
+          c.handleMouseMove({ x: pointerStart.x, y: pointerStart.y + (deltaY * step) / 40 });
+          if (!c.wallDragState.previewPoints) continue;
+          const result = controller.previewWall(selected.id, c.wallDragState.previewPoints);
+          assert.equal(result.status, 'ready', JSON.stringify(result.issues));
+          rebuilt ||=
+            c.rooms[roomIndex].vertices.length > before.floors[0].rooms[roomIndex].vertices.length;
+        }
+        assert.ok(rebuilt, 'This case must rebuild the junction while dragging');
+        assert.equal(c.wallDragState.previewPoints[0].y, original[0].y + deltaY);
+        assert.deepEqual(
+          readBuildingPlanRecord({ meta: f.meta, record }),
+          before,
+          'Preview must not accept geometry'
+        );
+        assert.ok(
+          [...controller.walls.values()].every((wall) => !Object.hasOwn(wall, 'previewPoints'))
+        );
+        await c.handleMouseUp({ x: pointerStart.x, y: pointerStart.y + deltaY });
+        const after = readBuildingPlanRecord({ meta: f.meta, record });
+        const ys = after.floors[0].rooms[roomIndex].vertices.map((point) => point.y);
+        assert.equal(deltaY > 0 ? Math.max(...ys) : Math.min(...ys), (original[0].y + deltaY) / 20);
+        assert.equal(c.wallDragState, null);
+        for (const point of before.floors[0].rooms[1 - roomIndex].vertices)
+          assert.deepEqual(
+            after.floors[0].rooms[1 - roomIndex].vertices.find((other) => other.id === point.id),
+            point
+          );
+      } finally {
+        unsubscribe();
+        controller.dispose();
+      }
+    });
+
+test('wall previews stay in the view and pointer release ends the gesture before a managed decision', async () => {
+  const c = canvas();
+  c.mode = 'select';
+  c.gridSize = 20;
+  c.rooms = [{ id: 'room-a', rect: { x: 0, y: 0, width: 200, height: 100 } }];
+  const accepted = structuredClone(c.walls[0]);
+  c.controller.walls = new Map([['a', accepted]]);
+  c.controller.canEdit = () => true;
+  c.controller.interaction = { snapWallTranslation: (points) => points };
+  c.wallDragState = {
+    type: 'move',
+    wallId: 'a',
+    pointerStart: { x: 0, y: 0 },
+    originalPoints: structuredClone(accepted.points),
+    moved: false,
+  };
+  c.getCanvasPoint = (point) => point;
+  c.render = c.updateButtonStates = c.updateCursor = () => {};
+  c.handleMouseMove({ x: 40, y: 0 });
+  assert.equal(
+    accepted.previewPoints,
+    undefined,
+    'The controller scene is immutable to UI gestures'
+  );
+  c.walls = [{ ...structuredClone(accepted), id: 'replacement-facing-row' }];
+  c.handleMouseMove({ x: 60, y: 0 });
+  assert.equal(
+    c.wallDragState.previewPoints[0].x,
+    60,
+    'A missing preview row must not truncate the gesture'
+  );
+  assert.equal(accepted.previewPoints, undefined);
+  let finish;
+  c.controller.updateWall = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  const completed = c.handleMouseUp({ x: 60, y: 0 });
+  assert.equal(c.wallDragState, null, 'A pending question must not keep a released gesture alive');
+  c.walls = [structuredClone(accepted)]; // A managed reply replaces the projected objects.
+  finish(null);
+  await completed;
+  assert.equal(c.walls[0].previewPoints, undefined);
+  assert.deepEqual(accepted.points, wall('a', 'room-a').points);
+});
 test('coincident wall portions and handles prefer the room being edited', () => {
   const c = canvas();
   assert.equal(c.findWallNearPoint({ x: 50, y: 0 }).wall.id, 'b');

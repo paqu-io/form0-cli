@@ -93,13 +93,18 @@ export class OperationProcessor {
   }
 
   /** Managed values are already applied by the scoped server engine. Present each UI op once. */
-  async processPresentations(operations = []) {
+  async processPresentations(operations = [], respond) {
     await this.ready;
     for (const operation of operations) {
       const handler = this.handlers.get(operation.type)?.get(operation.operation);
       if (!handler || operation.type !== 'UI_OPERATION')
         throw new Error('Unsupported preview presentation: ' + operation.operation);
-      await handler(operation.params, this.formStateManager);
+      const response = await handler(operation.params, this.formStateManager);
+      if (operation.operation === 'MESSAGEBOX') {
+        if (typeof respond !== 'function')
+          throw new Error('MESSAGEBOX requires a response transport.');
+        await respond(operation, response);
+      }
     }
   }
 

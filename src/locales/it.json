@@ -3,6 +3,7 @@
     "buildingPlanEditing": "Modifica della pianta",
     "buildingPlanSnapping": "Allineamento magnetico",
     "buildingPlanEdgePan": "Spostare la vista vicino ai bordi durante il trascinamento",
+    "buildingPlanAutoCopy": "Copia automaticamente le risposte personalizzate",
     "buildingPlanGrouping": "Mantenere il raggruppamento dei muri fisici per i nuovi rientri",
     "buildingPlanThicknessAnchor": "Quando cambia lo spessore del muro",
     "buildingPlanAnchorFace": "Mantieni fissa la faccia della stanza attiva (predefinito)",
@@ -95,7 +96,10 @@
     "previewEvents.connectorSucceeded": "Salvato correttamente",
     "previewEvents.connectorFailed": "Invio non riuscito",
     "previewEvents.companionPersisted": "Record e stato di aggiornamento salvati insieme.",
-    "previewEvents.canvasBusy": "Aggiornamento del piano…"
+    "previewEvents.canvasBusy": "Aggiornamento del piano…",
+    "buildingPlanInheritedPolicy": "Quando la topologia modifica i valori fisici ereditati",
+    "buildingPlanInheritedAsk": "Mostra anteprima e chiedi (predefinito)",
+    "buildingPlanInheritedApply": "Applica automaticamente i nuovi valori predefiniti"
   },
   "commands": {
     "init": {

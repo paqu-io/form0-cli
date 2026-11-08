@@ -196,13 +196,66 @@ export function createPreviewEditor({
     coordinator.changed();
   }
 
-  async function updateBuildingPlan(entry, row = { ...entry.row, ...state(entry) }) {
+  function queueBuildingPlanQuestions(entry, result) {
+    for (const operation of result.uiOperations || [])
+      presentations.push({
+        ...clone(operation),
+        scopeId: entry.scopeId,
+        instancePath: clone(entry.path),
+        buildingPlan: true,
+      });
+  }
+  async function acceptPreparedRow(entry, result) {
+    const parent = owner(parentPath(entry.path));
+    const key = entry.path.at(-1).repeatableKey;
+    const rows = (parent.row.repeatable[key] ||= []);
+    const index =
+      entry.path.at(-1).identity === 'id'
+        ? rows.findIndex((row) => (row.id ?? row.record_id) === entry.path.at(-1).instanceId)
+        : entry.path.at(-1).index;
+    const close = await controller.dispatch({
+      type: 'unload-repeatable',
+      fieldKey: entry.fieldKey,
+      scopeId: entry.scopeId,
+      instancePath: entry.path,
+    });
+    if (close.issues.length) return { ...close, eligible: false, payload: null };
+    if (entry.buildingPlan) {
+      const accepted = entry.buildingPlan.editor.acceptRow(entry.scopeId);
+      if (accepted.issues.length) return { ...accepted, eligible: false, payload: null };
+      distributeBuildingPlan(entry.buildingPlan);
+    }
+    if (index < 0 || entry.kind === 'new') rows.push(result.payload);
+    else rows[index] = result.payload;
+    parent.handle.dataChanged();
+    await parent.engine.eval();
+    if (!parent.path.length) await refreshCommitted();
+    const membership = await controller.dispatch({
+      type: 'change',
+      fieldKey: entry.fieldKey,
+      scopeId: parent.scopeId,
+      instancePath: parent.path,
+      metadata: {
+        action: entry.kind === 'new' ? 'add' : 'edit',
+        affectedInstancePath: entry.path,
+      },
+    });
+    if (membership.issues.length) return { ...result, notificationIssues: membership.issues };
+    return result;
+  }
+
+  async function updateBuildingPlan(
+    entry,
+    row = { ...entry.row, ...state(entry) },
+    completion = {}
+  ) {
     if (!entry.buildingPlan) return null;
-    const result = entry.buildingPlan.editor.updateRow(entry.scopeId, row);
+    const result = entry.buildingPlan.editor.completeRow(entry.scopeId, row, completion);
+    queueBuildingPlanQuestions(entry, result);
     if (result.status === 'applied') {
       await entry.buildingPlan.editor.evaluate(planEvaluator, state(root).values);
       distributeBuildingPlan(entry.buildingPlan);
-    } else {
+    } else if (!['draft', 'invalid', 'pending', 'unchanged'].includes(result.status)) {
       const previous = resolveBuildingPlanRow(
         entry.buildingPlan.editor.getRecord(),
         planPath(entry)
@@ -449,7 +502,12 @@ export function createPreviewEditor({
           if (!entry.path.length) coordinator.changed();
         }
         for (const operation of operations) {
-          if (operation.operation === 'ALERT') presentations.push(clone(operation));
+          if (['ALERT', 'MESSAGEBOX'].includes(operation.operation))
+            presentations.push({
+              ...clone(operation),
+              scopeId: entry.scopeId,
+              instancePath: clone(entry.path),
+            });
           else if (operation.operation !== 'SETVALUE')
             throw new Error('Unsupported preview operation: ' + operation.operation);
         }
@@ -463,6 +521,7 @@ export function createPreviewEditor({
       },
       endScope: () => {
         if (!entry.active) return;
+        entry.engine.cancelUIRequests?.();
         entry.active = false;
         entry.release?.();
         entries.delete(entry.scopeId);
@@ -518,6 +577,7 @@ export function createPreviewEditor({
         };
       },
     };
+    entry.processOperations = adapter.process;
     entry.handle = dispatcher.register({
       scopeId: entry.scopeId,
       instancePath: entry.path,
@@ -664,6 +724,35 @@ export function createPreviewEditor({
           return response(failed('invalid_editing_policy', error.message));
         }
       }
+      if (request.action === 'ui-response') {
+        if (!entry?.active)
+          return response(failed('scope_closed', 'The question editor has ended.'));
+        if (entry.buildingPlan?.editor.isUIRequestCurrent(request.requestId)) {
+          const result = entry.buildingPlan.editor.resolveUIRequest(
+            request.requestId,
+            request.response
+          );
+          queueBuildingPlanQuestions(entry, result);
+          if (result.status === 'applied') {
+            await entry.buildingPlan.editor.evaluate(planEvaluator, state(root).values);
+            distributeBuildingPlan(entry.buildingPlan);
+            if (entry.pendingPlanAcceptance) {
+              const preparedRow = entry.pendingPlanAcceptance;
+              entry.pendingPlanAcceptance = null;
+              preparedRow.payload = resolveBuildingPlanRow(
+                entry.buildingPlan.editor.getRecord(),
+                planPath(entry)
+              );
+              return response(await acceptPreparedRow(entry, preparedRow));
+            }
+          } else if (result.status !== 'pending') entry.pendingPlanAcceptance = null;
+          return response(result);
+        }
+        const result = entry.engine.resolveUIRequest(request.requestId, request.response);
+        if (!result.issues.length)
+          await entry.processOperations(result.operations, {}, () => entry.active);
+        return response({ status: result.issues.length ? 'failed' : 'completed', ...result });
+      }
       if (request.action === 'open-row') {
         if (configuration.readonly)
           return response(failed('readonly_scope', 'The editor is read-only.'));
@@ -748,6 +837,11 @@ export function createPreviewEditor({
         }
         return response({ status: result.status, issues: result.issues });
       }
+      if (request.action === 'building-plan-complete') {
+        if (!entry.buildingPlan || configuration.readonly) return response();
+        const result = await updateBuildingPlan(entry, undefined, { fieldName: request.fieldKey });
+        return response(result);
+      }
       if (request.action === 'building-plan-operation') {
         if (
           !entry.buildingPlan ||
@@ -761,6 +855,7 @@ export function createPreviewEditor({
         const result = entry.buildingPlan.editor.apply(request.operation, {
           scopeId: entry.scopeId,
         });
+        queueBuildingPlanQuestions(entry, result);
         if (!result.issues.length) {
           await entry.buildingPlan.editor.evaluate(planEvaluator, state(root).values);
           distributeBuildingPlan(entry.buildingPlan);
@@ -929,51 +1024,16 @@ export function createPreviewEditor({
         });
         if (request.action === 'accept-row' && result.eligible && entry.path.length) {
           if (entry.buildingPlan) {
-            const planned = await updateBuildingPlan(entry, result.payload);
-            if (planned.issues.length)
+            const planned = await updateBuildingPlan(entry, result.payload, { finishAll: true });
+            if (planned.status === 'pending') entry.pendingPlanAcceptance = result;
+            if (planned.issues.length || !['applied', 'unchanged'].includes(planned.status))
               return response({ ...planned, eligible: false, payload: null });
             result.payload = resolveBuildingPlanRow(
               entry.buildingPlan.editor.getRecord(),
               planPath(entry)
             );
           }
-          const parent = owner(parentPath(entry.path));
-          const key = entry.path.at(-1).repeatableKey;
-          const rows = (parent.row.repeatable[key] ||= []);
-          const index =
-            entry.path.at(-1).identity === 'id'
-              ? rows.findIndex((row) => (row.id ?? row.record_id) === entry.path.at(-1).instanceId)
-              : entry.path.at(-1).index;
-          const close = await controller.dispatch({
-            type: 'unload-repeatable',
-            fieldKey: entry.fieldKey,
-            scopeId: entry.scopeId,
-            instancePath: entry.path,
-          });
-          if (close.issues.length) return response({ ...close, eligible: false, payload: null });
-          if (entry.buildingPlan) {
-            const accepted = entry.buildingPlan.editor.acceptRow(entry.scopeId);
-            if (accepted.issues.length)
-              return response({ ...accepted, eligible: false, payload: null });
-            distributeBuildingPlan(entry.buildingPlan);
-          }
-          if (index < 0 || entry.kind === 'new') rows.push(result.payload);
-          else rows[index] = result.payload;
-          parent.handle.dataChanged();
-          await parent.engine.eval();
-          if (!parent.path.length) await refreshCommitted();
-          const membership = await controller.dispatch({
-            type: 'change',
-            fieldKey: entry.fieldKey,
-            scopeId: parent.scopeId,
-            instancePath: parent.path,
-            metadata: {
-              action: entry.kind === 'new' ? 'add' : 'edit',
-              affectedInstancePath: entry.path,
-            },
-          });
-          if (membership.issues.length)
-            return response({ ...result, notificationIssues: membership.issues });
+          return response(await acceptPreparedRow(entry, result));
         }
         if (!entry.path.length)
           prepared = result.eligible ? { result, signature: coordinator.signature() } : null;
@@ -1046,7 +1106,6 @@ export function createPreviewEditor({
             record: { values: {}, repeatable: { [part.repeatableKey]: rows } },
           });
           const proposed = guard.removeRow([part], {
-            allowObservationDeletion: request.allowObservationDeletion === true,
             preview: true,
           });
           if (proposed.issues.length) return response(proposed);
@@ -1073,10 +1132,10 @@ export function createPreviewEditor({
             targetPath.slice(entry.buildingPlan.floorPath.length - 1),
             {
               scopeId: entry.scopeId,
-              allowObservationDeletion: request.allowObservationDeletion === true,
             }
           );
-          if (removed.issues.length) return response(removed);
+          queueBuildingPlanQuestions(entry, removed);
+          if (removed.issues.length || removed.status === 'pending') return response(removed);
           await entry.buildingPlan.editor.evaluate(planEvaluator, state(root).values);
           distributeBuildingPlan(entry.buildingPlan);
         } else rows.splice(index, 1);

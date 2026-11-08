@@ -71,6 +71,30 @@ export function createPreviewEventClient({
     if (!response.ok) throw new Error(data.error || 'Preview request failed.');
     return data;
   }
+  async function presentOperations(operations) {
+    const session = current;
+    const epoch = generation;
+    let latest;
+    await present(operations, async (operation, response) => {
+      if (!session || current !== session || generation !== epoch) return;
+      const result = await send('/api/preview-events', {
+        action: 'ui-response',
+        sessionId: session.sessionId,
+        sequence: ++session.sequence,
+        scopeId: operation.scopeId,
+        instancePath: operation.instancePath,
+        requestId: operation.params.requestId,
+        response,
+        buildingPlanEditingPolicy: getBuildingPlanEditingPolicy(),
+      });
+      if (current !== session || generation !== epoch) return;
+      session.scopes = result.scopes || session.scopes;
+      if (result.state) session.state = clone(result.state);
+      await accept(clone(result), { action: 'ui-response' });
+      latest = (await presentOperations(result.presentations || [])) || result;
+    });
+    return latest;
+  }
   function enqueue(epoch, request) {
     let captured;
     try {
@@ -154,10 +178,10 @@ export function createPreviewEventClient({
         await accept(clone(result), captured);
         if (epoch !== generation || current !== session)
           return failure('stale_generation', 'Preview state target has ended.');
-        await present(result.presentations || []);
+        const reply = await presentOperations(result.presentations || []);
         if (epoch !== generation || current !== session)
           return failure('stale_generation', 'Preview presentation has ended.');
-        return clone(result);
+        return clone(result.status === 'pending' && reply ? reply : result);
       } catch (error) {
         return failure('preview_request_failed', error.message);
       }
@@ -255,7 +279,7 @@ export function createPreviewEventClient({
       await accept(clone(result));
       if (epoch !== generation)
         return failure('stale_generation', 'Obsolete preview initialization.');
-      await present(result.presentations || []);
+      await presentOperations(result.presentations || []);
       if (epoch !== generation)
         return failure('stale_generation', 'Obsolete preview initialization.');
       return { result, controller: controller(epoch) };
