@@ -1,4 +1,7 @@
-import { createBuildingPlanPresentation } from 'form0-core/building-plan';
+import {
+  BUILDING_PLAN_ZOOM_LIMITS,
+  createBuildingPlanPresentation,
+} from 'form0-core/building-plan';
 const MODE_SELECT = 'select';
 const MODE_DRAW_ROOM = 'draw-room';
 const MODE_DRAW_WALL = 'draw-wall';
@@ -295,7 +298,7 @@ export class BuildingPlanCanvas {
   }
 
   setZoom(level, focal = { x: this.canvas.width / 2, y: this.canvas.height / 2 }) {
-    const next = clamp(level, 0.25, 4);
+    const next = clamp(level, BUILDING_PLAN_ZOOM_LIMITS.min, BUILDING_PLAN_ZOOM_LIMITS.max);
     const point = {
       x: (focal.x - this.panOffset.x) / this.zoomLevel,
       y: (focal.y - this.panOffset.y) / this.zoomLevel,
