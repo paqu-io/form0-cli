@@ -23,7 +23,9 @@ export function createSharedBuildingPlanController(
     confirmOpeningRemoval: (issue) =>
       globalThis.confirm?.(`${issue.message}\n\nKeep this position and remove the opening(s)?`) ===
       true,
-    readRecord: () => owner({ values: {}, repeatable: renderer.activeRepeatableState || {} }),
+    readRecord: () =>
+      renderer.getBuildingPlanRecord?.(contextPath) ||
+      owner({ values: {}, repeatable: renderer.activeRepeatableState || {} }),
     writeRecord: (record, command) => controller.transaction?.(record, command) ?? false,
     focusRow: (path) => {
       controller.preferredRoomId =

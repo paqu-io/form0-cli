@@ -5,6 +5,44 @@ import { readFileSync } from 'node:fs';
 import { createPreviewSessionManager } from '../src/server/preview-events/editor.js';
 import { fixture, part } from './fixtures/building-plan-v2.js';
 
+test('closed Floor presentation shows Ground floor requirements and preserves Roof/Land survey exceptions', async () => {
+  const f = fixture();
+  const fields = f.nodes.floors.fieldsByOriginalDataName;
+  for (const kind of ['ground_floor', 'roof', 'land_survey']) {
+    const record = structuredClone(f.record);
+    record.repeatable[f.nodes.floors.preferredKey][0].values[fields.floor_name.dataName] = {
+      choice: [{ value: kind, label: kind }],
+      other: [],
+    };
+    const manager = createPreviewSessionManager({
+      getSchema: () => f.schema,
+      serializeRecord: (_schema, state) => state,
+    });
+    try {
+      const started = await manager.create({
+        state: record,
+        configuration: { lifecycle: false, recordKind: 'existing', readonly: true },
+      });
+      const row = started.state.repeatable[f.nodes.floors.preferredKey][0];
+      for (const name of [
+        'floor_height',
+        'floor_interior_wall_thickness',
+        'floor_exterior_wall_thickness',
+      ])
+        assert.equal(row.required[fields[name].dataName], kind === 'ground_floor');
+      assert.equal(row.visible[fields.floor_upper_number.dataName], false);
+      assert.equal(row.visible[fields.floor_basement_number.dataName], false);
+      assert.equal(row.visible[fields.floor_interior_wall_plaster_thickness.dataName], false);
+      assert.deepEqual(
+        readBuildingPlanRecord({ meta: f.meta, record: started.state }),
+        readBuildingPlanRecord({ meta: f.meta, record })
+      );
+    } finally {
+      manager.disposeAll();
+    }
+  }
+});
+
 // Former pre-model tests are retained in fixtures/archive; v2 deliberately has no migration.
 for (const name of ['preview', 'defaults'])
   for (const mode of ['safe', 'trusted'])

@@ -1,6 +1,7 @@
 // Standalone starter: a complete building inspection and maintenance example.
 export const defaultFormTemplate = {
   form: {
+    measurement_system: 'si',
     id: 'building-inspection-maintenance',
     name: 'Building Inspection & Maintenance Plan',
     description:
@@ -620,11 +621,11 @@ export const defaultFormTemplate = {
             extra_elements: [
               {
                 type: 'TextField',
-                key: 'floor_reference',
-                data_name: 'floor_reference',
-                label: 'Floor reference',
+                key: 'floor_note',
+                data_name: 'floor_note',
+                label: 'Notes',
                 display: 'default',
-                description: 'Optional reference used on the building drawings.',
+                description: 'Optional notes about this floor.',
                 description_mode: 'subtext',
                 required: false,
                 required_conditions: null,

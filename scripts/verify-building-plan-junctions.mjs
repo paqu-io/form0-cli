@@ -206,7 +206,7 @@ try {
     await command(page, 'open-row', () => control(page, room.id, 'edit').click());
     await command(page, 'open-row', () => control(page, wall.id, 'edit').click());
     const thickness = f.nodes.walls.fieldsByOriginalDataName.wall_thickness_m.dataName;
-    await row(page, wall.id).locator(`[data-name="${thickness}"] input`).fill('0.8');
+    await row(page, wall.id).locator(`[data-name="${thickness}"] input`).fill('800');
     const saved = await command(page, 'accept-row', () => control(page, wall.id, 'save').click());
     const plan = readBuildingPlanRecord({ meta: f.meta, record: saved.state }),
       before = readBuildingPlanRecord({ meta: f.meta, record: base });

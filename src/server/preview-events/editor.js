@@ -111,6 +111,11 @@ export function createPreviewEditor({
   const planEvaluator = buildingPlans.length
     ? createRecordEvaluator({ schema, ...evaluationOptions, diagnostics: { console: false } })
     : null;
+  const presentationEvaluator = createRecordEvaluator({
+    schema,
+    ...evaluationOptions,
+    diagnostics: { console: false },
+  });
   const rootNames = [...metadata.fieldOwnership]
     .filter(([, field]) => field.parentPath.length === 0)
     .map(([name]) => name);
@@ -611,7 +616,7 @@ export function createPreviewEditor({
     }
     return load;
   }
-  function response(result = { status: 'completed', issues: [] }) {
+  async function response(result = { status: 'completed', issues: [] }) {
     const visible = state(root);
     const drafts = [...entries.values()]
       .filter((entry) => entry.path.length)
@@ -630,6 +635,41 @@ export function createPreviewEditor({
         node = rows[rowIndex];
       }
     }
+    // Closed rows have no event engine. Derive disposable presentation maps from
+    // their accepted values, without opening editors or refreshing calculations.
+    const presentRows = async (node, path = []) => {
+      for (const [key, rows] of Object.entries(node.repeatable || {})) {
+        for (const [index, row] of rows.entries()) {
+          const id = row.id ?? row.record_id ?? null;
+          // Keep malformed records inspectable; their existing edit/remove path
+          // reports ambiguous IDs. Presentation must not retire the whole session.
+          if (id != null && rows.filter((item) => (item.id ?? item.record_id) === id).length > 1)
+            continue;
+          const rowPath = [
+            ...path,
+            {
+              repeatableKey: key,
+              instanceId: id,
+              index,
+              identity: id == null ? 'position' : 'id',
+            },
+          ];
+          if (!definition(rowPath)) continue;
+          if (!drafts.some((entry) => samePath(entry.path, rowPath))) {
+            const evaluated = await presentationEvaluator.evaluateScope(visible, {
+              instancePath: rowPath,
+              interactionMode: 'readonly',
+            });
+            if (evaluated.status !== 'evaluated')
+              throw new Error(evaluated.issues?.[0]?.message || 'Row presentation failed.');
+            for (const key of ['visible', 'required', 'read_only'])
+              row[key] = clone(evaluated.state[key]);
+          }
+          await presentRows(row, rowPath);
+        }
+      }
+    };
+    await presentRows(visible);
     const closedFindings = (root.active ? committedDiagnostics : []).filter(
       (finding) =>
         !drafts.some((entry) =>
@@ -662,6 +702,14 @@ export function createPreviewEditor({
       planHistory: [
         ...new Set([...entries.values()].map((entry) => entry.buildingPlan).filter(Boolean)),
       ].map((bridge) => ({ instancePath: bridge.floorPath, ...bridge.editor.getState() })),
+      // Field engines retain uncompleted input. Canvas consumers need the accepted
+      // floor transaction, whose properties and geometry have settled together.
+      planRecords: [
+        ...new Set([...entries.values()].map((entry) => entry.buildingPlan).filter(Boolean)),
+      ].map((bridge) => ({
+        instancePath: clone(bridge.floorPath),
+        row: resolveBuildingPlanRow(bridge.editor.getRecord(), bridge.floorPath.slice(-1)),
+      })),
       presentations: presentations.splice(0),
       retiredScopes: retired.splice(0),
     };

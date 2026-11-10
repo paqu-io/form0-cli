@@ -77,6 +77,24 @@ function feedbackManager() {
   return manager;
 }
 
+test('required labels follow evaluated conditions and retain translated measurement labels', () => {
+  const manager = feedbackManager();
+  const label = { textContent: 'Hauteur libre structurelle [m]' };
+  const field = {
+    type: 'NumericField',
+    data_name: 'height',
+    label: label.textContent,
+    required: false,
+  };
+  const container = { querySelector: () => label };
+  manager.updateFieldValidation(field, container, 3, true);
+  assert.equal(label.textContent, 'Hauteur libre structurelle [m] *');
+  manager.updateFieldValidation(field, container, 3, true);
+  assert.equal(label.textContent, 'Hauteur libre structurelle [m] *');
+  manager.updateFieldValidation(field, container, 3, false);
+  assert.equal(label.textContent, 'Hauteur libre structurelle [m]');
+});
+
 test('signature presence feedback is immediate, instance-local and follows current required policy', () => {
   const manager = feedbackManager();
   const field = { type: 'SignatureField', data_name: 'signature' };

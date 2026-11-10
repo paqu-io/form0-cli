@@ -659,7 +659,9 @@ export function createPreviewEventUI({
       if (result.retiredScopes?.length) diagnostics?.retireScopes?.(result.retiredScopes);
       if (result.state) {
         currentState = result.state;
-        renderer.applyManagedRepeatableState(result.state.repeatable || {});
+        renderer.applyManagedRepeatableState(result.state.repeatable || {}, {
+          planRecords: result.planRecords,
+        });
         stateManager.applyFormState(result.state, { conditionsOnly: true });
         // Synchronize each actual field instance once, before validating its displayed value.
         // An unchanged value must not erase transient UI such as selecting Other before typing.

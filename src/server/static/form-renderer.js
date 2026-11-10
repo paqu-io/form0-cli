@@ -5,6 +5,7 @@ import { BuildingPlanController } from './building-plan-controller.js';
 import { createSharedBuildingPlanController } from './building-plan-shared-controller.js';
 import { BuildingPlanCanvas } from './building-plan-canvas.js';
 import {
+  createBuildingPlanPresentation,
   getBuildingPlanFieldState,
   isBuildingPlanInternalCollection,
   readBuildingPlanRecord,
@@ -56,11 +57,14 @@ function createMediaIds(existing = {}) {
 
 export class FormRenderer {
   constructor() {
+    this.locale = 'en';
+    this.presentation = createBuildingPlanPresentation();
     this.currentSchema = null;
     this.managedPreview = null;
     this.fieldInstanceRegistry = new Map();
     this.initialRepeatableState = {};
     this.activeRepeatableState = {};
+    this.buildingPlanRecords = [];
     this.repeatableSectionRegistry = new Map();
     this.buildingPlanRegistry = new Map();
     this.formStateManager = null;
@@ -90,7 +94,8 @@ export class FormRenderer {
     this.managedPreview = hooks;
   }
 
-  applyManagedRepeatableState(repeatable) {
+  applyManagedRepeatableState(repeatable, { planRecords = [] } = {}) {
+    this.buildingPlanRecords = this.cloneRepeatableState(planRecords);
     const shape = (value) =>
       Object.fromEntries(
         Object.entries(value || {}).map(([key, rows]) => [
@@ -133,6 +138,26 @@ export class FormRenderer {
 
   setStateManager(stateManager) {
     this.formStateManager = stateManager;
+  }
+
+  getBuildingPlanRecord(contextPath = []) {
+    let record = { values: {}, repeatable: this.cloneRepeatableState(this.activeRepeatableState) };
+    for (const accepted of this.buildingPlanRecords) {
+      let owner = record;
+      for (const [index, part] of accepted.instancePath.entries()) {
+        const rows = owner?.repeatable?.[part.repeatableKey];
+        const rowIndex =
+          part.identity === 'id'
+            ? rows?.findIndex((row) => (row.id ?? row.record_id) === part.instanceId)
+            : part.index;
+        if (!rows?.[rowIndex]) break;
+        if (index === accepted.instancePath.length - 1 && accepted.row)
+          rows[rowIndex] = this.cloneRepeatableState(accepted.row);
+        owner = rows[rowIndex];
+      }
+    }
+    for (const part of contextPath) record = record?.repeatable?.[part.key]?.[part.index];
+    return record;
   }
 
   syncBuildingPlanControllers(request = {}) {
@@ -417,9 +442,15 @@ export class FormRenderer {
     this.currentSchema = schema;
     this.initialRepeatableState = this.cloneRepeatableState(repeatableState);
     this.activeRepeatableState = this.cloneRepeatableState(repeatableState);
+    this.buildingPlanRecords = [];
     this.resetFieldRegistry();
     this.repeatableSectionRegistry = new Map();
     this.currentBuildingPlanMeta = Array.isArray(buildingPlanMeta) ? buildingPlanMeta : [];
+    this.presentation = createBuildingPlanPresentation({
+      metadata: this.currentBuildingPlanMeta,
+      measurementSystem: schema?.form?.measurement_system || 'si',
+      locale: this.locale,
+    });
     this.refreshBuildingPlanRepeatableMap();
   }
 
@@ -887,7 +918,7 @@ export class FormRenderer {
     const title = document.createElement('div');
     title.className = 'section-title';
     title.textContent =
-      section.label ||
+      this.presentation.field(section).label ||
       section.data_name ||
       (section.type === 'RepeatableSection' ? 'Repeatable Section' : 'Section');
     titleRow.appendChild(title);
@@ -907,7 +938,7 @@ export class FormRenderer {
         actionsContainer.appendChild(infoIcon);
 
         const dialog = createDescriptionDialog(
-          section.label || section.data_name || 'Section',
+          this.presentation.field(section).label || section.data_name || 'Section',
           section.description
         );
         document.body.appendChild(dialog);
@@ -973,7 +1004,7 @@ export class FormRenderer {
     const addButton = document.createElement('button');
     addButton.type = 'button';
     addButton.className = 'repeatable-add-button';
-    const sectionLabel = section.label || section.data_name || 'item';
+    const sectionLabel = this.presentation.field(section).label || section.data_name || 'item';
     addButton.textContent = `Add ${sectionLabel}`;
     if (this.managedPreview)
       addButton.onclick = () => this.managedPreview.add(section, contextPath);
@@ -1018,7 +1049,7 @@ export class FormRenderer {
     instanceDiv.setAttribute('data-created-at-client', createdAtClient);
     instanceDiv.setAttribute('data-updated-at-client', updatedAtClient);
 
-    const instanceLabel = `${section.label || section.data_name} #${index + 1}`;
+    const instanceLabel = `${this.presentation.field(section).label || section.data_name} #${index + 1}`;
     const headerRow = document.createElement('div');
     headerRow.className = 'repeatable-instance-header';
 
@@ -1420,7 +1451,8 @@ export class FormRenderer {
     titleRow.className = 'section-title-row';
     const title = document.createElement('div');
     title.className = 'section-title';
-    title.textContent = section.label || section.data_name || 'Building Plan';
+    title.textContent =
+      this.presentation.field(section).label || section.data_name || 'Building Plan';
     titleRow.appendChild(title);
 
     if (section.description && typeof section.description === 'string') {
@@ -1434,7 +1466,7 @@ export class FormRenderer {
         titleRow.appendChild(infoIcon);
 
         const dialog = createDescriptionDialog(
-          section.label || section.data_name || 'Building Plan',
+          this.presentation.field(section).label || section.data_name || 'Building Plan',
           section.description
         );
         document.body.appendChild(dialog);
@@ -1525,6 +1557,7 @@ export class FormRenderer {
               metaEntry
             );
       canvas = new BuildingPlanCanvas({
+        presentation: this.presentation,
         container: canvasContainer,
         controller: this.managedPreview?.canvasController?.(controller) || controller,
         labelSettings: this.labelVisibilitySettings,
@@ -1605,7 +1638,7 @@ export class FormRenderer {
     const title = document.createElement('div');
     title.className = 'section-title';
     title.textContent =
-      section.label ||
+      this.presentation.field(section).label ||
       section.data_name ||
       (section.type === 'RepeatableSection' ? 'Repeatable Section' : 'Section');
     titleRow.appendChild(title);
@@ -1624,7 +1657,7 @@ export class FormRenderer {
 
         // Create dialog/modal (hidden by default)
         const dialog = createDescriptionDialog(
-          section.label || section.data_name || 'Section',
+          this.presentation.field(section).label || section.data_name || 'Section',
           section.description
         );
         document.body.appendChild(dialog);
@@ -1683,6 +1716,8 @@ export class FormRenderer {
    * Render a field element
    */
   renderField(field, container, contextPath = []) {
+    const canonicalField = field;
+    field = this.presentation.field(field);
     const fieldDiv = document.createElement('div');
     fieldDiv.className = 'field';
     fieldDiv.setAttribute('data-key', field.key);
@@ -1697,7 +1732,7 @@ export class FormRenderer {
     );
     if (planMeta && contextPath.length) {
       try {
-        const record = { values: {}, repeatable: this.activeRepeatableState };
+        const record = this.getBuildingPlanRecord();
         if (this.planPresentationState !== this.activeRepeatableState) {
           this.planPresentationState = this.activeRepeatableState;
           this.planPresentationCache = new Map();
@@ -1943,7 +1978,7 @@ export class FormRenderer {
     container.appendChild(fieldDiv);
 
     if (field.type !== 'LabelField') {
-      this.registerFieldInstance(field, contextPath, fieldDiv);
+      this.registerFieldInstance(canonicalField, contextPath, fieldDiv);
     }
   }
 
@@ -2006,8 +2041,8 @@ export class FormRenderer {
         input.type = 'number';
         input.id = idBase;
         input.autocomplete = 'off';
-        if (field.min !== undefined) input.min = field.min;
-        if (field.max !== undefined) input.max = field.max;
+        if (field.min !== undefined) input.min = this.presentation.toDisplay(field, field.min);
+        if (field.max !== undefined) input.max = this.presentation.toDisplay(field, field.max);
         if (field.format === 'integer') input.step = '1';
         input.dataset.fieldValue = 'true';
         break;

@@ -32,8 +32,10 @@ export function fixture(nodeOverrides = null) {
     type: 'create_floor',
     values: {
       floor_name: { choice: [{ value: 'ground_floor', label: 'Ground floor' }], other: [] },
-      floor_elevation_m: 0,
-      floor_height_m: 3,
+      floor_elevation: 0,
+      floor_height: 3,
+      floor_interior_wall_thickness: 0.2,
+      floor_exterior_wall_thickness: 0.2,
       ...(nodeOverrides ? { default_wall_height: 3 } : {}),
     },
   }).created.id;

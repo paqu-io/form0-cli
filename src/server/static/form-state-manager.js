@@ -6,6 +6,7 @@ import { normalizeChoiceOperationValue } from './choice-operation-values.js';
 export class FormStateManager {
   constructor(formRenderer, { diagnostics = null } = {}) {
     this.formRenderer = formRenderer;
+    this.numericDisplayValues = new WeakMap();
     this.diagnostics = diagnostics;
     this.managedUpdate = null;
     this.customValidation = [];
@@ -516,14 +517,22 @@ export class FormStateManager {
 
     switch (field.type) {
       case 'NumericField':
-        return rawValue === '' ? null : Number(rawValue);
+        return (
+          this.formRenderer.presentation?.fromDisplay(
+            field,
+            rawValue === '' ? null : Number(rawValue)
+          ) ?? (rawValue === '' ? null : Number(rawValue))
+        );
       case 'SingleChoiceField':
       case 'MultiChoiceField':
       case 'BooleanField':
       case 'PhotoField':
       case 'VideoField':
       case 'SignatureField':
-        return parseJSON(rawValue);
+        return (
+          this.formRenderer.presentation?.fromDisplay(field, parseJSON(rawValue)) ??
+          parseJSON(rawValue)
+        );
       case 'DateField':
       case 'TimeField':
         return textToNull(rawValue);
@@ -556,6 +565,8 @@ export class FormStateManager {
     }
 
     const rawValue = element.value ?? '';
+    const shown = this.numericDisplayValues.get(container);
+    if (field.type === 'NumericField' && shown?.text === rawValue) return shown.value;
     return this.parseFieldValue(field, rawValue);
   }
 
@@ -955,6 +966,15 @@ export class FormStateManager {
   updateFieldValue(field, container, value, force = false) {
     if (value === undefined) return;
 
+    if (field.type === 'NumericField') {
+      const canonical = value;
+      value = this.formRenderer.presentation?.toDisplay(field, value) ?? value;
+      if (container && typeof container === 'object')
+        this.numericDisplayValues.set(container, {
+          value: canonical,
+          text: value == null ? '' : String(value),
+        });
+    }
     switch (field.type) {
       case 'SingleChoiceField':
         this.setSingleChoiceValue(field, container, value);
@@ -1043,8 +1063,15 @@ export class FormStateManager {
     return value !== '';
   }
 
+  updateFieldRequired(field, container, isRequired) {
+    if (isRequired === undefined) return;
+    const label = container?.querySelector?.(':scope > .field-label-row > label');
+    if (label) label.textContent = `${field.label || field.data_name}${isRequired ? ' *' : ''}`;
+  }
+
   updateFieldValidation(field, container, value, isRequired, errorMessage) {
     if (!container) return;
+    this.updateFieldRequired(field, container, isRequired);
     // Retain only this control's latest server policy for immediate presence feedback.
     container._form0Validation = { isRequired, errorMessage };
     this.clearFieldInstanceError(container);
@@ -1513,6 +1540,7 @@ export class FormStateManager {
   handleRequiredFieldValidation(fieldName, isRequired) {
     const fieldDiv = document.querySelector(`[data-name="${fieldName}"]`);
     const field = this.formRenderer.findFieldByDataName(fieldName);
+    if (fieldDiv && field) this.updateFieldRequired(field, fieldDiv, isRequired);
 
     if (fieldDiv && field && isRequired) {
       let hasValue = false;
@@ -2052,6 +2080,9 @@ export class FormStateManager {
       return;
     }
 
+    const field = this.formRenderer.findFieldByDataName(fieldDataName);
+    if (field?.type === 'NumericField')
+      valueToSet = this.formRenderer.presentation?.toDisplay(field, valueToSet) ?? valueToSet;
     // Convert the value to string for display
     const displayValue = valueToSet === null || valueToSet === undefined ? '' : String(valueToSet);
     input.value = displayValue;

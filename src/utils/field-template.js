@@ -106,6 +106,7 @@ export function createFieldTemplate(type, options = {}) {
       ...(scope ? { building_plan: { scope, on_split: 'copy' } } : {}),
     });
     template.node_overrides = {
+      floors: { extra_elements: [starter('floor_note', 'Notes')] },
       walls: {
         extra_elements: [
           starter('construction_material', 'Construction material', 'physical_wall'),

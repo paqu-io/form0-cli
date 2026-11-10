@@ -17,6 +17,91 @@ import { createPreviewEventUI } from '../src/server/static/preview-event-ui.js';
 
 const rootValues = { input: 4, trace: '' };
 
+test('closed repeatable rows evaluate presentation without changing accepted values or firing events', async () => {
+  const condition = { field_id: 'show', operator: 'equal_to', value: 1 };
+  const schema = {
+    form: {
+      name: 'Closed row conditions',
+      elements: [
+        field('NumericField', 'show'),
+        repeatable('rows', [
+          field('NumericField', 'detail', {
+            visible: false,
+            visible_conditions: condition,
+            required_conditions: condition,
+          }),
+          field('CalculatedField', 'accepted_total', { calculate: '999' }),
+          repeatable('children', [
+            field('NumericField', 'nested_detail', {
+              visible: false,
+              visible_conditions: condition,
+            }),
+          ]),
+        ]),
+      ],
+      events: { code: "ON('load-repeatable', 'rows', function(){ SETVALUE('detail', 999); });" },
+    },
+  };
+  await withPreview(
+    schema,
+    async ({ started, command }) => {
+      const original = started.state.repeatable.rows[0];
+      assert.equal(original.visible.detail, false);
+      assert.equal(original.required.detail, false);
+      assert.equal(original.repeatable.children[0].visible.nested_detail, false);
+      assert.equal(original.values.detail, 42);
+      assert.equal(original.values.accepted_total, 7);
+      const updated = await command({ action: 'update', fieldKey: 'show', values: { show: 1 } });
+      const row = updated.state.repeatable.rows[0];
+      assert.equal(row.visible.detail, true);
+      assert.equal(row.required.detail, true);
+      assert.equal(row.repeatable.children[0].visible.nested_detail, true);
+      assert.deepEqual(row.values, original.values);
+      await command({ action: 'update', fieldKey: 'show', values: { show: 0 } });
+      const inspected = await command({ action: 'inspect' });
+      assert.equal(inspected.state.repeatable.rows[0].visible.detail, false);
+      assert.equal(inspected.state.repeatable.rows[0].values.detail, 42);
+    },
+    { lifecycle: true, recordKind: 'existing' },
+    {
+      values: { show: 0 },
+      repeatable: {
+        rows: [
+          {
+            id: 'closed',
+            values: { detail: 42, accepted_total: 7 },
+            repeatable: {
+              children: [{ id: 'nested', values: { nested_detail: 12 }, repeatable: {} }],
+            },
+          },
+        ],
+      },
+    }
+  );
+  schema.form.elements[1].elements[0].visible_preserve_value = false;
+  await withPreview(
+    schema,
+    async ({ started, command }) => {
+      assert.equal(started.state.repeatable.rows[0].visible.detail, false);
+      assert.equal(started.state.repeatable.rows[0].values.detail, 42);
+      assert.equal(started.state.repeatable.rows[0].values.accepted_total, 7);
+      const inspected = await command({ action: 'inspect' });
+      assert.equal(inspected.state.repeatable.rows[0].values.detail, 42);
+      assert.deepEqual(
+        inspected.state.repeatable.rows[0].values,
+        started.state.repeatable.rows[0].values
+      );
+    },
+    { lifecycle: true, recordKind: 'existing', readonly: true },
+    {
+      values: { show: 0 },
+      repeatable: {
+        rows: [{ id: 'closed', values: { detail: 42, accepted_total: 7 }, repeatable: {} }],
+      },
+    }
+  );
+});
+
 test('preview rejects user updates to a read-only signature, including batch requests', async () => {
   await withPreview(
     {

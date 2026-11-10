@@ -792,6 +792,7 @@ async function initialize() {
   loadLabelVisibilityPreference();
   // Load translations first
   await loadTranslations();
+  formRenderer.locale = currentLocale;
 
   // Then load schema
   await loadInitialSchema();

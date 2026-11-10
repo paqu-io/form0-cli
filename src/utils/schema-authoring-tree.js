@@ -41,9 +41,13 @@ export function createSchemaAuthoringTree(elements) {
             !['storage', 'geometry', 'derived'].includes(item.binding.role) &&
             !['storage', 'geometry', 'derived'].includes(item.binding.storageRole)
         )) {
-          const control = { ...item.field, label: `${item.field.label} [system routing]` };
+          const receiver = item.originalKey?.startsWith('bp_custom_');
+          const control = {
+            ...item.field,
+            label: `${item.field.label} [${receiver ? 'protected receiver' : 'system routing'}]`,
+          };
           bindings.set(control, {
-            kind: 'system',
+            kind: receiver ? 'protected' : 'system',
             nodeKey,
             property: item.originalDataName,
             config,

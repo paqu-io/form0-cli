@@ -1,3 +1,4 @@
+import { createBuildingPlanPresentation } from 'form0-core/building-plan';
 const MODE_SELECT = 'select';
 const MODE_DRAW_ROOM = 'draw-room';
 const MODE_DRAW_WALL = 'draw-wall';
@@ -216,9 +217,10 @@ function roundPoints(points, decimals = ROUND_DECIMALS) {
 }
 
 export class BuildingPlanCanvas {
-  constructor({ container, controller, labelSettings = {} }) {
+  constructor({ container, controller, labelSettings = {}, presentation }) {
     this.container = container;
     this.controller = controller;
+    this.presentation = presentation || createBuildingPlanPresentation();
     this.labelSettings = { ...DEFAULT_LABEL_SETTINGS, ...labelSettings };
 
     this.mode = MODE_SELECT;
@@ -564,17 +566,22 @@ export class BuildingPlanCanvas {
     this.cutToolbar = document.createElement('div');
     this.cutToolbar.className = 'building-plan-toolbar';
     const label = document.createElement('label');
-    label.textContent = 'Split distance (m) ';
+    this.cutDistanceLabel = label;
+    label.textContent = `${this.presentation.t('Split distance')} [${this.presentation.unitFor()}] `;
     this.cutDistanceInput = document.createElement('input');
     this.cutDistanceInput.type = 'number';
     this.cutDistanceInput.step = 'any';
     this.cutDistanceInput.min = '0';
     this.cutDistanceInput.style.width = '90px';
-    this.cutDistanceInput.setAttribute('aria-label', 'Split distance (m)');
+    this.cutDistanceInput.setAttribute(
+      'aria-label',
+      `${this.presentation.t('Split distance')} [${this.presentation.unitFor()}]`
+    );
     this.cutDistanceInput.addEventListener('input', () => {
       const target = this.cutTarget;
       if (!target) return;
-      const ratio = Number(this.cutDistanceInput.value) / target.length;
+      const ratio =
+        this.presentation.fromDisplayLength(Number(this.cutDistanceInput.value)) / target.length;
       this.cutDraft = {
         ...target,
         point: {
@@ -593,7 +600,7 @@ export class BuildingPlanCanvas {
     this.cutDistanceButton.addEventListener('click', async () => {
       if (!this.cutAllowed() || !this.cutTarget) return;
       await this.controller.splitWall(this.cutTarget.wallId, {
-        offset: Number(this.cutDistanceInput.value),
+        offset: this.presentation.fromDisplayLength(Number(this.cutDistanceInput.value)),
       });
       this.cutTarget = this.cutDraft = null;
       this.render();
@@ -612,6 +619,14 @@ export class BuildingPlanCanvas {
       !this.readOnly &&
       (!this.externalToolbar || this.controller.toolbarState?.canResize)
     );
+  }
+
+  setPresentation(presentation) {
+    this.presentation = presentation;
+    if (!this.cutDistanceLabel) return;
+    const text = `${presentation.t('Split distance')} [${presentation.unitFor()}]`;
+    this.cutDistanceLabel.firstChild.textContent = `${text} `;
+    this.cutDistanceInput.setAttribute('aria-label', text);
   }
 
   updateCutControls() {
@@ -646,7 +661,9 @@ export class BuildingPlanCanvas {
     if (this.mode === 'split' && this.cutDraft) {
       this.cutTarget = this.cutDraft;
       if (document.activeElement !== this.cutDistanceInput)
-        this.cutDistanceInput.value = String(Math.round(this.cutDraft.offset * 1000) / 1000);
+        this.cutDistanceInput.value = String(
+          this.presentation.toDisplayLength(this.cutDraft.offset)
+        );
     }
     this.render();
   }
