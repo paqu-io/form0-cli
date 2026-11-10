@@ -98,8 +98,8 @@
     "previewEvents.companionPersisted": "Enregistrement et état de mise à jour sauvegardés ensemble.",
     "previewEvents.canvasBusy": "Mise à jour de l’étage…",
     "buildingPlanInheritedPolicy": "Lorsque la topologie modifie les valeurs physiques héritées",
-    "buildingPlanInheritedAsk": "Prévisualiser et demander (par défaut)",
-    "buildingPlanInheritedApply": "Appliquer automatiquement les nouvelles valeurs par défaut"
+    "buildingPlanInheritedAsk": "Prévisualiser et demander",
+    "buildingPlanInheritedApply": "Appliquer automatiquement les nouvelles valeurs par défaut (réglage par défaut)"
   },
   "commands": {
     "init": {

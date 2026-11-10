@@ -768,8 +768,8 @@
     "previewEvents.companionPersisted": "Record and freshness saved together.",
     "previewEvents.canvasBusy": "Updating floor…",
     "buildingPlanInheritedPolicy": "When topology changes inherited physical values",
-    "buildingPlanInheritedAsk": "Preview and ask (default)",
-    "buildingPlanInheritedApply": "Apply new defaults automatically"
+    "buildingPlanInheritedAsk": "Preview and ask",
+    "buildingPlanInheritedApply": "Apply new defaults automatically (default)"
   },
   "common": {
     "failedToLoadValues": "❌ Failed to load initial values: {message}",

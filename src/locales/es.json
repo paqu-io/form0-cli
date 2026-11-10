@@ -98,8 +98,8 @@
     "previewEvents.companionPersisted": "Registro y estado de actualización guardados juntos.",
     "previewEvents.canvasBusy": "Actualizando la planta…",
     "buildingPlanInheritedPolicy": "Cuando la topología cambia valores físicos heredados",
-    "buildingPlanInheritedAsk": "Previsualizar y preguntar (predeterminado)",
-    "buildingPlanInheritedApply": "Aplicar los nuevos valores predeterminados automáticamente"
+    "buildingPlanInheritedAsk": "Previsualizar y preguntar",
+    "buildingPlanInheritedApply": "Aplicar los nuevos valores predeterminados automáticamente (opción predeterminada)"
   },
   "commands": {
     "init": {

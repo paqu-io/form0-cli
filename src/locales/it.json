@@ -98,8 +98,8 @@
     "previewEvents.companionPersisted": "Record e stato di aggiornamento salvati insieme.",
     "previewEvents.canvasBusy": "Aggiornamento del piano…",
     "buildingPlanInheritedPolicy": "Quando la topologia modifica i valori fisici ereditati",
-    "buildingPlanInheritedAsk": "Mostra anteprima e chiedi (predefinito)",
-    "buildingPlanInheritedApply": "Applica automaticamente i nuovi valori predefiniti"
+    "buildingPlanInheritedAsk": "Mostra anteprima e chiedi",
+    "buildingPlanInheritedApply": "Applica automaticamente i nuovi valori predefiniti (impostazione predefinita)"
   },
   "commands": {
     "init": {

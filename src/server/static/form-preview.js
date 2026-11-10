@@ -291,8 +291,11 @@ function ensureSettingsDialog() {
   settingsInheritedChangeSelect.id = policyLabel.htmlFor;
   settingsInheritedChangeSelect.className = 'settings-select';
   for (const [value, label] of [
-    ['ask', translations.buildingPlanInheritedAsk || 'Preview and ask (default)'],
-    ['apply', translations.buildingPlanInheritedApply || 'Apply new defaults automatically'],
+    ['ask', translations.buildingPlanInheritedAsk || 'Preview and ask'],
+    [
+      'apply',
+      translations.buildingPlanInheritedApply || 'Apply new defaults automatically (default)',
+    ],
   ]) {
     const option = document.createElement('option');
     option.value = value;
