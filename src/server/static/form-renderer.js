@@ -206,6 +206,11 @@ export class FormRenderer {
     });
   }
 
+  /** Geometry engine of new canvases: the derived core when true (redesign step 3). */
+  setBuildingPlanDerivedCommands(enabled) {
+    this.buildingPlanDerivedCommands = enabled === true;
+  }
+
   setBuildingPlanEditingPolicy(policy) {
     this.buildingPlanEditingPolicy = policy;
     for (const { controller } of this.buildingPlanRegistry.values())

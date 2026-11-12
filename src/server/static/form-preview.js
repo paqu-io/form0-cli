@@ -129,10 +129,39 @@ let managedSubmitting = false;
 const FIELD_KEY_MODE_STORAGE_KEY = 'form0-cli-field-key-mode';
 const LABEL_VISIBILITY_STORAGE_KEY = 'form0-cli-label-visibility';
 const EDITING_POLICY_STORAGE_KEY = 'form0-cli-building-plan-editing';
+const ENGINE_STORAGE_KEY = 'form0-cli-building-plan-engine';
 let currentEditingPolicy = normalizeBuildingPlanEditingPolicy();
+// Geometry engine for BuildingPlan edits: today's engine, or the derived core (until the switch).
+let currentDerivedCommands = false;
 let settingsEditingCheckboxes = {};
 let settingsThicknessAnchorSelect = null;
 let settingsInheritedChangeSelect = null;
+let settingsSharedWallSelect = null;
+let settingsEngineSelect = null;
+
+/** A labelled settings select with optional help text, appended to `group`. */
+function appendSettingsSelect(group, id, label, options, help) {
+  const labelElement = document.createElement('label');
+  labelElement.htmlFor = id;
+  labelElement.textContent = label;
+  const select = document.createElement('select');
+  select.id = id;
+  select.className = 'settings-select';
+  for (const [value, text] of options) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    select.appendChild(option);
+  }
+  group.append(labelElement, select);
+  if (help) {
+    const description = document.createElement('div');
+    description.className = 'settings-group-description';
+    description.textContent = help;
+    group.appendChild(description);
+  }
+  return select;
+}
 const DEFAULT_LABEL_VISIBILITY = {
   rooms: true,
   walls: true,
@@ -328,6 +357,33 @@ function ensureSettingsDialog() {
     translations.buildingPlanAnchorHelp ||
     'Applies to future edits. Floor-wide changes use the wall reference face when no room is active.';
   editing.append(anchorLabel, settingsThicknessAnchorSelect, anchorHelp);
+  settingsSharedWallSelect = appendSettingsSelect(
+    editing,
+    'settings-building-plan-sharedWallDrag',
+    translations.buildingPlanSharedWallDrag || 'When dragging a shared wall',
+    [
+      [
+        'widen',
+        translations.buildingPlanSharedWallWiden ||
+          'Move it towards the neighbour, widen it away from it (default)',
+      ],
+      ['move_wall', translations.buildingPlanSharedWallMove || 'Move the whole wall both ways'],
+    ],
+    translations.buildingPlanSharedWallHelp || 'Applies with the derived geometry engine.'
+  );
+  settingsSharedWallSelect.value = currentEditingPolicy.sharedWallDrag;
+  settingsEngineSelect = appendSettingsSelect(
+    editing,
+    'settings-building-plan-engine',
+    translations.buildingPlanEngine || 'Geometry engine',
+    [
+      ['current', translations.buildingPlanEngineCurrent || 'Current (default)'],
+      ['derived', translations.buildingPlanEngineDerived || 'Derived (experimental)'],
+    ],
+    translations.buildingPlanEngineHelp ||
+      'The derived engine is under test. Changing the engine restarts the preview.'
+  );
+  settingsEngineSelect.value = currentDerivedCommands ? 'derived' : 'current';
   body.appendChild(editing);
 
   const labelGroup = document.createElement('div');
@@ -436,6 +492,8 @@ function openSettingsDialog() {
     checkbox.checked = currentEditingPolicy[key];
   settingsThicknessAnchorSelect.value = currentEditingPolicy.thicknessAnchor;
   settingsInheritedChangeSelect.value = currentEditingPolicy.inheritedChangePolicy;
+  settingsSharedWallSelect.value = currentEditingPolicy.sharedWallDrag;
+  settingsEngineSelect.value = currentDerivedCommands ? 'derived' : 'current';
   pendingFieldKeyMode = currentFieldKeyMode;
   if (settingsKeyModeSelect) {
     settingsKeyModeSelect.value = pendingFieldKeyMode;
@@ -495,13 +553,19 @@ function saveSettingsDialog() {
     ),
     thicknessAnchor: settingsThicknessAnchorSelect.value,
     inheritedChangePolicy: settingsInheritedChangeSelect.value,
+    sharedWallDrag: settingsSharedWallSelect.value,
   });
+  const derivedCommands = settingsEngineSelect.value === 'derived';
+  const engineChanged = derivedCommands !== currentDerivedCommands;
+  currentDerivedCommands = derivedCommands;
   try {
     localStorage.setItem(EDITING_POLICY_STORAGE_KEY, JSON.stringify(currentEditingPolicy));
+    localStorage.setItem(ENGINE_STORAGE_KEY, derivedCommands ? 'derived' : 'current');
   } catch {
     /* Preferences may be unavailable in private browsing. */
   }
   formRenderer.setBuildingPlanEditingPolicy(currentEditingPolicy);
+  formRenderer.setBuildingPlanDerivedCommands(currentDerivedCommands);
   currentFieldKeyMode = pendingFieldKeyMode;
   persistFieldKeyModePreference(currentFieldKeyMode);
 
@@ -517,7 +581,8 @@ function saveSettingsDialog() {
   }
 
   closeSettingsDialog();
-  if (restartEvents) {
+  // Each session keeps the engine it started with: a new engine needs new sessions.
+  if (restartEvents || engineChanged) {
     formStateManager.preserveCurrentValues();
     renderForm();
   }
@@ -540,6 +605,7 @@ formRenderer.setStateManager(formStateManager);
 const operationProcessor = new OperationProcessor(formStateManager);
 const previewEventClient = createPreviewEventClient({
   getBuildingPlanEditingPolicy: () => currentEditingPolicy,
+  getBuildingPlanDerivedCommands: () => currentDerivedCommands,
   accept: (result, request) => previewEvents.accept(result, request),
   present: (operations, respond) => operationProcessor.processPresentations(operations, respond),
   getRecordOptions: () => ({
@@ -624,7 +690,13 @@ try {
 } catch {
   currentEditingPolicy = normalizeBuildingPlanEditingPolicy();
 }
+try {
+  currentDerivedCommands = localStorage.getItem(ENGINE_STORAGE_KEY) === 'derived';
+} catch {
+  currentDerivedCommands = false;
+}
 formRenderer.setBuildingPlanEditingPolicy(currentEditingPolicy);
+formRenderer.setBuildingPlanDerivedCommands(currentDerivedCommands);
 
 /**
  * Trigger a form event

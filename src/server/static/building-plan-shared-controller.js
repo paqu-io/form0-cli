@@ -20,6 +20,7 @@ export function createSharedBuildingPlanController(
     meta,
     managedTransactions: true,
     editingPolicy: renderer.buildingPlanEditingPolicy,
+    derivedCommands: renderer.buildingPlanDerivedCommands === true,
     confirmOpeningRemoval: (issue) =>
       globalThis.confirm?.(`${issue.message}\n\nKeep this position and remove the opening(s)?`) ===
       true,

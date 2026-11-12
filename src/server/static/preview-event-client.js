@@ -40,6 +40,7 @@ export function createPreviewEventClient({
   present = async () => {},
   getRecordOptions = () => undefined,
   getBuildingPlanEditingPolicy = () => undefined,
+  getBuildingPlanDerivedCommands = () => false,
 } = {}) {
   let generation = 0,
     current = null,
@@ -260,7 +261,13 @@ export function createPreviewEventClient({
   }
   return {
     async start(configuration, state, recordOptions = {}) {
-      const captured = clone({ configuration, state, recordOptions });
+      const captured = clone({
+        configuration,
+        state,
+        recordOptions,
+        // The geometry engine is chosen per session: changing it starts a new one.
+        buildingPlanDerivedCommands: getBuildingPlanDerivedCommands() === true,
+      });
       this.dispose();
       const epoch = generation;
       const result = await send('/api/preview-session', captured);

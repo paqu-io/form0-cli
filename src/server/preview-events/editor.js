@@ -97,6 +97,7 @@ export function createPreviewEditor({
   onResolveHiddenValue,
   initialFreshness = null,
   evaluationOptions = {},
+  buildingPlanDerivedCommands = false,
 }) {
   const dispatcher = createEventSession(configuration);
   const coordinator = createRecordCoordinator({
@@ -160,6 +161,7 @@ export function createPreviewEditor({
             values: {},
             repeatable: { [floorsKey]: entry.kind === 'new' ? [] : [clone(entry.row)] },
           },
+          derivedCommands: buildingPlanDerivedCommands,
         }),
       };
     }
@@ -1152,6 +1154,7 @@ export function createPreviewEditor({
           const guard = createBuildingPlanEditor({
             meta: floorMeta,
             record: { values: {}, repeatable: { [part.repeatableKey]: rows } },
+            derivedCommands: buildingPlanDerivedCommands,
           });
           const proposed = guard.removeRow([part], {
             preview: true,
@@ -1277,6 +1280,7 @@ export function createPreviewSessionManager({
         serializeRecord: (state, options) => serializeRecord(schema, state, options),
         evaluateRepeatable,
         createEngine,
+        buildingPlanDerivedCommands: request.buildingPlanDerivedCommands === true,
       });
       if (sessions.size >= maxSessions) dispose(sessions.keys().next().value);
       const session = {
