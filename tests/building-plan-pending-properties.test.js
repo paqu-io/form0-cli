@@ -109,7 +109,7 @@ for (const jog of [false, true])
       assert.ok(
         controller.semanticSnapshot.floors[0].walls
           .filter((wall) => wall.exposure === 'exterior')
-          .every((wall) => wall.properties.wall_thickness_m === 0.5)
+          .every((wall) => wall.properties.wall_thickness === 0.5)
       );
       result = await command({ action: 'cancel' });
       renderer.applyManagedRepeatableState(result.state.repeatable, {

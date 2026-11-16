@@ -169,7 +169,7 @@ for (const security of ['trusted', 'safe'])
         assert.deepEqual(result.issues, []);
         scopeId = result.scopes.find((entry) => entry.instancePath.length === path.length).scopeId;
       }
-      const height = f.nodes.walls.fieldsByOriginalDataName.wall_height_m.dataName;
+      const height = f.nodes.walls.fieldsByOriginalDataName.wall_height.dataName;
       result = await command({
         action: 'update',
         instancePath: path,
@@ -192,7 +192,7 @@ for (const security of ['trusted', 'safe'])
       const provider = createFieldTemplate('NumericField', { dataName: 'default_wall_height' });
       provider.key = 'default_wall_height';
       provider.building_plan = {
-        property: 'wall_height_m',
+        property: 'wall_height',
         scope: 'physical_wall',
         inherit_to: 'walls',
       };
@@ -258,7 +258,7 @@ for (const security of ['trusted', 'safe'])
             (scope) => scope.instancePath.length === path.length
           ).scopeId;
         }
-        const field = f.nodes.walls.fieldsByOriginalDataName.wall_thickness_m.dataName;
+        const field = f.nodes.walls.fieldsByOriginalDataName.wall_thickness.dataName;
         result = await command({
           action: 'update',
           scopeId,
@@ -281,13 +281,12 @@ for (const security of ['trusted', 'safe'])
           const plan = readBuildingPlanRecord({ meta: f.meta, record: result.state });
           const face = plan.floors[0].rooms[0].faces.find((face) => face.id === f.faceId);
           assert.equal(
-            plan.floors[0].walls.find((wall) => wall.id === face.wallId).properties
-              .wall_thickness_m,
+            plan.floors[0].walls.find((wall) => wall.id === face.wallId).properties.wall_thickness,
             0.4
           );
         } else {
           const plan = readBuildingPlanRecord({ meta: f.meta, record: result.committedState });
-          assert.ok(plan.floors[0].walls.every((wall) => wall.properties.wall_thickness_m === 0.2));
+          assert.ok(plan.floors[0].walls.every((wall) => wall.properties.wall_thickness === 0.2));
         }
       } finally {
         manager.disposeAll();

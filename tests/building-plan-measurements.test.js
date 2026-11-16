@@ -49,8 +49,8 @@ test('an untouched displayed measurement preserves its exact accepted value on b
   renderer.setSchema(expanded.schema, { buildingPlanMeta: expanded.buildingPlanMeta });
   const state = new FormStateManager(renderer);
   const field =
-    expanded.buildingPlanMeta[0].repeatablesByNodeKey.walls.fieldsByOriginalDataName
-      .wall_thickness_m.field;
+    expanded.buildingPlanMeta[0].repeatablesByNodeKey.walls.fieldsByOriginalDataName.wall_thickness
+      .field;
   const input = { value: '' },
     container = { querySelector: () => input };
   state.setStandardFieldValue = (_field, _container, value) => {
