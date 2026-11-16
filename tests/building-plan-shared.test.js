@@ -159,7 +159,8 @@ for (const security of ['trusted', 'safe'])
         scopeId: started.scopes[0].scopeId,
         intent: 'submit',
       });
-      assert.equal(result.eligible, false);
+      // Walls take their room's height (2026-11-16), so the record starts complete.
+      assert.equal(result.eligible, true, JSON.stringify(result.validationSummary));
       let path = [],
         scopeId = started.scopes[0].scopeId;
       for (const node of ['floors', 'rooms', 'walls']) {
@@ -174,13 +175,14 @@ for (const security of ['trusted', 'safe'])
         action: 'update',
         instancePath: path,
         scopeId,
-        values: { [height]: 3 },
+        values: { [height]: 2.8 },
         fieldKey: height,
       });
       assert.deepEqual(result.issues, []);
-      assert.equal(at(result.state, path).values[height], 3);
+      assert.equal(at(result.state, path).values[height], 2.8);
       result = await command({ action: 'accept-row', instancePath: path, scopeId });
       assert.equal(result.eligible, true, JSON.stringify(result.validationSummary));
+      assert.equal(at(result.state, path).values[height], 2.8);
     } finally {
       manager.disposeAll();
     }
