@@ -395,6 +395,10 @@ Do not report suspected vulnerabilities through public issues. See
 See [SUPPORT.md](https://github.com/paqu-io/form0-cli/blob/main/SUPPORT.md) for help and
 [CONTRIBUTING.md](https://github.com/paqu-io/form0-cli/blob/main/CONTRIBUTING.md) to contribute.
 
+If you find form0 ecosystem useful, a ⭐ on GitHub or a mention
+in your project would be greatly appreciated.
+It helps others discover the project!
+
 ## 📄 License
 
 [MIT](./LICENSE)
